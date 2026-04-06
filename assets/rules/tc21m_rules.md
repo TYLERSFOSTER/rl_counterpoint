@@ -50,6 +50,37 @@ The following rules come form the book [*Tonal Counterpoint for the 21st-Century
   - $\text{P8}$ over tonic at beginning or end of phrase
   - $\text{P5}$ over dominant pitches at or near beginning or end of phrase.
   - $\text{P8}$ can appear over dominant approximately midway through phrase, surrounded by $3$s and $6$s.
+- Between these loci in the phrase, imperfect cadences should be used to maintina sense of flow.
+  - Parallel $3$rds and $6$ths are ok, be more than 4 successive is excessive (destroys sense of line indpendence)
+  - $\text{P5}$ and $\text{P8}$ are ok at these places, but only if surrounded by $\text{3}$ rds and $\text{6}$ ths.
+- Avoid parallel perfect intevals.
+### Harmonic succesions
+- Common chord *PROgressions* should predominate:
+  - *descending fifths*:
+    - $\text{I}\to\text{IV}$
+    - $\text{iii}\to\text{vi}$
+    - $\text{V}\to\text{I}$
+    - $\text{ii}\to\text{V}\to\text{I}$
+  - *descending thirds*:
+    - $\text{i}\to\text{VI}$
+    - $\text{vii}^{\circ}\to\text{V}\to\text{III}^{+}$
+  - *ascending seconds*:
+    - $\text{I}\to\text{ii}\to\text{iii}$
+    - $\text{iv}\to\text{V}\to\text{VI}\to\text{vii}^{\circ}$
+- Avoid *RETROgressions*:
+  - ascending thirds:
+    - $\text{VI}\to\text{i}$
+    - $\text{III}^{+}\to\text{V}\to\text{vii}^{\circ}$
+  - descending seconds:
+    - $\text{iii}\to\text{ii}\to\text{I}$
+    - $\text{vii}^{\circ}\to\text{VI}\to\text{V}\to\text{iv}$
+  - ***completely avoid***:
+    - $\text{V}\to\text{IV}\;\text{(iv)}$
+- Avoid retrogressions when approaching the cadence.
+- Use lots of $\text{3}$ rds for vertical intervals
+### Cadences
+- End with a cadence
+- For $1^{\text{st}}$-species, use a perfect cadence
 ## $2$-simplices: three's a crowd, ie., a *trio*
 <p align="center">
   <picture>
@@ -58,6 +89,22 @@ The following rules come form the book [*Tonal Counterpoint for the 21st-Century
     <img src="images/triadic_light.png" alt="description" width="340" style="opacity: 0.65;">
   </picture>
 </p>
+
+### Vertical intervals
+- Dissonant vertical intervals occur more often on offbeat.
+- Dissonant vertical intervals can occur on onbeat only rearely, and only if follwed by a vertical consonance.
+- Consonant intervals should occur $>$ half the time among all vertical intervals (not clear here if "all vertical" means all $(n+1)$-choose-$2$ edges in the $n$-simplex $\Delta^{n}$)
+
+### Melodic motion
+- Pedal in $2^{nd}$-species is allowed, and can even be encouraged, to repeat for down/off beat pairs.
+- Non-harmonic tones:
+  - Good balance between chord tones and non-chord tones.
+  - Move stepwise to and from disonant pitches, so that most dissonances are neighboring or passing tones.
+  - unaccented passing tones should occur more often than other dissoances.
+  - Accentented non-harmonic tones shoul dbe followed by a chord tones.
+  - The only *skips* and *leaps* in $2^{\text{nd}}$-species occur between chord tones.
+  - The above *consonant/chordal skips and leaps* occur freely, on down and offbeats.
+  
 
 ## $3$-simplices: the barber shop *quartet*
 <p align="center">
@@ -69,3 +116,5 @@ The following rules come form the book [*Tonal Counterpoint for the 21st-Century
 </p>
 
 ## $n$-simplices'
+
+[...]
