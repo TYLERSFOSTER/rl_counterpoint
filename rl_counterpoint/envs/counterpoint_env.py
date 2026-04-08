@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from rl_counterpoint.envs.observation import build_observation
+from rl_counterpoint.envs.observation import (
+    bar_position,
+    build_observation,
+    is_downbeat,
+    is_ending_beat,
+    is_leading_beat,
+)
 from rl_counterpoint.envs.termination import is_max_step_truncated
 from rl_counterpoint.graph.actions import (
     StepDelta,
@@ -30,6 +36,7 @@ class CounterpointEnv:
     reward_fn: RewardFn
     initial_state: ChordState
     max_steps: int
+    measure_size: int
     max_step_size: int
     invalid_action_penalty: float = -1.0
     _state: ChordState = field(init=False, repr=False)
@@ -43,6 +50,9 @@ class CounterpointEnv:
 
         if self.max_steps < 1:
             raise ValueError("max_steps must be at least 1")
+
+        if self.measure_size < 1:
+            raise ValueError("measure_size must be at least 1")
 
         self._action_space = step_delta_action_space(
             n=self.graph_spec.n,
@@ -101,6 +111,7 @@ class CounterpointEnv:
             RewardContext(
                 step_index=self._step_index,
                 max_steps=self.max_steps,
+                measure_size=self.measure_size,
                 history=self._history,
             ),
         )
@@ -155,6 +166,20 @@ class CounterpointEnv:
         return {
             "state": state,
             "step_index": self._step_index,
+            "measure_size": self.measure_size,
+            "bar_position": bar_position(
+                step_index=self._step_index,
+                measure_size=self.measure_size,
+            ),
+            "is_leading_beat": is_leading_beat(
+                step_index=self._step_index,
+                measure_size=self.measure_size,
+            ),
+            "is_downbeat": is_downbeat(step_index=self._step_index),
+            "is_ending_beat": is_ending_beat(
+                step_index=self._step_index,
+                measure_size=self.measure_size,
+            ),
             "history": self._history,
             "action_space": self._action_space,
             "action_mask": action_mask,

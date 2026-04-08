@@ -20,6 +20,7 @@ def make_env(*, max_steps: int = 3) -> CounterpointEnv:
         reward_fn=ConstantReward(reward=1.0),
         initial_state=(3, 6),
         max_steps=max_steps,
+        measure_size=4,
         max_step_size=2,
         invalid_action_penalty=-1.0,
     )

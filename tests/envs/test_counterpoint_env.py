@@ -13,6 +13,7 @@ from rl_counterpoint.reward.black_box import ConstantReward
 def make_env(
     *,
     max_steps: int = 4,
+    measure_size: int = 4,
     invalid_action_penalty: float = -2.0,
 ) -> CounterpointEnv:
     return CounterpointEnv(
@@ -20,6 +21,7 @@ def make_env(
         reward_fn=ConstantReward(reward=1.25),
         initial_state=(3, 6),
         max_steps=max_steps,
+        measure_size=measure_size,
         max_step_size=2,
         invalid_action_penalty=invalid_action_penalty,
     )
@@ -33,6 +35,7 @@ def test_constructor_rejects_invalid_initial_state() -> None:
             reward_fn=ConstantReward(),
             initial_state=(0, 3),
             max_steps=4,
+            measure_size=4,
             max_step_size=2,
         )
 
@@ -45,6 +48,20 @@ def test_constructor_rejects_invalid_max_steps() -> None:
             reward_fn=ConstantReward(),
             initial_state=(3, 6),
             max_steps=0,
+            measure_size=4,
+            max_step_size=2,
+        )
+
+
+def test_constructor_rejects_invalid_measure_size() -> None:
+    """The environment needs a positive m in the meter contract m/4."""
+    with pytest.raises(ValueError, match="measure_size must be at least 1"):
+        CounterpointEnv(
+            graph_spec=CounterpointGraphSpec(n=2, tonic=60),
+            reward_fn=ConstantReward(),
+            initial_state=(3, 6),
+            max_steps=4,
+            measure_size=0,
             max_step_size=2,
         )
 
@@ -58,6 +75,11 @@ def test_reset_returns_raw_state_and_action_info() -> None:
     assert obs == (3, 6)
     assert info["state"] == (3, 6)
     assert info["step_index"] == 0
+    assert info["measure_size"] == 4
+    assert info["bar_position"] == 0
+    assert info["is_leading_beat"]
+    assert info["is_downbeat"]
+    assert not info["is_ending_beat"]
     assert info["history"] == ((3, 6),)
     assert info["action_space"]
     assert info["action_mask"]
@@ -85,6 +107,11 @@ def test_valid_step_updates_state_and_calls_reward() -> None:
     assert info["valid_action"]
     assert info["reward_diagnostics"]["kind"] == "constant"
     assert info["step_index"] == 1
+    assert info["measure_size"] == 4
+    assert info["bar_position"] == 1
+    assert not info["is_leading_beat"]
+    assert not info["is_downbeat"]
+    assert not info["is_ending_beat"]
     assert info["history"] == ((3, 6), expected_target)
 
 
@@ -105,6 +132,8 @@ def test_invalid_step_delta_is_noop_with_penalty_and_diagnostic() -> None:
     assert info["target"] == (3, 6)
     assert info["step_delta"] == (0, 0)
     assert info["invalid_action_reason"] == "decoded target is not a valid edge"
+    assert info["measure_size"] == 4
+    assert info["bar_position"] == 1
     assert info["history"] == ((3, 6), (3, 6))
 
 

@@ -18,6 +18,7 @@ class RewardContext:
 
     step_index: int
     max_steps: int | None = None
+    measure_size: int | None = None
     history: tuple[ChordState, ...] = ()
 
 
