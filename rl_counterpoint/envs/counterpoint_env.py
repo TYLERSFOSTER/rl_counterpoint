@@ -1,0 +1,163 @@
+"""Minimal Gymnasium-style counterpoint environment."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from rl_counterpoint.envs.observation import build_observation
+from rl_counterpoint.envs.termination import is_max_step_truncated
+from rl_counterpoint.graph.actions import (
+    StepDelta,
+    is_valid_step_delta_action,
+    step_delta_action_mask,
+    step_delta_action_space,
+    step_delta_to_next_state,
+)
+from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
+from rl_counterpoint.graph.state_space import ChordState, is_valid_node
+from rl_counterpoint.reward.protocol import RewardContext, RewardFn
+
+
+Info = dict[str, Any]
+
+
+@dataclass
+class CounterpointEnv:
+    """Small explicit environment binding graph actions to a reward protocol."""
+
+    graph_spec: CounterpointGraphSpec
+    reward_fn: RewardFn
+    initial_state: ChordState
+    max_steps: int
+    max_step_size: int
+    invalid_action_penalty: float = -1.0
+    _state: ChordState = field(init=False, repr=False)
+    _step_index: int = field(init=False, default=0, repr=False)
+    _history: tuple[ChordState, ...] = field(init=False, repr=False)
+    _action_space: tuple[StepDelta, ...] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not is_valid_node(self.initial_state, self.graph_spec):
+            raise ValueError("initial_state must be a valid graph node")
+
+        if self.max_steps < 1:
+            raise ValueError("max_steps must be at least 1")
+
+        self._action_space = step_delta_action_space(
+            n=self.graph_spec.n,
+            max_step_size=self.max_step_size,
+        )
+        self._state = self.initial_state
+        self._step_index = 0
+        self._history = (self.initial_state,)
+
+        if not any(self._action_mask(self.initial_state)):
+            raise ValueError("initial_state must have at least one legal StepDelta")
+
+    def reset(self) -> tuple[ChordState, Info]:
+        """Reset to the constructor-provided initial state."""
+        self._state = self.initial_state
+        self._step_index = 0
+        self._history = (self.initial_state,)
+
+        return build_observation(self._state), self._info_for_state(self._state)
+
+    def step(
+        self,
+        step_delta: StepDelta,
+    ) -> tuple[ChordState, float, bool, bool, Info]:
+        """Advance one Gymnasium-style step using a StepDelta action."""
+        source = self._state
+        target = step_delta_to_next_state(source, step_delta)
+        valid_action = is_valid_step_delta_action(source, step_delta, self.graph_spec)
+
+        if not valid_action:
+            self._step_index += 1
+            self._history = (*self._history, source)
+            truncated = is_max_step_truncated(
+                step_index=self._step_index,
+                max_steps=self.max_steps,
+            )
+            info = self._info_for_state(
+                source,
+                source=source,
+                target=target,
+                step_delta=step_delta,
+                valid_action=False,
+                invalid_action_reason="decoded target is not a valid edge",
+            )
+            return (
+                build_observation(source),
+                self.invalid_action_penalty,
+                False,
+                truncated,
+                info,
+            )
+
+        reward_result = self.reward_fn(
+            source,
+            target,
+            RewardContext(
+                step_index=self._step_index,
+                max_steps=self.max_steps,
+                history=self._history,
+            ),
+        )
+
+        self._state = target
+        self._step_index += 1
+        self._history = (*self._history, target)
+        truncated = is_max_step_truncated(
+            step_index=self._step_index,
+            max_steps=self.max_steps,
+        )
+        info = self._info_for_state(
+            self._state,
+            source=source,
+            target=target,
+            step_delta=step_delta,
+            valid_action=True,
+            reward_diagnostics=reward_result.diagnostics,
+            hard_violation=reward_result.hard_violation,
+            is_terminal_success=reward_result.is_terminal_success,
+        )
+
+        return (
+            build_observation(self._state),
+            reward_result.reward,
+            reward_result.is_terminal_success,
+            truncated,
+            info,
+        )
+
+    @property
+    def state(self) -> ChordState:
+        return self._state
+
+    @property
+    def step_index(self) -> int:
+        return self._step_index
+
+    @property
+    def history(self) -> tuple[ChordState, ...]:
+        return self._history
+
+    @property
+    def action_space(self) -> tuple[StepDelta, ...]:
+        return self._action_space
+
+    def _action_mask(self, state: ChordState) -> tuple[bool, ...]:
+        return step_delta_action_mask(state, self._action_space, self.graph_spec)
+
+    def _info_for_state(self, state: ChordState, **extra: Any) -> Info:
+        action_mask = self._action_mask(state)
+        return {
+            "state": state,
+            "step_index": self._step_index,
+            "history": self._history,
+            "action_space": self._action_space,
+            "action_mask": action_mask,
+            "has_legal_actions": any(action_mask),
+            **extra,
+        }

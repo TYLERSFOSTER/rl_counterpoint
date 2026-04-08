@@ -414,6 +414,27 @@ Action sketch:
 
 Goal: verify that the environment, reward protocol, and a tiny learner can run end-to-end.
 
+### Stage 5.0: Observation And Policy Architecture Checkpoint
+
+Purpose: explicitly decide whether the real training-facing policy should consume only the current chord state or a bounded sequence/history of chord states before implementing actual learning code.
+
+Owner decision needed:
+
+- Is the single-chord observation contract only a temporary scaffold?
+- Should the real policy be sequence-based, for example transformer-like over a fixed context window of chord states?
+- If sequence-based, should the environment return that sequence directly, or should rollout/training code build it from stored history?
+
+Action sketch:
+
+- Explanation: pause before real policy/trainer implementation and discuss whether the current single-state observation contract is about to become a blocker. Do not silently convert model criticism into a new stage or future implementation plan; make this an explicit checkpoint conversation with the Project Owner.
+- Ground truth files/directories: `rl_counterpoint/envs/counterpoint_env.py`, `rl_counterpoint/algos/rollout.py`, `rl_counterpoint/models/policy.py`, `rl_counterpoint/reward/protocol.py`, this gameplan document.
+- Machine operation: discussion only unless and until the Project Owner explicitly approves a model/observation contract change.
+- Tests: none at this checkpoint; the output is a decision, not code.
+- Failure hypotheses:
+  - Training code gets built around a single-chord observation contract that will soon be replaced by sequence history.
+  - The model architecture question gets mistaken for a local implementation detail when it actually changes env/rollout/model boundaries.
+  - The engineering agent invents a new future stage or silently mutates the gameplan instead of discussing whether the plan itself should change.
+
 ### Stage 5.1: Rollout Collection
 
 Purpose: collect short trajectories from the environment with a simple policy.

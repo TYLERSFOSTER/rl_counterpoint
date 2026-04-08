@@ -940,3 +940,37 @@ An action consists of:
 4. Associated unit tests.
 5. Failure hypotheses.
 
+---
+
+# Amendment — Engineering Stack Trace
+
+In ordinary engineering work, failures leave behind stack traces, logs, test failures, and process artifacts that can be revisited later. In LLM-assisted engineering, that internal failure history does not naturally exist in an inspectable way.
+
+Therefore, this repository's directive and continuity documents must be treated as an **engineering stack trace** for the collaboration itself.
+
+That means:
+
+- reasoning failures
+- authority violations
+- planning drift
+- false assumptions
+- architectural corrections
+- recovery points
+
+must be externalized into the repo when they materially affect the session.
+
+These documents are not merely instructions or summaries. They are part of the debugging substrate of the collaboration.
+
+They exist so future turns can go back and inspect where the process went wrong, what reality corrected it, and what the corrected frame became.
+
+The LLM must therefore:
+
+1. Treat user corrections as stack-trace-quality process data, not conversational noise.
+2. Preserve important failure and recovery history in the appropriate continuity or directive artifact when directed.
+3. Avoid overwriting prior stack-trace artifacts when a new artifact is the correct form.
+4. Distinguish between:
+   - historical planning artifacts,
+   - resynchronization artifacts,
+   - model/architecture checkpoints,
+   - failure-mode artifacts.
+5. Use these artifacts to reconstruct where reasoning drifted instead of pretending the current turn began from a clean state.
