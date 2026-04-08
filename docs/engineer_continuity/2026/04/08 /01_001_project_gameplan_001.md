@@ -14,6 +14,47 @@ The project also needs a reward function derived eventually from *Tonal Counterp
 
 The main early engineering goal is not to train a good agent immediately. It is to create a small, reality-checkable system where state representation, action mechanics, reward interface, environment semantics, and a minimal learner can all run end-to-end.
 
+## Session Gameplan: 2026-04-08
+
+Best-guess direction for this session: consolidate the current graph and reward scaffold around a movement-vector action contract, then use that contract as the bridge into environment design. The previous phase list is a good first approximation, but it is probably not the final work breakdown. Some listed phases may combine, and others may split once the actual dependency graph is clearer.
+
+Current best-guess phases:
+
+1. Ground the state/action graph contract.
+   - Confirm the pitch/chord/state representation already encoded by `CounterpointGraphSpec` and `ChordState`.
+   - Treat movement-vector actions as the likely learning-facing action representation.
+   - Keep direct next-state actions as a debugging or graph-inspection helper unless the Project Owner decides otherwise.
+
+2. Build the movement-vector action layer.
+   - Define the movement vector shape, e.g. `Delta = tuple[int, ...]` with `target = source + delta`.
+   - Decide the allowed movement radius or per-voice delta lattice.
+   - Decide invalid-action behavior: reject, mask, penalize, or a combination.
+   - Add tests that bind vector decoding, target construction, graph validation, and action masks.
+
+3. Build the Gymnasium-style environment against existing graph and reward contracts.
+   - Define reset state, observation payload, step semantics, invalid-action handling, history handling, termination, and truncation.
+   - Ensure the environment consumes graph predicates and `RewardFn`; it must not redefine graph legality.
+
+4. Add smoke scripts and a tiny explicit training loop.
+   - Start with scripts that prove graph/action/reward/env plumbing works before training quality matters.
+   - Add the minimal learner only after env/action semantics are observable.
+
+5. Replace `reward/black_box.py` with book-derived evaluator logic only after TC21M rule formalization catches up.
+   - Preserve the current reward protocol as the dependency boundary.
+   - Keep TC21M rule extraction, feature evaluation, scoring, and diagnostics separated.
+
+Decisions to make today:
+
+- Exact movement-vector action representation: signed per-voice semitone deltas, bounded integer lattice, or another representation.
+- Movement bounds: shared radius, per-voice bounds, graph-spec-derived bounds, or a small smoke-test-only radius.
+- Whether the first environment accepts movement-vector actions directly, while retaining direct next-state helpers for tests.
+- Invalid action semantics for `step`: hard exception, no-op with penalty, transition rejection with `hard_violation`, or action mask only.
+- Initial `reset` state: fixed explicit chord, sampled valid node, or constructor-provided state.
+- Observation encoding: raw tuple, numeric array, include history or not, include action mask or not.
+- Termination/truncation before cadence reward exists: max-step truncation only, placeholder terminal success, or no terminal success yet.
+- Reward context history shape passed into `RewardContext`.
+- Whether to add Gymnasium as a dependency now or implement a Gymnasium-style API without importing Gymnasium yet.
+
 ## Design Decisions Reserved For The Project Owner
 
 The following decisions should not be silently made by the engineering agent:

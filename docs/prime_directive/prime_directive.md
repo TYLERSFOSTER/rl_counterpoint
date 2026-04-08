@@ -919,3 +919,24 @@ Nothing in between is compliant.
 ---
 # Just a short addendum: Prime directive for turns...
 Each "trun response" from LLM should consist of these pieces, either at once or in sequence: -1. A brief, high level description of action, and how it fits into whatever larger, present gameplan the engineer is operating under, 0. request to see scripts (if orientation to ground truth is needed), 1. Machine executable instruction for me (such as changing a particular script, or doing something else through my local machine), 2. Unit tests to add, change, or run, 3. Failure hypotheses.
+
+All work is divided into "phases". A good first approx to what the Phases for this project might be are:
+
+- Define pitch/chord/state representation.
+- Define non-crossing transition/action mechanics.
+- Define reward protocol and black-box placeholder.
+- Build a Gymnasium-style environment against that protocol.
+- Add a tiny explicit training loop.
+
+Although the more I look at those, they probably aren't the actual work phases. Some of them might combine into single phases, while others break into several. But that at least gives the right idea.
+
+Phases break up into "stages." A stage is kind of like the smallest unit of project that really implements a new thing. A stage is broken up into "actions". An action is like the smallest unit of machine executable instruction.
+
+An action consists of:
+
+1. High level explanation for action.
+2. What files you are looking at or want to see in order to establish ground truth.
+3. What machine executable thing to do.
+4. Associated unit tests.
+5. Failure hypotheses.
+
