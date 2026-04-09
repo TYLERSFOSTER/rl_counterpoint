@@ -7,8 +7,16 @@ diagnostic information for environment plumbing and smoke tests.
 
 from __future__ import annotations
 
+import pytest
+
 from rl_counterpoint.envs.observation import TimedChordWindow
-from rl_counterpoint.reward.black_box import BeatRoleDiagnosticReward, ConstantReward
+from rl_counterpoint.reward.black_box import (
+    BeatRoleDiagnosticReward,
+    ConstantReward,
+    StrongBeatConsonanceReward,
+    StaticConsonanceReward,
+    consonance_from_pitch_class,
+)
 from rl_counterpoint.reward.protocol import RewardContext, RewardResult
 
 
@@ -134,3 +142,110 @@ def test_beat_role_diagnostic_reward_tolerates_missing_measure_size() -> None:
     assert result.diagnostics["is_ending_beat"] is None
     assert result.diagnostics["timed_window_valid_length"] is None
     assert result.diagnostics["timed_window_last_bar_position"] is None
+
+
+def test_static_consonance_reward_returns_reward_result() -> None:
+    """StaticConsonanceReward returns a structured RewardResult."""
+    reward_fn = StaticConsonanceReward()
+
+    result = reward_fn(
+        (3, 6),
+        (60, 64, 67),
+        RewardContext(step_index=0, key_pitch_class=0),
+    )
+
+    assert isinstance(result, RewardResult)
+
+
+def test_static_consonance_reward_scores_target_state_terms_separately() -> None:
+    """StaticConsonanceReward reports adjacent and key-relative term breakdowns."""
+    reward_fn = StaticConsonanceReward(
+        adjacent_interval_weight=2.0,
+        key_relative_weight=3.0,
+    )
+
+    result = reward_fn(
+        (3, 6),
+        (60, 64, 67),
+        RewardContext(step_index=0, key_pitch_class=0),
+    )
+
+    expected_adjacent_sum = (
+        consonance_from_pitch_class(4) + consonance_from_pitch_class(3)
+    )
+    expected_key_relative_sum = (
+        consonance_from_pitch_class(0)
+        + consonance_from_pitch_class(4)
+        + consonance_from_pitch_class(7)
+    )
+    expected_reward = 2.0 * expected_adjacent_sum + 3.0 * expected_key_relative_sum
+
+    assert result.reward == pytest.approx(expected_reward)
+    assert result.diagnostics["kind"] == "static_consonance"
+    assert result.diagnostics["adjacent_interval_pitch_classes"] == (4, 3)
+    assert result.diagnostics["key_relative_pitch_classes"] == (0, 4, 7)
+    assert result.diagnostics["adjacent_interval_sum"] == pytest.approx(
+        expected_adjacent_sum
+    )
+    assert result.diagnostics["key_relative_sum"] == pytest.approx(
+        expected_key_relative_sum
+    )
+
+
+def test_static_consonance_reward_requires_key_pitch_class() -> None:
+    """StaticConsonanceReward needs the approved key encoding in context."""
+    reward_fn = StaticConsonanceReward()
+
+    with pytest.raises(
+        ValueError,
+        match="key_pitch_class is required for StaticConsonanceReward",
+    ):
+        reward_fn((3, 6), (60, 64, 67), RewardContext(step_index=0))
+
+
+def test_strong_beat_consonance_reward_applies_static_reward_on_strong_beats() -> None:
+    """StrongBeatConsonanceReward passes through static consonance on even beats."""
+    reward_fn = StrongBeatConsonanceReward(
+        adjacent_interval_weight=2.0,
+        key_relative_weight=3.0,
+    )
+
+    result = reward_fn(
+        (3, 6),
+        (60, 64, 67),
+        RewardContext(step_index=2, key_pitch_class=0),
+    )
+
+    expected_adjacent_sum = (
+        consonance_from_pitch_class(4) + consonance_from_pitch_class(3)
+    )
+    expected_key_relative_sum = (
+        consonance_from_pitch_class(0)
+        + consonance_from_pitch_class(4)
+        + consonance_from_pitch_class(7)
+    )
+    expected_static_reward = 2.0 * expected_adjacent_sum + 3.0 * expected_key_relative_sum
+
+    assert result.reward == pytest.approx(expected_static_reward)
+    assert result.diagnostics["kind"] == "strong_beat_consonance"
+    assert result.diagnostics["is_strong_beat"]
+    assert result.diagnostics["applied_beat_weight"] == pytest.approx(1.0)
+    assert result.diagnostics["base_static_consonance_reward"] == pytest.approx(
+        expected_static_reward
+    )
+
+
+def test_strong_beat_consonance_reward_zeroes_reward_on_weak_beats_by_default() -> None:
+    """StrongBeatConsonanceReward defaults to no consonance reward on weak beats."""
+    reward_fn = StrongBeatConsonanceReward()
+
+    result = reward_fn(
+        (3, 6),
+        (60, 64, 67),
+        RewardContext(step_index=1, key_pitch_class=0),
+    )
+
+    assert result.reward == pytest.approx(0.0)
+    assert not result.diagnostics["is_strong_beat"]
+    assert result.diagnostics["applied_beat_weight"] == pytest.approx(0.0)
+    assert result.diagnostics["base_static_consonance_reward"] > 0.0
