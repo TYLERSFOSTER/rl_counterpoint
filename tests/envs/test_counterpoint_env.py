@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import pytest
 
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
+from rl_counterpoint.reward.protocol import RewardContext, RewardResult
 from rl_counterpoint.graph.actions import step_delta_to_next_state
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
 from rl_counterpoint.reward.black_box import ConstantReward
+
+
+@dataclass
+class RecordingReward:
+    """Test helper that records the last reward call context."""
+
+    contexts: list[RewardContext] = field(default_factory=list)
+
+    def __call__(
+        self,
+        source: tuple[int, ...],
+        target: tuple[int, ...],
+        context: RewardContext,
+    ) -> RewardResult:
+        self.contexts.append(context)
+        return RewardResult(reward=0.0)
 
 
 def make_env(
@@ -147,3 +166,69 @@ def test_step_truncates_at_max_steps() -> None:
     assert not terminated
     assert truncated
     assert info["step_index"] == 1
+
+
+def test_valid_step_passes_extended_reward_context() -> None:
+    """The env passes step delta, key pitch class, and timed window to reward."""
+    reward_fn = RecordingReward()
+    env = CounterpointEnv(
+        graph_spec=CounterpointGraphSpec(n=2, tonic=60),
+        reward_fn=reward_fn,
+        initial_state=(3, 6),
+        max_steps=4,
+        measure_size=4,
+        max_step_size=2,
+    )
+    env.reset()
+
+    _obs, _reward, _terminated, _truncated, _info = env.step((1, 1))
+
+    assert len(reward_fn.contexts) == 1
+    context = reward_fn.contexts[0]
+    assert context.step_delta == (1, 1)
+    assert context.key_pitch_class == 0
+    assert context.measure_size == 4
+    assert context.history == ((3, 6),)
+    assert context.timed_chord_window is not None
+    assert context.timed_chord_window.chord_sequence == (
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (0, 0),
+        (3, 6),
+    )
+    assert context.timed_chord_window.bar_positions == (
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        0,
+    )
+    assert context.timed_chord_window.valid_mask == (
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+    )

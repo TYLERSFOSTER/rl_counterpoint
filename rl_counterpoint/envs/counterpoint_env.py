@@ -8,6 +8,7 @@ from typing import Any
 from rl_counterpoint.envs.observation import (
     bar_position,
     build_observation,
+    build_timed_chord_window,
     is_downbeat,
     is_ending_beat,
     is_leading_beat,
@@ -113,6 +114,13 @@ class CounterpointEnv:
                 max_steps=self.max_steps,
                 measure_size=self.measure_size,
                 history=self._history,
+                step_delta=step_delta,
+                key_pitch_class=self.graph_spec.tonic_pitch_class,
+                timed_chord_window=build_timed_chord_window(
+                    history=self._history,
+                    step_index=self._step_index,
+                    measure_size=self.measure_size,
+                ),
             ),
         )
 

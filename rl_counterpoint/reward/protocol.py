@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Mapping, Protocol
 
+from rl_counterpoint.envs.observation import TimedChordWindow
+from rl_counterpoint.graph.actions import StepDelta
 from rl_counterpoint.graph.state_space import ChordState
 
 
@@ -20,6 +22,9 @@ class RewardContext:
     max_steps: int | None = None
     measure_size: int | None = None
     history: tuple[ChordState, ...] = ()
+    step_delta: StepDelta | None = None
+    key_pitch_class: int | None = None
+    timed_chord_window: TimedChordWindow | None = None
 
 
 @dataclass(frozen=True)
