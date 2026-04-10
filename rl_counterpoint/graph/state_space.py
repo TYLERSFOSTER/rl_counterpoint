@@ -6,12 +6,13 @@ from itertools import product
 from typing import TypeAlias
 
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
+from rl_counterpoint.music.pitch import pitch_class as music_pitch_class
 
 ChordState: TypeAlias = tuple[int, ...]
 
 
 def pitch_class(pitch: int) -> int:
-    return pitch % 12
+    return music_pitch_class(pitch)
 
 
 def adjacent_intervals(state: ChordState) -> tuple[int, ...]:

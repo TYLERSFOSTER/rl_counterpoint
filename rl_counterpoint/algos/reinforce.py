@@ -22,6 +22,9 @@ class ReinforceEpisodeStats:
 
     episode_return: float
     episode_length: int
+    mean_step_reward: float
+    terminated: bool
+    truncated: bool
     loss: float
 
 
@@ -148,5 +151,8 @@ def run_reinforce_episode(
     return ReinforceEpisodeStats(
         episode_return=sum(step.reward for step in trajectory),
         episode_length=len(trajectory),
+        mean_step_reward=sum(step.reward for step in trajectory) / len(trajectory),
+        terminated=trajectory[-1].terminated,
+        truncated=trajectory[-1].truncated,
         loss=float(loss.item()),
     )

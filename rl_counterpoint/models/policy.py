@@ -14,8 +14,8 @@ from torch import Tensor, nn
 
 from rl_counterpoint.envs.observation import TimedChordWindow, pad_chord
 from rl_counterpoint.graph.state_space import ChordState
-
-NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+from rl_counterpoint.music.pitch import midi_to_unicode_note_name
+from rl_counterpoint.music.render import chord_to_unicode_sequence, tonic_meter_to_string
 
 
 class TextEmbedder(Protocol):
@@ -23,34 +23,6 @@ class TextEmbedder(Protocol):
 
     def embed_text(self, text: str) -> Tensor:
         """Return an embedding tensor for one text input."""
-
-
-def midi_to_unicode_note_name(midi_note: int) -> str:
-    """Map a MIDI note value to the project's unicode-style note token."""
-    if midi_note < 0 or midi_note > 127:
-        raise ValueError("midi_note must be in [0, 127]")
-
-    note_name = NOTE_NAMES[midi_note % 12]
-    octave = (midi_note // 12) - 1
-    return f"{note_name}_{octave}"
-
-
-def chord_to_unicode_sequence(chord: ChordState) -> str:
-    """Render one chord state as a symbolic note-name sequence."""
-    if not chord:
-        raise ValueError("chord must not be empty")
-
-    note_names = ", ".join(midi_to_unicode_note_name(midi_note) for midi_note in chord)
-    return f"[{note_names}]"
-
-
-def tonic_meter_to_string(*, tonic: int, measure_size: int) -> str:
-    """Render tonic and meter as the shared context-conditioning token string."""
-    if measure_size < 1:
-        raise ValueError("measure_size must be at least 1")
-
-    return f"tonic={midi_to_unicode_note_name(tonic)} meter={measure_size}/4"
-
 
 @dataclass(frozen=True)
 class OpenAITextEmbedder:

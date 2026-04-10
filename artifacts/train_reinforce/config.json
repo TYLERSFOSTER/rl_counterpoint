@@ -1,0 +1,17 @@
+{
+  "context_measures": 3,
+  "episode_measures": 8,
+  "gamma": 0.99,
+  "initial_state": [
+    3,
+    6
+  ],
+  "invalid_action_penalty": -1.0,
+  "learning_rate": 0.001,
+  "max_step_size": 2,
+  "measure_size": 4,
+  "num_episodes": 3,
+  "reward_value": 1.0,
+  "tonic": 60,
+  "voice_count": 2
+}

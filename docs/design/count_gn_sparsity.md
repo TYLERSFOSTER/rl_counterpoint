@@ -1,3 +1,71 @@
+# Count `G(n)` Sparsity
+
+## Purpose
+
+This document preserves the design-side sparsity-counting method for the counterpoint graph `G(n)`.
+
+It is intentionally a Markdown design artifact rather than a standalone executable script.
+
+Reason:
+
+- the live runtime graph authority now lives in the repo code under `rl_counterpoint/graph/`
+- this counting logic is useful as mathematical design/reference material
+- keeping it as a separate executable script risks creating a second authority that can silently drift away from the live graph contract
+
+So this document is the canonical design-side explanation of the counting method, and it preserves the prior Python implementation as an embedded reference.
+
+## What The Count Measures
+
+The method counts sparsity in the counterpoint graph `G(n)` using finite-sum formulas over gap vectors rather than explicit graph materialization.
+
+It keeps separate:
+
+- raw node counts
+- trimmed node counts
+- edge counts under combinations of the three edge trims:
+  - voice crossing
+  - parallel fifths
+  - single-line interval cap
+
+This is a design/reference tool, not the runtime graph definition.
+
+## Mathematical Setup
+
+Notation:
+
+- `P` = number of MIDI pitch values, default `128`
+- `M` = max interval value, default `11`
+- `C(n) = ceil(6n)`
+- `tau` = tonic MIDI note
+- `S = {3, 4, 5, 7, 8, 9}`
+
+Raw node set:
+
+```text
+G(n)_0^raw = {
+    lambda in {0, ..., P - 1}^n
+    | lambda_0 < ... < lambda_{n-1}
+}
+```
+
+Trimmed node set:
+
+```text
+G(n)_0 = {
+    lambda in G(n)_0^raw
+    | lambda_{i+1} - lambda_i <= M for all i,
+      lambda_{i+1} - lambda_i not in {1, 2, 6, 10, 11} for all i,
+      lambda_{n-1} - lambda_0 <= C(n),
+      lambda_{n-1} - lambda_0 in S mod 12,
+      lambda_0 - tau in S mod 12
+}
+```
+
+The implementation below counts via admissible gap vectors and relative target-root offsets.
+
+## Embedded Python Reference
+
+```python
 #!/usr/bin/env python3
 """Formula counts for sparsity in the counterpoint graph G(n).
 
@@ -465,3 +533,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+```
+
+## Status
+
+This Markdown document is the preserved design/reference form of the prior counting script.
+
+It should not be treated as the live runtime authority for graph definition.

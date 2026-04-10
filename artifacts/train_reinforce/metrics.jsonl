@@ -1,0 +1,6 @@
+{"episode_index": 0, "episode_length": 32, "episode_return": 32.0, "loss": 2.8660061359405518, "mean_step_reward": 1.0, "terminated": false, "truncated": true}
+{"episode_index": 1, "episode_length": 32, "episode_return": 32.0, "loss": -0.5700356960296631, "mean_step_reward": 1.0, "terminated": false, "truncated": true}
+{"episode_index": 2, "episode_length": 32, "episode_return": 32.0, "loss": -2.8313732147216797, "mean_step_reward": 1.0, "terminated": false, "truncated": true}
+{"episode_index": 0, "episode_length": 32, "episode_return": 32.0, "loss": -0.6900482177734375, "mean_step_reward": 1.0, "terminated": false, "truncated": true}
+{"episode_index": 1, "episode_length": 32, "episode_return": 32.0, "loss": 0.2967168092727661, "mean_step_reward": 1.0, "terminated": false, "truncated": true}
+{"episode_index": 2, "episode_length": 32, "episode_return": 32.0, "loss": 2.0500664710998535, "mean_step_reward": 1.0, "terminated": false, "truncated": true}

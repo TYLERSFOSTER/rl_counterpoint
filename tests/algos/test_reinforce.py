@@ -136,4 +136,7 @@ def test_run_reinforce_episode_returns_stats_and_updates_policy() -> None:
     assert isinstance(stats, ReinforceEpisodeStats)
     assert stats.episode_length == 2
     assert stats.episode_return == 2.0
+    assert stats.mean_step_reward == 1.0
+    assert not stats.terminated
+    assert stats.truncated
     assert torch.isfinite(torch.tensor(stats.loss))
