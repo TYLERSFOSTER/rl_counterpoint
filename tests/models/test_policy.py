@@ -32,6 +32,18 @@ class DummyTextEmbedder:
         return torch.tensor([base, base + 1.0], dtype=torch.float32)
 
 
+class ContentAwareDummyTextEmbedder:
+    """Deterministic test double that changes embeddings when text changes."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def embed_text(self, text: str) -> torch.Tensor:
+        self.calls.append(text)
+        base = float(sum(ord(ch) for ch in text) % 1000)
+        return torch.tensor([base, base + 1.0], dtype=torch.float32)
+
+
 def test_observation_to_tensor_preserves_chord_state_values() -> None:
     """A raw ChordState is converted to a float tensor in voice order."""
     tensor = observation_to_tensor((3, 6, 10))
@@ -56,6 +68,10 @@ def test_chord_to_unicode_sequence_renders_symbolic_chord_text() -> None:
 def test_tonic_meter_to_string_renders_context_token() -> None:
     """Tonic and meter are rendered as the shared context-conditioning string."""
     assert tonic_meter_to_string(tonic=60, measure_size=4) == "tonic=C_4 meter=4/4"
+    assert (
+        tonic_meter_to_string(tonic=60, measure_size=4, target_root_octave=4)
+        == "tonic=C_4 meter=4/4 target_root_octave=4"
+    )
 
 
 def test_symbolic_chord_encoder_uses_pad_and_adds_context_embedding() -> None:
@@ -80,6 +96,26 @@ def test_symbolic_chord_encoder_uses_pad_and_adds_context_embedding() -> None:
     )
     assert torch.equal(timed_event, expected_timed_event)
     assert torch.equal(padded_event, expected_padded_event)
+
+
+def test_symbolic_chord_encoder_includes_target_root_octave_in_context() -> None:
+    """Target octave changes the shared context token and encoded event."""
+    embedder = ContentAwareDummyTextEmbedder()
+    encoder = SymbolicChordEncoder(text_embedder=embedder)
+
+    encoded = encoder.encode_timed_event(
+        chord=(60, 64, 67),
+        tonic=60,
+        measure_size=4,
+        target_root_octave=4,
+    )
+
+    assert embedder.calls[0] == "[C_4, E_4, G_4]"
+    assert embedder.calls[1] == "tonic=C_4 meter=4/4 target_root_octave=4"
+    expected = embedder.embed_text("[C_4, E_4, G_4]") + embedder.embed_text(
+        "tonic=C_4 meter=4/4 target_root_octave=4"
+    )
+    assert torch.equal(encoded, expected)
 
 
 def test_timed_chord_window_to_strings_renders_pad_and_chord_tokens() -> None:
@@ -117,6 +153,36 @@ def test_encode_timed_chord_window_returns_stacked_embeddings_and_mask() -> None
     assert isinstance(encoded, EncodedTimedChordWindow)
     assert encoded.event_embeddings.shape == (3, 2)
     assert torch.equal(encoded.valid_mask, torch.tensor([False, True, True]))
+
+
+def test_encode_timed_chord_window_changes_when_target_octave_changes() -> None:
+    """Different target octaves must produce different transformer inputs."""
+    window = TimedChordWindow(
+        chord_sequence=((0, 0), (60, 64), (62, 65)),
+        bar_positions=(-1, 0, 1),
+        valid_mask=(False, True, True),
+    )
+    encoder = SymbolicChordEncoder(text_embedder=ContentAwareDummyTextEmbedder())
+
+    encoded_target_4 = encode_timed_chord_window(
+        window=window,
+        tonic=60,
+        measure_size=4,
+        encoder=encoder,
+        target_root_octave=4,
+    )
+    encoded_target_5 = encode_timed_chord_window(
+        window=window,
+        tonic=60,
+        measure_size=4,
+        encoder=encoder,
+        target_root_octave=5,
+    )
+
+    assert not torch.equal(
+        encoded_target_4.event_embeddings,
+        encoded_target_5.event_embeddings,
+    )
 
 
 def test_encode_timed_chord_window_rejects_non_pad_invalid_slots() -> None:

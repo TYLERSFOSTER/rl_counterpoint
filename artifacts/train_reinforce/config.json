@@ -11,7 +11,8 @@
   "max_step_size": 2,
   "measure_size": 4,
   "num_episodes": 3,
-  "reward_value": 1.0,
+  "target_distance_weight": 1.0,
+  "target_terminal_match_reward": 10.0,
   "tonic": 60,
   "voice_count": 2
 }

@@ -16,13 +16,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def test_make_example_context_builds_expected_reward_context() -> None:
     """The smoke script builds a deterministic reward context example."""
-    context = smoke_reward.make_example_context(step_index=3)
+    context = smoke_reward.make_example_context(
+        step_index=3,
+        target_root_octave=4,
+        is_final_step=True,
+    )
 
     assert context.step_index == 3
     assert context.measure_size == 4
     assert context.key_pitch_class == 0
     assert context.step_delta == (0, 1, 0)
     assert context.history == ((60, 64, 67),)
+    assert context.target_root_octave == 4
+    assert context.is_final_step
     assert context.timed_chord_window is not None
     assert context.timed_chord_window.bar_positions == (-1, 3)
 
@@ -37,11 +43,15 @@ def test_print_reward_summary_reports_compact_reward_fields(
         result=RewardResult(
             reward=1.25,
             diagnostics={
-                "kind": "strong_beat_consonance",
+                "kind": "target_root_octave",
                 "step_index": 0,
-                "is_strong_beat": True,
-                "applied_beat_weight": 1.0,
-                "base_static_consonance_reward": 1.25,
+                "root_octave": 4,
+                "target_root_octave": 5,
+                "octave_distance": 1,
+                "distance_reward": 0.5,
+                "is_final_step": False,
+                "terminal_bonus": 0.0,
+                "terminal_match": False,
             },
         ),
     )
@@ -51,23 +61,28 @@ def test_print_reward_summary_reports_compact_reward_fields(
     assert "source: (60, 64, 67)" in output
     assert "target: (60, 64, 67)" in output
     assert "reward: 1.25" in output
-    assert "kind: strong_beat_consonance" in output
+    assert "kind: target_root_octave" in output
     assert "step_index: 0" in output
-    assert "is_strong_beat: True" in output
-    assert "applied_beat_weight: 1.0" in output
+    assert "root_octave: 4" in output
+    assert "target_root_octave: 5" in output
+    assert "octave_distance: 1" in output
+    assert "distance_reward: 0.5" in output
+    assert "is_final_step: False" in output
+    assert "terminal_bonus: 0.0" in output
+    assert "terminal_match: False" in output
 
 
 def test_main_runs_reward_smoke_sequence(capsys: pytest.CaptureFixture[str]) -> None:
-    """The reward smoke main prints both strong- and weak-beat examples."""
+    """The reward smoke main prints both shaping and final-hit examples."""
     smoke_reward.main()
 
     output = capsys.readouterr().out
 
-    assert "strong-beat example" in output
-    assert "weak-beat example" in output
-    assert "kind: strong_beat_consonance" in output
-    assert "is_strong_beat: True" in output
-    assert "is_strong_beat: False" in output
+    assert "distance-shaping example" in output
+    assert "final-hit example" in output
+    assert "kind: target_root_octave" in output
+    assert "terminal_match: False" in output
+    assert "terminal_match: True" in output
 
 
 def test_smoke_reward_script_runs_by_file_path() -> None:
@@ -80,6 +95,6 @@ def test_smoke_reward_script_runs_by_file_path() -> None:
         text=True,
     )
 
-    assert "strong-beat example" in result.stdout
-    assert "weak-beat example" in result.stdout
-    assert "kind: strong_beat_consonance" in result.stdout
+    assert "distance-shaping example" in result.stdout
+    assert "final-hit example" in result.stdout
+    assert "kind: target_root_octave" in result.stdout

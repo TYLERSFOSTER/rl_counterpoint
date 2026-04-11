@@ -11,7 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from rl_counterpoint.envs.observation import TimedChordWindow
 from rl_counterpoint.graph.state_space import ChordState
-from rl_counterpoint.reward.black_box import StrongBeatConsonanceReward
+from rl_counterpoint.reward.black_box import TargetRootOctaveReward, midi_to_octave
 from rl_counterpoint.reward.protocol import RewardContext, RewardResult
 
 
@@ -28,12 +28,20 @@ def print_reward_summary(
     print(f"reward: {result.reward}")
     print(f"kind: {diagnostics['kind']}")
     print(f"step_index: {diagnostics['step_index']}")
-    print(f"is_strong_beat: {diagnostics['is_strong_beat']}")
-    print(f"applied_beat_weight: {diagnostics['applied_beat_weight']}")
-    print(f"base_static_consonance_reward: {diagnostics['base_static_consonance_reward']}")
+    print(f"root_octave: {diagnostics['root_octave']}")
+    print(f"target_root_octave: {diagnostics['target_root_octave']}")
+    print(f"octave_distance: {diagnostics['octave_distance']}")
+    print(f"distance_reward: {diagnostics['distance_reward']}")
+    print(f"is_final_step: {diagnostics['is_final_step']}")
+    print(f"terminal_bonus: {diagnostics['terminal_bonus']}")
+    print(f"terminal_match: {diagnostics['terminal_match']}")
 
-
-def make_example_context(*, step_index: int) -> RewardContext:
+def make_example_context(
+    *,
+    step_index: int,
+    target_root_octave: int,
+    is_final_step: bool,
+) -> RewardContext:
     """Build one deterministic reward context for smoke inspection."""
     return RewardContext(
         step_index=step_index,
@@ -47,21 +55,44 @@ def make_example_context(*, step_index: int) -> RewardContext:
             bar_positions=(-1, step_index % 4),
             valid_mask=(False, True),
         ),
+        target_root_octave=target_root_octave,
+        is_final_step=is_final_step,
     )
 
 
 def main() -> None:
-    reward_fn = StrongBeatConsonanceReward()
+    reward_fn = TargetRootOctaveReward(distance_weight=1.0, terminal_match_reward=10.0)
     source = (60, 64, 67)
-    target = (60, 64, 67)
+    near_target = (60, 64, 67)
+    exact_final_target = (72, 76, 79)
 
-    strong_result = reward_fn(source, target, make_example_context(step_index=0))
-    weak_result = reward_fn(source, target, make_example_context(step_index=1))
+    shaping_result = reward_fn(
+        source,
+        near_target,
+        make_example_context(
+            step_index=1,
+            target_root_octave=5,
+            is_final_step=False,
+        ),
+    )
+    final_hit_result = reward_fn(
+        source,
+        exact_final_target,
+        make_example_context(
+            step_index=7,
+            target_root_octave=5,
+            is_final_step=True,
+        ),
+    )
 
-    print("strong-beat example")
-    print_reward_summary(source=source, target=target, result=strong_result)
-    print("weak-beat example")
-    print_reward_summary(source=source, target=target, result=weak_result)
+    print("distance-shaping example")
+    print(f"target root octave from target chord: {midi_to_octave(near_target[0])}")
+    print_reward_summary(source=source, target=near_target, result=shaping_result)
+    print("final-hit example")
+    print(
+        f"target root octave from target chord: {midi_to_octave(exact_final_target[0])}"
+    )
+    print_reward_summary(source=source, target=exact_final_target, result=final_hit_result)
 
 
 if __name__ == "__main__":

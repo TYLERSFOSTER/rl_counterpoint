@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from random import Random
 from typing import Any
 
 from rl_counterpoint.envs.observation import (
@@ -22,11 +23,12 @@ from rl_counterpoint.graph.actions import (
     step_delta_to_next_state,
 )
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
-from rl_counterpoint.graph.state_space import ChordState, is_valid_node
+from rl_counterpoint.graph.state_space import ChordState, is_valid_node, iter_node_states
 from rl_counterpoint.reward.protocol import RewardContext, RewardFn
 
 
 Info = dict[str, Any]
+TARGET_ROOT_OCTAVE_CHOICES = (2, 3, 4, 5, 6)
 
 
 @dataclass
@@ -44,6 +46,9 @@ class CounterpointEnv:
     _step_index: int = field(init=False, default=0, repr=False)
     _history: tuple[ChordState, ...] = field(init=False, repr=False)
     _action_space: tuple[StepDelta, ...] = field(init=False, repr=False)
+    _reset_states: tuple[ChordState, ...] = field(init=False, repr=False)
+    _target_root_octave: int = field(init=False, default=4, repr=False)
+    _rng: Random = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not is_valid_node(self.initial_state, self.graph_spec):
@@ -59,18 +64,32 @@ class CounterpointEnv:
             n=self.graph_spec.n,
             max_step_size=self.max_step_size,
         )
+        self._reset_states = tuple(
+            state
+            for state in iter_node_states(self.graph_spec)
+            if any(self._action_mask(state))
+        )
+        if not self._reset_states:
+            raise ValueError("graph must contain at least one reset state with a legal StepDelta")
+
+        self._rng = Random(0)
         self._state = self.initial_state
         self._step_index = 0
         self._history = (self.initial_state,)
+        self._target_root_octave = TARGET_ROOT_OCTAVE_CHOICES[0]
 
         if not any(self._action_mask(self.initial_state)):
             raise ValueError("initial_state must have at least one legal StepDelta")
 
-    def reset(self) -> tuple[ChordState, Info]:
-        """Reset to the constructor-provided initial state."""
-        self._state = self.initial_state
+    def reset(self, seed: int | None = None) -> tuple[ChordState, Info]:
+        """Reset to a sampled valid start chord and episode target octave."""
+        if seed is not None:
+            self._rng.seed(seed)
+
+        self._state = self._rng.choice(self._reset_states)
         self._step_index = 0
-        self._history = (self.initial_state,)
+        self._history = (self._state,)
+        self._target_root_octave = self._rng.choice(TARGET_ROOT_OCTAVE_CHOICES)
 
         return build_observation(self._state), self._info_for_state(self._state)
 
@@ -116,6 +135,8 @@ class CounterpointEnv:
                 history=self._history,
                 step_delta=step_delta,
                 key_pitch_class=self.graph_spec.tonic_pitch_class,
+                target_root_octave=self._target_root_octave,
+                is_final_step=(self._step_index + 1) >= self.max_steps,
                 timed_chord_window=build_timed_chord_window(
                     history=self._history,
                     step_index=self._step_index,
@@ -166,6 +187,10 @@ class CounterpointEnv:
     def action_space(self) -> tuple[StepDelta, ...]:
         return self._action_space
 
+    @property
+    def target_root_octave(self) -> int:
+        return self._target_root_octave
+
     def _action_mask(self, state: ChordState) -> tuple[bool, ...]:
         return step_delta_action_mask(state, self._action_space, self.graph_spec)
 
@@ -189,6 +214,7 @@ class CounterpointEnv:
                 measure_size=self.measure_size,
             ),
             "history": self._history,
+            "target_root_octave": self._target_root_octave,
             "action_space": self._action_space,
             "action_mask": action_mask,
             "has_legal_actions": any(action_mask),

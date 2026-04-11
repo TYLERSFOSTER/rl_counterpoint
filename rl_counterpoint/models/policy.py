@@ -67,8 +67,25 @@ class SymbolicChordEncoder:
         return self.text_embedder.embed_text("PAD")
 
     def encode_context(self, *, tonic: int, measure_size: int) -> Tensor:
+        return self.encode_context_with_target(
+            tonic=tonic,
+            measure_size=measure_size,
+            target_root_octave=None,
+        )
+
+    def encode_context_with_target(
+        self,
+        *,
+        tonic: int,
+        measure_size: int,
+        target_root_octave: int | None,
+    ) -> Tensor:
         return self.text_embedder.embed_text(
-            tonic_meter_to_string(tonic=tonic, measure_size=measure_size)
+            tonic_meter_to_string(
+                tonic=tonic,
+                measure_size=measure_size,
+                target_root_octave=target_root_octave,
+            )
         )
 
     def encode_timed_event(
@@ -77,9 +94,14 @@ class SymbolicChordEncoder:
         chord: ChordState | None,
         tonic: int,
         measure_size: int,
+        target_root_octave: int | None = None,
     ) -> Tensor:
         chord_embedding = self.encode_pad() if chord is None else self.encode_chord(chord)
-        context_embedding = self.encode_context(tonic=tonic, measure_size=measure_size)
+        context_embedding = self.encode_context_with_target(
+            tonic=tonic,
+            measure_size=measure_size,
+            target_root_octave=target_root_octave,
+        )
         if chord_embedding.shape != context_embedding.shape:
             raise ValueError("chord and context embeddings must have the same shape")
 
@@ -114,6 +136,7 @@ def encode_timed_chord_window(
     tonic: int,
     measure_size: int,
     encoder: SymbolicChordEncoder,
+    target_root_octave: int | None = None,
 ) -> EncodedTimedChordWindow:
     """Encode a padded timed chord window into the transformer input tensor contract."""
     if not window.chord_sequence:
@@ -137,6 +160,7 @@ def encode_timed_chord_window(
                 chord=chord if is_valid else None,
                 tonic=tonic,
                 measure_size=measure_size,
+                target_root_octave=target_root_octave,
             )
         )
 

@@ -33,6 +33,7 @@ def print_info_summary(prefix: str, info: dict[str, object]) -> None:
 
     print(f"{prefix} state: {info['state']}")
     print(f"{prefix} step_index: {info['step_index']}")
+    print(f"{prefix} target_root_octave: {info['target_root_octave']}")
     print(f"{prefix} action_count: {len(action_mask)}")
     print(f"{prefix} legal_action_count: {sum(action_mask)}")
     print(f"{prefix} has_legal_actions: {info['has_legal_actions']}")
@@ -49,7 +50,7 @@ def main() -> None:
         invalid_action_penalty=-1.0,
     )
 
-    obs, info = env.reset()
+    obs, info = env.reset(seed=0)
     print(f"reset obs: {obs}")
     print_info_summary("reset", info)
 

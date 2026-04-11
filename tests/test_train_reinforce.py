@@ -21,6 +21,8 @@ def test_train_config_binds_eight_measure_episode_cap() -> None:
     assert config.episode_measures == 8
     assert config.measure_size == 4
     assert config.max_steps == 32
+    assert config.target_distance_weight == 1.0
+    assert config.target_terminal_match_reward == 10.0
 
 
 def test_append_metrics_writes_jsonl_record(tmp_path: Path) -> None:
@@ -35,6 +37,10 @@ def test_append_metrics_writes_jsonl_record(tmp_path: Path) -> None:
             terminated=False,
             truncated=True,
             loss=1.25,
+            target_root_octave=4,
+            final_root_octave=5,
+            final_octave_distance=1,
+            hit_target_on_final_step=False,
         ),
     )
 
@@ -44,6 +50,10 @@ def test_append_metrics_writes_jsonl_record(tmp_path: Path) -> None:
     assert record["episode_length"] == 32
     assert record["terminated"] is False
     assert record["truncated"] is True
+    assert record["target_root_octave"] == 4
+    assert record["final_root_octave"] == 5
+    assert record["final_octave_distance"] == 1
+    assert record["hit_target_on_final_step"] is False
 
 
 def test_save_checkpoint_writes_episode_and_latest_files(tmp_path: Path) -> None:
@@ -66,6 +76,10 @@ def test_save_checkpoint_writes_episode_and_latest_files(tmp_path: Path) -> None
             terminated=False,
             truncated=True,
             loss=0.5,
+            target_root_octave=4,
+            final_root_octave=4,
+            final_octave_distance=0,
+            hit_target_on_final_step=True,
         ),
     )
 
@@ -76,6 +90,10 @@ def test_save_checkpoint_writes_episode_and_latest_files(tmp_path: Path) -> None
     assert checkpoint["episode_index"] == 1
     assert checkpoint["config"]["episode_measures"] == 8
     assert checkpoint["stats"]["episode_length"] == 32
+    assert checkpoint["stats"]["target_root_octave"] == 4
+    assert checkpoint["stats"]["final_root_octave"] == 4
+    assert checkpoint["stats"]["final_octave_distance"] == 0
+    assert checkpoint["stats"]["hit_target_on_final_step"] is True
 
 
 def test_train_reinforce_main_prints_stats_and_writes_artifacts(
@@ -91,6 +109,10 @@ def test_train_reinforce_main_prints_stats_and_writes_artifacts(
     assert "max_steps: 32" in output
     assert "episode 0 return:" in output
     assert "episode 0 mean_step_reward:" in output
+    assert "episode 0 target_root_octave:" in output
+    assert "episode 0 final_root_octave:" in output
+    assert "episode 0 final_octave_distance:" in output
+    assert "episode 0 hit_target_on_final_step:" in output
     assert "episode 0 checkpoint:" in output
     assert "latest checkpoint:" in output
 
@@ -113,4 +135,5 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     assert "episode_measures: 8" in result.stdout
     assert "max_steps: 32" in result.stdout
     assert "episode 0 return:" in result.stdout
+    assert "episode 0 target_root_octave:" in result.stdout
     assert "episode 0 checkpoint:" in result.stdout

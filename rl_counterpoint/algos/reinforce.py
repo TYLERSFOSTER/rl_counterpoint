@@ -14,6 +14,7 @@ from rl_counterpoint.models.policy import (
     TransformerStepDeltaPolicy,
     encode_timed_chord_window,
 )
+from rl_counterpoint.reward.black_box import midi_to_octave
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,10 @@ class ReinforceEpisodeStats:
     terminated: bool
     truncated: bool
     loss: float
+    target_root_octave: int
+    final_root_octave: int
+    final_octave_distance: int
+    hit_target_on_final_step: bool
 
 
 def discounted_returns(
@@ -105,6 +110,7 @@ def reinforce_loss(
             tonic=tonic,
             measure_size=measure_size,
             encoder=encoder,
+            target_root_octave=step.info.get("target_root_octave"),
         )
         logits = policy(encoded_window)
         log_prob = masked_log_probability(
@@ -148,6 +154,11 @@ def run_reinforce_episode(
     loss.backward()
     optimizer.step()
 
+    final_step = trajectory[-1]
+    target_root_octave = int(final_step.info["target_root_octave"])
+    final_root_octave = midi_to_octave(final_step.next_observation[0])
+    final_octave_distance = abs(final_root_octave - target_root_octave)
+
     return ReinforceEpisodeStats(
         episode_return=sum(step.reward for step in trajectory),
         episode_length=len(trajectory),
@@ -155,4 +166,8 @@ def run_reinforce_episode(
         terminated=trajectory[-1].terminated,
         truncated=trajectory[-1].truncated,
         loss=float(loss.item()),
+        target_root_octave=target_root_octave,
+        final_root_octave=final_root_octave,
+        final_octave_distance=final_octave_distance,
+        hit_target_on_final_step=final_octave_distance == 0,
     )

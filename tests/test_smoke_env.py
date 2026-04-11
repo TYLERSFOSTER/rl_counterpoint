@@ -34,6 +34,7 @@ def test_print_info_summary_reports_mask_counts(capsys: pytest.CaptureFixture[st
         {
             "state": (3, 6),
             "step_index": 0,
+            "target_root_octave": 4,
             "action_mask": (True, False, True),
             "has_legal_actions": True,
         },
@@ -43,6 +44,7 @@ def test_print_info_summary_reports_mask_counts(capsys: pytest.CaptureFixture[st
 
     assert "reset state: (3, 6)" in output
     assert "reset step_index: 0" in output
+    assert "reset target_root_octave: 4" in output
     assert "reset action_count: 3" in output
     assert "reset legal_action_count: 2" in output
     assert "reset has_legal_actions: True" in output
@@ -69,6 +71,7 @@ def test_main_runs_smoke_sequence(capsys: pytest.CaptureFixture[str]) -> None:
     output = capsys.readouterr().out
 
     assert "reset obs:" in output
+    assert "reset target_root_octave:" in output
     assert "chosen StepDelta:" in output
     assert "step obs:" in output
     assert "step reward:" in output
@@ -86,6 +89,7 @@ def test_smoke_env_script_runs_by_file_path() -> None:
     )
 
     assert "reset obs:" in result.stdout
+    assert "reset target_root_octave:" in result.stdout
     assert "chosen StepDelta:" in result.stdout
     assert "step obs:" in result.stdout
     assert "step valid_action:" in result.stdout

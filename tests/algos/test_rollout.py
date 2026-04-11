@@ -16,6 +16,7 @@ from rl_counterpoint.algos.rollout import (
 )
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
+from rl_counterpoint.graph.state_space import is_valid_node
 from rl_counterpoint.models.policy import SymbolicChordEncoder, TransformerStepDeltaPolicy
 from rl_counterpoint.reward.black_box import ConstantReward
 
@@ -66,7 +67,8 @@ def test_collect_episode_returns_explicit_step_records() -> None:
     assert all(isinstance(step, StepRecord) for step in trajectory)
     assert trajectory[-1].truncated or trajectory[-1].terminated
     assert len(trajectory) == 2
-    assert trajectory[0].observation == (3, 6)
+    assert is_valid_node(trajectory[0].observation, env.graph_spec)
+    assert trajectory[0].info["target_root_octave"] in {2, 3, 4, 5, 6}
     assert isinstance(trajectory[0].action_index, int)
     assert isinstance(trajectory[0].step_delta, tuple)
     assert isinstance(trajectory[0].action_mask, tuple)
@@ -126,7 +128,8 @@ def test_collect_policy_episode_returns_policy_step_records() -> None:
     assert trajectory
     assert all(isinstance(step, PolicyStepRecord) for step in trajectory)
     assert len(trajectory) == 2
-    assert trajectory[0].observation == (3, 6)
+    assert is_valid_node(trajectory[0].observation, env.graph_spec)
+    assert trajectory[0].info["target_root_octave"] in {2, 3, 4, 5, 6}
     assert trajectory[0].timed_window.valid_mask[-1]
     assert trajectory[0].logits.shape == (len(env.action_space),)
     assert trajectory[-1].truncated or trajectory[-1].terminated

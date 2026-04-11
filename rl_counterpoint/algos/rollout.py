@@ -112,7 +112,7 @@ def collect_episode(
 ) -> list[StepRecord]:
     """Collect one trajectory using a masked random policy."""
     rng = Random(seed)
-    observation, info = env.reset()
+    observation, info = env.reset(seed=seed)
     trajectory: list[StepRecord] = []
 
     while True:
@@ -159,7 +159,7 @@ def collect_policy_episode(
 ) -> list[PolicyStepRecord]:
     """Collect one trajectory using the sequence-policy rollout path."""
     rng = Random(seed)
-    observation, info = env.reset()
+    observation, info = env.reset(seed=seed)
     trajectory: list[PolicyStepRecord] = []
 
     while True:
@@ -174,6 +174,7 @@ def collect_policy_episode(
             tonic=env.graph_spec.tonic,
             measure_size=env.measure_size,
             encoder=encoder,
+            target_root_octave=info.get("target_root_octave"),
         )
         logits = policy(encoded_window)
         action_space = info["action_space"]

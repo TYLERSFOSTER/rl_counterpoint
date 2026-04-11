@@ -17,7 +17,7 @@ from rl_counterpoint.algos.reinforce import ReinforceEpisodeStats, run_reinforce
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
 from rl_counterpoint.models.policy import SymbolicChordEncoder, TransformerStepDeltaPolicy
-from rl_counterpoint.reward.black_box import ConstantReward
+from rl_counterpoint.reward.black_box import TargetRootOctaveReward
 
 DEFAULT_MEASURE_SIZE = 4
 DEFAULT_EPISODE_MEASURES = 8
@@ -51,7 +51,8 @@ class TrainConfig:
     tonic: int = 60
     voice_count: int = 2
     invalid_action_penalty: float = -1.0
-    reward_value: float = 1.0
+    target_distance_weight: float = 1.0
+    target_terminal_match_reward: float = 10.0
 
     @property
     def max_steps(self) -> int:
@@ -67,7 +68,10 @@ def build_env(config: TrainConfig) -> CounterpointEnv:
     """Build the current local training environment from persisted config."""
     return CounterpointEnv(
         graph_spec=CounterpointGraphSpec(n=config.voice_count, tonic=config.tonic),
-        reward_fn=ConstantReward(reward=config.reward_value),
+        reward_fn=TargetRootOctaveReward(
+            distance_weight=config.target_distance_weight,
+            terminal_match_reward=config.target_terminal_match_reward,
+        ),
         initial_state=config.initial_state,
         max_steps=config.max_steps,
         measure_size=config.measure_size,
@@ -119,6 +123,10 @@ def append_metrics(
         "terminated": stats.terminated,
         "truncated": stats.truncated,
         "loss": stats.loss,
+        "target_root_octave": stats.target_root_octave,
+        "final_root_octave": stats.final_root_octave,
+        "final_octave_distance": stats.final_octave_distance,
+        "hit_target_on_final_step": stats.hit_target_on_final_step,
     }
     with metrics_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
@@ -146,6 +154,10 @@ def save_checkpoint(
             "terminated": stats.terminated,
             "truncated": stats.truncated,
             "loss": stats.loss,
+            "target_root_octave": stats.target_root_octave,
+            "final_root_octave": stats.final_root_octave,
+            "final_octave_distance": stats.final_octave_distance,
+            "hit_target_on_final_step": stats.hit_target_on_final_step,
         },
         "policy_state_dict": policy.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
@@ -165,6 +177,13 @@ def print_episode_summary(episode_index: int, stats: ReinforceEpisodeStats) -> N
     print(f"episode {episode_index} terminated: {stats.terminated}")
     print(f"episode {episode_index} truncated: {stats.truncated}")
     print(f"episode {episode_index} loss: {stats.loss}")
+    print(f"episode {episode_index} target_root_octave: {stats.target_root_octave}")
+    print(f"episode {episode_index} final_root_octave: {stats.final_root_octave}")
+    print(f"episode {episode_index} final_octave_distance: {stats.final_octave_distance}")
+    print(
+        f"episode {episode_index} hit_target_on_final_step: "
+        f"{stats.hit_target_on_final_step}"
+    )
 
 
 def main(*, run_dir: Path | None = None) -> None:

@@ -16,7 +16,7 @@ from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
 from rl_counterpoint.envs.observation import TimedChordWindow
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
 from rl_counterpoint.models.policy import SymbolicChordEncoder, TransformerStepDeltaPolicy
-from rl_counterpoint.reward.black_box import ConstantReward
+from rl_counterpoint.reward.black_box import TargetRootOctaveReward
 
 
 class DummyTextEmbedder:
@@ -30,7 +30,10 @@ class DummyTextEmbedder:
 def make_env(*, max_steps: int = 3) -> CounterpointEnv:
     return CounterpointEnv(
         graph_spec=CounterpointGraphSpec(n=2, tonic=60),
-        reward_fn=ConstantReward(reward=1.0),
+        reward_fn=TargetRootOctaveReward(
+            distance_weight=1.0,
+            terminal_match_reward=10.0,
+        ),
         initial_state=(3, 6),
         max_steps=max_steps,
         measure_size=4,
@@ -135,8 +138,14 @@ def test_run_reinforce_episode_returns_stats_and_updates_policy() -> None:
 
     assert isinstance(stats, ReinforceEpisodeStats)
     assert stats.episode_length == 2
-    assert stats.episode_return == 2.0
-    assert stats.mean_step_reward == 1.0
+    assert stats.episode_return > 0.0
+    assert stats.mean_step_reward > 0.0
     assert not stats.terminated
     assert stats.truncated
+    assert stats.target_root_octave in {2, 3, 4, 5, 6}
+    assert isinstance(stats.final_root_octave, int)
+    assert stats.final_octave_distance == abs(
+        stats.final_root_octave - stats.target_root_octave
+    )
+    assert stats.hit_target_on_final_step == (stats.final_octave_distance == 0)
     assert torch.isfinite(torch.tensor(stats.loss))
