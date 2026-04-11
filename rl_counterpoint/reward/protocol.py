@@ -25,6 +25,8 @@ class RewardContext:
     step_delta: StepDelta | None = None
     key_pitch_class: int | None = None
     timed_chord_window: TimedChordWindow | None = None
+    target_root_octave: int | None = None
+    is_final_step: bool = False
 
 
 @dataclass(frozen=True)

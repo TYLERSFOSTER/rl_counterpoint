@@ -17,6 +17,12 @@ from rl_counterpoint.music.intervals import pitch_class_interval
 from rl_counterpoint.reward.protocol import RewardContext, RewardResult
 
 
+def midi_to_octave(midi_note_value: int) -> int:
+    """Map a MIDI note value to its scientific-pitch octave number."""
+
+    return -1 + midi_note_value // 12
+
+
 @dataclass(frozen=True)
 class ConstantReward:
     """Return a fixed reward for every transition.
@@ -223,6 +229,57 @@ class StrongBeatConsonanceReward:
                 "strong_beat_weight": self.strong_beat_weight,
                 "weak_beat_weight": self.weak_beat_weight,
                 "static_consonance_diagnostics": static_result.diagnostics,
+                **self.diagnostics,
+            },
+        )
+
+
+@dataclass(frozen=True)
+class TargetRootOctaveReward:
+    """Reward proximity to a target root octave plus exact final-step arrival."""
+
+    distance_weight: float = 1.0
+    terminal_match_reward: float = 10.0
+    diagnostics: Mapping[str, object] = field(default_factory=dict)
+
+    def __call__(
+        self,
+        source: ChordState,
+        target: ChordState,
+        context: RewardContext,
+    ) -> RewardResult:
+        if not target:
+            raise ValueError("target chord must not be empty")
+        if context.target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required for TargetRootOctaveReward"
+            )
+
+        root_pitch = target[0]
+        root_octave = midi_to_octave(root_pitch)
+        octave_distance = abs(root_octave - context.target_root_octave)
+        distance_reward = self.distance_weight / (1 + octave_distance)
+        terminal_match = context.is_final_step and octave_distance == 0
+        terminal_bonus = self.terminal_match_reward if terminal_match else 0.0
+
+        return RewardResult(
+            reward=distance_reward + terminal_bonus,
+            is_terminal_success=terminal_match,
+            diagnostics={
+                "kind": "target_root_octave",
+                "source": source,
+                "target": target,
+                "step_index": context.step_index,
+                "root_pitch": root_pitch,
+                "root_octave": root_octave,
+                "target_root_octave": context.target_root_octave,
+                "octave_distance": octave_distance,
+                "distance_weight": self.distance_weight,
+                "distance_reward": distance_reward,
+                "is_final_step": context.is_final_step,
+                "terminal_match_reward": self.terminal_match_reward,
+                "terminal_bonus": terminal_bonus,
+                "terminal_match": terminal_match,
                 **self.diagnostics,
             },
         )

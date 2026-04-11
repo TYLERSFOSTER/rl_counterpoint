@@ -24,6 +24,8 @@ def test_reward_context_defaults() -> None:
     assert context.step_delta is None
     assert context.key_pitch_class is None
     assert context.timed_chord_window is None
+    assert context.target_root_octave is None
+    assert not context.is_final_step
 
 
 def test_reward_context_accepts_history() -> None:
@@ -62,6 +64,18 @@ def test_reward_context_accepts_step_delta_key_and_timed_window() -> None:
     assert context.step_delta == step_delta
     assert context.key_pitch_class == 0
     assert context.timed_chord_window == timed_window
+
+
+def test_reward_context_accepts_target_octave_and_final_step() -> None:
+    """A context can carry target-octave and final-step reward metadata."""
+    context = RewardContext(
+        step_index=7,
+        target_root_octave=4,
+        is_final_step=True,
+    )
+
+    assert context.target_root_octave == 4
+    assert context.is_final_step
 
 
 def test_reward_result_defaults() -> None:

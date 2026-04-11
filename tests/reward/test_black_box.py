@@ -15,7 +15,9 @@ from rl_counterpoint.reward.black_box import (
     ConstantReward,
     StrongBeatConsonanceReward,
     StaticConsonanceReward,
+    TargetRootOctaveReward,
     consonance_from_pitch_class,
+    midi_to_octave,
 )
 from rl_counterpoint.reward.protocol import RewardContext, RewardResult
 
@@ -76,6 +78,8 @@ def test_constant_reward_accepts_extended_reward_context() -> None:
         history=((3, 6),),
         step_delta=(1, 1),
         key_pitch_class=0,
+        target_root_octave=4,
+        is_final_step=False,
         timed_chord_window=TimedChordWindow(
             chord_sequence=((0, 0), (3, 6)),
             bar_positions=(-1, 0),
@@ -249,3 +253,73 @@ def test_strong_beat_consonance_reward_zeroes_reward_on_weak_beats_by_default() 
     assert not result.diagnostics["is_strong_beat"]
     assert result.diagnostics["applied_beat_weight"] == pytest.approx(0.0)
     assert result.diagnostics["base_static_consonance_reward"] > 0.0
+
+
+def test_midi_to_octave_uses_standard_midi_scientific_pitch_mapping() -> None:
+    """Octave numbering increments at C under the approved MIDI convention."""
+
+    assert midi_to_octave(0) == -1
+    assert midi_to_octave(12) == 0
+    assert midi_to_octave(60) == 4
+    assert midi_to_octave(69) == 4
+    assert midi_to_octave(127) == 9
+
+
+def test_target_root_octave_reward_uses_inverse_octave_distance() -> None:
+    """Per-step shaping reward is inverse distance from target root octave."""
+    reward_fn = TargetRootOctaveReward(distance_weight=2.0, terminal_match_reward=9.0)
+
+    result = reward_fn(
+        (48, 55, 60),
+        (60, 64, 67),
+        RewardContext(step_index=3, target_root_octave=4),
+    )
+
+    assert result.reward == pytest.approx(2.0)
+    assert not result.is_terminal_success
+    assert result.diagnostics["root_octave"] == 4
+    assert result.diagnostics["octave_distance"] == 0
+    assert result.diagnostics["distance_reward"] == pytest.approx(2.0)
+    assert result.diagnostics["terminal_bonus"] == pytest.approx(0.0)
+
+
+def test_target_root_octave_reward_decreases_with_distance() -> None:
+    """Farther target-octave distances receive smaller shaping reward."""
+    reward_fn = TargetRootOctaveReward(distance_weight=3.0)
+
+    result = reward_fn(
+        (48, 55, 60),
+        (36, 40, 43),
+        RewardContext(step_index=1, target_root_octave=4),
+    )
+
+    assert result.reward == pytest.approx(3.0 / 3.0)
+    assert result.diagnostics["root_octave"] == 2
+    assert result.diagnostics["octave_distance"] == 2
+
+
+def test_target_root_octave_reward_adds_large_bonus_for_final_exact_match() -> None:
+    """Exact final-step arrival earns the configured terminal success bonus."""
+    reward_fn = TargetRootOctaveReward(distance_weight=1.5, terminal_match_reward=8.0)
+
+    result = reward_fn(
+        (48, 55, 60),
+        (60, 64, 67),
+        RewardContext(step_index=7, target_root_octave=4, is_final_step=True),
+    )
+
+    assert result.reward == pytest.approx(9.5)
+    assert result.is_terminal_success
+    assert result.diagnostics["terminal_match"]
+    assert result.diagnostics["terminal_bonus"] == pytest.approx(8.0)
+
+
+def test_target_root_octave_reward_requires_target_octave() -> None:
+    """TargetRootOctaveReward needs the approved target-octave context field."""
+    reward_fn = TargetRootOctaveReward()
+
+    with pytest.raises(
+        ValueError,
+        match="target_root_octave is required for TargetRootOctaveReward",
+    ):
+        reward_fn((48, 55, 60), (60, 64, 67), RewardContext(step_index=0))
