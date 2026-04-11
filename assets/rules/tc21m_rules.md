@@ -104,6 +104,19 @@ The following rules come form the book [*Tonal Counterpoint for the 21st-Century
   - Accentented non-harmonic tones shoul dbe followed by a chord tones.
   - The only *skips* and *leaps* in $2^{\text{nd}}$-species occur between chord tones.
   - The above *consonant/chordal skips and leaps* occur freely, on down and offbeats.
+
+### Harmonic considerations
+- Do not ommit the root or third of a chord, be it triad or seventh
+- Triads should be implied in one of the following ways:
+  - Include all 3 chord factors: root, third, and fifth
+  - Write 2 roots and one third
+- When a non-harmonic tone is involved, it is preferable to include root and third factor
+- Do not double the leading tone of the scale **[SHOULD BE PRUNING RULE]**
+- Seventh chords should be implied by root, third, and seventh
+- Six-four chords should be one of these three:
+  - cadential
+  - passing
+  - arpegiating
   
 
 ## $3$-simplices: the barber shop *quartet*
