@@ -22,7 +22,7 @@ def test_train_config_binds_eight_measure_episode_cap() -> None:
     assert config.measure_size == 4
     assert config.max_steps == 32
     assert config.target_distance_weight == 1.0
-    assert config.target_terminal_match_reward == 10.0
+    assert config.target_terminal_window_reward == 10.0
 
 
 def test_append_metrics_writes_jsonl_record(tmp_path: Path) -> None:
@@ -115,10 +115,12 @@ def test_train_reinforce_main_prints_stats_and_writes_artifacts(
     assert "episode 0 hit_target_on_final_step:" in output
     assert "episode 0 checkpoint:" in output
     assert "latest checkpoint:" in output
+    assert "example episode midi:" in output
 
     assert (tmp_path / "config.json").exists()
     assert (tmp_path / "metrics.jsonl").exists()
     assert (tmp_path / "checkpoint_latest.pt").exists()
+    assert (tmp_path / "example_episode.mid").exists()
 
 
 def test_train_reinforce_script_runs_by_file_path() -> None:
@@ -137,3 +139,4 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     assert "episode 0 return:" in result.stdout
     assert "episode 0 target_root_octave:" in result.stdout
     assert "episode 0 checkpoint:" in result.stdout
+    assert "example episode midi:" in result.stdout

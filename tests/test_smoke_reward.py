@@ -50,6 +50,9 @@ def test_print_reward_summary_reports_compact_reward_fields(
                 "octave_distance": 1,
                 "distance_reward": 0.5,
                 "is_final_step": False,
+                "terminal_root_octaves": (),
+                "terminal_distances": (),
+                "terminal_window_average": 0.0,
                 "terminal_bonus": 0.0,
                 "terminal_match": False,
             },
@@ -68,6 +71,12 @@ def test_print_reward_summary_reports_compact_reward_fields(
     assert "octave_distance: 1" in output
     assert "distance_reward: 0.5" in output
     assert "is_final_step: False" in output
+    assert "terminal_root_octaves: ()" in output
+    assert "terminal_distances: ()" in output
+    assert "terminal_window_average: 0.0" in output
+    assert "terminal_root_octaves:" in output
+    assert "terminal_distances:" in output
+    assert "terminal_window_average:" in output
     assert "terminal_bonus: 0.0" in output
     assert "terminal_match: False" in output
 
@@ -82,7 +91,8 @@ def test_main_runs_reward_smoke_sequence(capsys: pytest.CaptureFixture[str]) -> 
     assert "final-hit example" in output
     assert "kind: target_root_octave" in output
     assert "terminal_match: False" in output
-    assert "terminal_match: True" in output
+    assert "terminal_window_average:" in output
+    assert "terminal_bonus:" in output
 
 
 def test_smoke_reward_script_runs_by_file_path() -> None:

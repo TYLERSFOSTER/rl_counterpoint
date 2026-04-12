@@ -236,10 +236,11 @@ class StrongBeatConsonanceReward:
 
 @dataclass(frozen=True)
 class TargetRootOctaveReward:
-    """Reward proximity to a target root octave plus exact final-step arrival."""
+    """Reward proximity to a target root octave plus terminal tail closeness."""
 
     distance_weight: float = 1.0
-    terminal_match_reward: float = 10.0
+    terminal_window_reward: float = 10.0
+    terminal_window_size: int = 3
     diagnostics: Mapping[str, object] = field(default_factory=dict)
 
     def __call__(
@@ -259,8 +260,33 @@ class TargetRootOctaveReward:
         root_octave = midi_to_octave(root_pitch)
         octave_distance = abs(root_octave - context.target_root_octave)
         distance_reward = self.distance_weight / (1 + octave_distance)
-        terminal_match = context.is_final_step and octave_distance == 0
-        terminal_bonus = self.terminal_match_reward if terminal_match else 0.0
+        if self.terminal_window_size < 1:
+            raise ValueError("terminal_window_size must be at least 1")
+
+        terminal_root_octaves = ()
+        terminal_distances = ()
+        terminal_closeness_scores = ()
+        terminal_window_average = 0.0
+        terminal_bonus = 0.0
+
+        if context.is_final_step:
+            terminal_chords = (*context.history, target)[-self.terminal_window_size :]
+            terminal_root_octaves = tuple(
+                midi_to_octave(chord[0]) for chord in terminal_chords
+            )
+            terminal_distances = tuple(
+                abs(root_octave_value - context.target_root_octave)
+                for root_octave_value in terminal_root_octaves
+            )
+            terminal_closeness_scores = tuple(
+                1 / (1 + distance) for distance in terminal_distances
+            )
+            terminal_window_average = sum(terminal_closeness_scores) / len(
+                terminal_closeness_scores
+            )
+            terminal_bonus = self.terminal_window_reward * terminal_window_average
+
+        terminal_match = context.is_final_step and terminal_window_average == 1.0
 
         return RewardResult(
             reward=distance_reward + terminal_bonus,
@@ -277,7 +303,12 @@ class TargetRootOctaveReward:
                 "distance_weight": self.distance_weight,
                 "distance_reward": distance_reward,
                 "is_final_step": context.is_final_step,
-                "terminal_match_reward": self.terminal_match_reward,
+                "terminal_window_reward": self.terminal_window_reward,
+                "terminal_window_size": self.terminal_window_size,
+                "terminal_root_octaves": terminal_root_octaves,
+                "terminal_distances": terminal_distances,
+                "terminal_closeness_scores": terminal_closeness_scores,
+                "terminal_window_average": terminal_window_average,
                 "terminal_bonus": terminal_bonus,
                 "terminal_match": terminal_match,
                 **self.diagnostics,

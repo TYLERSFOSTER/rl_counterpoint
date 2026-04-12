@@ -32,7 +32,7 @@ def make_env(*, max_steps: int = 3) -> CounterpointEnv:
         graph_spec=CounterpointGraphSpec(n=2, tonic=60),
         reward_fn=TargetRootOctaveReward(
             distance_weight=1.0,
-            terminal_match_reward=10.0,
+            terminal_window_reward=10.0,
         ),
         initial_state=(3, 6),
         max_steps=max_steps,

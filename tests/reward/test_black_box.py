@@ -267,7 +267,7 @@ def test_midi_to_octave_uses_standard_midi_scientific_pitch_mapping() -> None:
 
 def test_target_root_octave_reward_uses_inverse_octave_distance() -> None:
     """Per-step shaping reward is inverse distance from target root octave."""
-    reward_fn = TargetRootOctaveReward(distance_weight=2.0, terminal_match_reward=9.0)
+    reward_fn = TargetRootOctaveReward(distance_weight=2.0, terminal_window_reward=9.0)
 
     result = reward_fn(
         (48, 55, 60),
@@ -298,20 +298,54 @@ def test_target_root_octave_reward_decreases_with_distance() -> None:
     assert result.diagnostics["octave_distance"] == 2
 
 
-def test_target_root_octave_reward_adds_large_bonus_for_final_exact_match() -> None:
-    """Exact final-step arrival earns the configured terminal success bonus."""
-    reward_fn = TargetRootOctaveReward(distance_weight=1.5, terminal_match_reward=8.0)
+def test_target_root_octave_reward_averages_last_three_chords_on_final_step() -> None:
+    """Final-step reward uses average closeness of the last three chord roots."""
+    reward_fn = TargetRootOctaveReward(distance_weight=1.5, terminal_window_reward=8.0)
 
     result = reward_fn(
         (48, 55, 60),
         (60, 64, 67),
-        RewardContext(step_index=7, target_root_octave=4, is_final_step=True),
+        RewardContext(
+            step_index=7,
+            target_root_octave=4,
+            is_final_step=True,
+            history=((36, 40, 43), (48, 52, 55)),
+        ),
     )
 
-    assert result.reward == pytest.approx(9.5)
+    expected_terminal_average = (1 / 3 + 1 / 2 + 1.0) / 3
+    assert result.reward == pytest.approx(1.5 + 8.0 * expected_terminal_average)
+    assert not result.is_terminal_success
+    assert not result.diagnostics["terminal_match"]
+    assert result.diagnostics["terminal_root_octaves"] == (2, 3, 4)
+    assert result.diagnostics["terminal_distances"] == (2, 1, 0)
+    assert result.diagnostics["terminal_window_average"] == pytest.approx(
+        expected_terminal_average
+    )
+    assert result.diagnostics["terminal_bonus"] == pytest.approx(
+        8.0 * expected_terminal_average
+    )
+
+
+def test_target_root_octave_reward_marks_terminal_success_when_last_three_all_match() -> None:
+    """Terminal success now means the last three root octaves all hit the target."""
+    reward_fn = TargetRootOctaveReward(distance_weight=1.0, terminal_window_reward=5.0)
+
+    result = reward_fn(
+        (60, 64, 67),
+        (72, 76, 79),
+        RewardContext(
+            step_index=7,
+            target_root_octave=5,
+            is_final_step=True,
+            history=((72, 76, 79), (72, 76, 79)),
+        ),
+    )
+
     assert result.is_terminal_success
     assert result.diagnostics["terminal_match"]
-    assert result.diagnostics["terminal_bonus"] == pytest.approx(8.0)
+    assert result.diagnostics["terminal_window_average"] == pytest.approx(1.0)
+    assert result.diagnostics["terminal_bonus"] == pytest.approx(5.0)
 
 
 def test_target_root_octave_reward_requires_target_octave() -> None:

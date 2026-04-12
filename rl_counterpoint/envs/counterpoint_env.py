@@ -28,7 +28,7 @@ from rl_counterpoint.reward.protocol import RewardContext, RewardFn
 
 
 Info = dict[str, Any]
-TARGET_ROOT_OCTAVE_CHOICES = (2, 3, 4, 5, 6)
+TARGET_ROOT_OCTAVE_CHOICES = (1, 2, 3, 4, 5, 7, 8)
 
 
 @dataclass

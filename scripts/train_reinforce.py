@@ -15,17 +15,23 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from rl_counterpoint.algos.reinforce import ReinforceEpisodeStats, run_reinforce_episode
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
+from rl_counterpoint.envs.observation import build_timed_chord_window
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
-from rl_counterpoint.models.policy import SymbolicChordEncoder, TransformerStepDeltaPolicy
+from rl_counterpoint.models.policy import (
+    SymbolicChordEncoder,
+    TransformerStepDeltaPolicy,
+    encode_timed_chord_window,
+)
+from rl_counterpoint.music.render import write_chord_sequence_to_midi
 from rl_counterpoint.reward.black_box import TargetRootOctaveReward
 
 DEFAULT_MEASURE_SIZE = 4
-DEFAULT_EPISODE_MEASURES = 8
+DEFAULT_EPISODE_MEASURES = 3
 DEFAULT_CONTEXT_MEASURES = 3
-DEFAULT_MAX_STEP_SIZE = 2
-DEFAULT_NUM_EPISODES = 3
-DEFAULT_LEARNING_RATE = 1e-3
-DEFAULT_GAMMA = 0.99
+DEFAULT_MAX_STEP_SIZE = 8
+DEFAULT_NUM_EPISODES = 0
+DEFAULT_LEARNING_RATE = 1e-6
+DEFAULT_GAMMA = 0.75
 
 
 class DummyTextEmbedder:
@@ -52,7 +58,7 @@ class TrainConfig:
     voice_count: int = 2
     invalid_action_penalty: float = -1.0
     target_distance_weight: float = 1.0
-    target_terminal_match_reward: float = 10.0
+    target_terminal_window_reward: float = 10.0
 
     @property
     def max_steps(self) -> int:
@@ -70,7 +76,7 @@ def build_env(config: TrainConfig) -> CounterpointEnv:
         graph_spec=CounterpointGraphSpec(n=config.voice_count, tonic=config.tonic),
         reward_fn=TargetRootOctaveReward(
             distance_weight=config.target_distance_weight,
-            terminal_match_reward=config.target_terminal_match_reward,
+            terminal_window_reward=config.target_terminal_window_reward,
         ),
         initial_state=config.initial_state,
         max_steps=config.max_steps,
@@ -186,6 +192,62 @@ def print_episode_summary(episode_index: int, stats: ReinforceEpisodeStats) -> N
     )
 
 
+def export_example_episode_midi(
+    *,
+    run_dir: Path,
+    env: CounterpointEnv,
+    policy: TransformerStepDeltaPolicy,
+    encoder: SymbolicChordEncoder,
+    context_measures: int,
+    seed: int = 10_000,
+) -> Path:
+    """Run one deterministic greedy evaluation episode and export it as MIDI."""
+    observation, info = env.reset(seed=seed)
+    chord_sequence = [observation]
+
+    with torch.no_grad():
+        while True:
+            timed_window = build_timed_chord_window(
+                history=env.history,
+                step_index=env.step_index,
+                measure_size=env.measure_size,
+                context_measures=context_measures,
+            )
+            encoded_window = encode_timed_chord_window(
+                window=timed_window,
+                tonic=env.graph_spec.tonic,
+                measure_size=env.measure_size,
+                encoder=encoder,
+                target_root_octave=info.get("target_root_octave"),
+            )
+            logits = policy(encoded_window)
+            action_space = info["action_space"]
+            action_mask = info["action_mask"]
+            if not isinstance(action_space, tuple) or not isinstance(action_mask, tuple):
+                raise TypeError("action_space and action_mask must be tuples")
+
+            legal_indices = [
+                index for index, is_legal in enumerate(action_mask) if is_legal
+            ]
+            if not legal_indices:
+                raise RuntimeError("no legal StepDelta available during evaluation")
+
+            legal_logits = logits[legal_indices]
+            best_legal_position = int(torch.argmax(legal_logits).item())
+            action_index = legal_indices[best_legal_position]
+            step_delta = action_space[action_index]
+
+            observation, _reward, terminated, truncated, info = env.step(step_delta)
+            chord_sequence.append(observation)
+
+            if terminated or truncated:
+                midi_path = write_chord_sequence_to_midi(
+                    chord_sequence=tuple(chord_sequence),
+                    path=run_dir / "example_episode.mid",
+                )
+                return midi_path
+
+
 def main(*, run_dir: Path | None = None) -> None:
     config = TrainConfig()
     output_dir = run_dir or default_run_dir()
@@ -227,6 +289,15 @@ def main(*, run_dir: Path | None = None) -> None:
         print_episode_summary(episode_index, stats)
         print(f"episode {episode_index} checkpoint: {episode_checkpoint}")
         print(f"latest checkpoint: {latest_checkpoint}")
+
+    midi_path = export_example_episode_midi(
+        run_dir=output_dir,
+        env=env,
+        policy=policy,
+        encoder=encoder,
+        context_measures=config.context_measures,
+    )
+    print(f"example episode midi: {midi_path}")
 
 
 if __name__ == "__main__":

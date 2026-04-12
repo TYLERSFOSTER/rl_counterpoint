@@ -1,18 +1,18 @@
 {
   "context_measures": 3,
-  "episode_measures": 8,
-  "gamma": 0.99,
+  "episode_measures": 3,
+  "gamma": 0.75,
   "initial_state": [
     3,
     6
   ],
   "invalid_action_penalty": -1.0,
-  "learning_rate": 0.001,
-  "max_step_size": 2,
+  "learning_rate": 1e-06,
+  "max_step_size": 8,
   "measure_size": 4,
-  "num_episodes": 3,
+  "num_episodes": 0,
   "target_distance_weight": 1.0,
-  "target_terminal_match_reward": 10.0,
+  "target_terminal_window_reward": 10.0,
   "tonic": 60,
   "voice_count": 2
 }
