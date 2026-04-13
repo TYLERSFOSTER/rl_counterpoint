@@ -1,5 +1,6 @@
 {
   "context_measures": 2,
+  "entropy_coefficient": 0.01,
   "episode_measures": 8,
   "gamma": 0.3,
   "initial_state": null,

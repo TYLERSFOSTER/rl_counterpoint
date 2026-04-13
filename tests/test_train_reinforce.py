@@ -23,6 +23,7 @@ def test_train_config_binds_eight_measure_episode_cap() -> None:
     assert config.max_steps == 32
     assert config.target_distance_weight == 1.0
     assert config.target_terminal_window_reward == 10.0
+    assert config.entropy_coefficient == 0.01
 
 
 def test_append_metrics_writes_jsonl_record(tmp_path: Path) -> None:
@@ -107,6 +108,7 @@ def test_train_reinforce_main_prints_stats_and_writes_artifacts(
     assert "run_dir:" in output
     assert "episode_measures: 8" in output
     assert "max_steps: 32" in output
+    assert "entropy_coefficient: 0.01" in output
     assert "episode 0 return:" in output
     assert "episode 0 mean_step_reward:" in output
     assert "episode 0 target_root_octave:" in output
@@ -136,6 +138,7 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     assert "run_dir:" in result.stdout
     assert "episode_measures: 8" in result.stdout
     assert "max_steps: 32" in result.stdout
+    assert "entropy_coefficient: 0.01" in result.stdout
     assert "episode 0 return:" in result.stdout
     assert "episode 0 target_root_octave:" in result.stdout
     assert "episode 0 checkpoint:" in result.stdout

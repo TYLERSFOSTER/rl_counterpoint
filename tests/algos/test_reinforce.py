@@ -7,6 +7,7 @@ import torch
 from rl_counterpoint.algos.reinforce import (
     ReinforceEpisodeStats,
     discounted_returns,
+    masked_entropy,
     masked_log_probability,
     reinforce_loss,
     run_reinforce_episode,
@@ -80,6 +81,23 @@ def test_masked_log_probability_uses_only_legal_logits() -> None:
     assert torch.allclose(log_prob, expected)
 
 
+def test_masked_entropy_uses_only_legal_logits() -> None:
+    """Entropy is computed over the legal subset, ignoring illegal logits."""
+    logits = torch.tensor([100.0, 1.0, 3.0], dtype=torch.float32)
+    action_mask = (False, True, True)
+
+    entropy = masked_entropy(
+        logits=logits,
+        action_mask=action_mask,
+    )
+
+    legal_logits = torch.tensor([1.0, 3.0], dtype=torch.float32)
+    legal_probs = torch.softmax(legal_logits, dim=0)
+    legal_log_probs = torch.log_softmax(legal_logits, dim=0)
+    expected = -(legal_probs * legal_log_probs).sum()
+    assert torch.allclose(entropy, expected)
+
+
 def test_reinforce_loss_is_finite_for_policy_trajectory() -> None:
     """One collected trajectory can be replayed into a finite REINFORCE loss."""
     env = make_env(max_steps=2)
@@ -117,6 +135,55 @@ def test_reinforce_loss_is_finite_for_policy_trajectory() -> None:
 
     assert loss.ndim == 0
     assert torch.isfinite(loss)
+
+
+def test_reinforce_loss_entropy_regularization_lowers_loss() -> None:
+    """A positive entropy coefficient subtracts masked policy entropy from loss."""
+    env = make_env(max_steps=2)
+    encoder = SymbolicChordEncoder(text_embedder=DummyTextEmbedder())
+    policy = make_policy(action_dim=len(env.action_space), max_window_len=env.measure_size * 3)
+    timed_window = TimedChordWindow(
+        chord_sequence=((0, 0), (3, 6)),
+        bar_positions=(-1, 0),
+        valid_mask=(False, True),
+    )
+    action_mask = tuple(index < 2 for index in range(len(env.action_space)))
+    trajectory = [
+        PolicyStepRecord(
+            observation=(3, 6),
+            timed_window=timed_window,
+            action_index=0,
+            step_delta=env.action_space[0],
+            action_mask=action_mask,
+            logits=torch.zeros(len(env.action_space)),
+            reward=1.0,
+            terminated=False,
+            truncated=True,
+            info={},
+            next_observation=(3, 6),
+        )
+    ]
+
+    loss_without_entropy = reinforce_loss(
+        trajectory,
+        policy=policy,
+        encoder=encoder,
+        tonic=env.graph_spec.tonic,
+        measure_size=env.measure_size,
+        gamma=0.99,
+        entropy_coefficient=0.0,
+    )
+    loss_with_entropy = reinforce_loss(
+        trajectory,
+        policy=policy,
+        encoder=encoder,
+        tonic=env.graph_spec.tonic,
+        measure_size=env.measure_size,
+        gamma=0.99,
+        entropy_coefficient=0.1,
+    )
+
+    assert loss_with_entropy < loss_without_entropy
 
 
 def test_run_reinforce_episode_returns_stats_and_updates_policy() -> None:

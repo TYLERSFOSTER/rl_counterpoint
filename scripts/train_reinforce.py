@@ -32,6 +32,7 @@ DEFAULT_MAX_STEP_SIZE = 7
 DEFAULT_NUM_EPISODES = 3
 DEFAULT_LEARNING_RATE = 1e-4
 DEFAULT_GAMMA = 0.3
+DEFAULT_ENTROPY_COEFFICIENT = 0.01
 
 
 class DummyTextEmbedder:
@@ -53,6 +54,7 @@ class TrainConfig:
     num_episodes: int = DEFAULT_NUM_EPISODES
     learning_rate: float = DEFAULT_LEARNING_RATE
     gamma: float = DEFAULT_GAMMA
+    entropy_coefficient: float = DEFAULT_ENTROPY_COEFFICIENT
     initial_state: tuple[int, ...] | None = None
     tonic: int = 60
     voice_count: int = 3
@@ -262,6 +264,7 @@ def main(*, run_dir: Path | None = None) -> None:
     print(f"measure_size: {config.measure_size}")
     print(f"episode_measures: {config.episode_measures}")
     print(f"max_steps: {config.max_steps}")
+    print(f"entropy_coefficient: {config.entropy_coefficient}")
 
     for episode_index in range(config.num_episodes):
         stats = run_reinforce_episode(
@@ -270,6 +273,7 @@ def main(*, run_dir: Path | None = None) -> None:
             encoder=encoder,
             optimizer=optimizer,
             gamma=config.gamma,
+            entropy_coefficient=config.entropy_coefficient,
             context_measures=config.context_measures,
             seed=episode_index,
         )
