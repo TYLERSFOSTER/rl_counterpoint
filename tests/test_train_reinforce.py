@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from random import Random
 
 import torch
 
@@ -24,6 +25,31 @@ def test_train_config_binds_eight_measure_episode_cap() -> None:
     assert config.target_distance_weight == 1.0
     assert config.target_terminal_window_reward == 10.0
     assert config.entropy_coefficient == 0.01
+    assert config.export_temperature == 1.0
+
+
+def test_choose_export_action_index_uses_greedy_argmax_at_zero_temperature() -> None:
+    """Zero export temperature preserves deterministic greedy export."""
+    action_index = train_reinforce.choose_export_action_index(
+        legal_indices=[1, 4, 7],
+        legal_logits=torch.tensor([0.5, 2.5, 1.0], dtype=torch.float32),
+        export_temperature=0.0,
+        rng=Random(123),
+    )
+
+    assert action_index == 4
+
+
+def test_choose_export_action_index_can_sample_non_argmax_action() -> None:
+    """Positive export temperature enables stochastic MIDI export."""
+    action_index = train_reinforce.choose_export_action_index(
+        legal_indices=[10, 11],
+        legal_logits=torch.tensor([0.0, 0.0], dtype=torch.float32),
+        export_temperature=1.0,
+        rng=Random(0),
+    )
+
+    assert action_index == 11
 
 
 def test_append_metrics_writes_jsonl_record(tmp_path: Path) -> None:
@@ -109,6 +135,7 @@ def test_train_reinforce_main_prints_stats_and_writes_artifacts(
     assert "episode_measures: 8" in output
     assert "max_steps: 32" in output
     assert "entropy_coefficient: 0.01" in output
+    assert "export_temperature: 1.0" in output
     assert "episode 0 return:" in output
     assert "episode 0 mean_step_reward:" in output
     assert "episode 0 target_root_octave:" in output
@@ -139,6 +166,7 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     assert "episode_measures: 8" in result.stdout
     assert "max_steps: 32" in result.stdout
     assert "entropy_coefficient: 0.01" in result.stdout
+    assert "export_temperature: 1.0" in result.stdout
     assert "episode 0 return:" in result.stdout
     assert "episode 0 target_root_octave:" in result.stdout
     assert "episode 0 checkpoint:" in result.stdout

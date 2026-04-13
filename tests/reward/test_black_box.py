@@ -18,6 +18,7 @@ from rl_counterpoint.reward.black_box import (
     TargetRootOctaveReward,
     consonance_from_pitch_class,
     midi_to_octave,
+    target_root_octave_deadline,
 )
 from rl_counterpoint.reward.protocol import RewardContext, RewardResult
 
@@ -265,6 +266,19 @@ def test_midi_to_octave_uses_standard_midi_scientific_pitch_mapping() -> None:
     assert midi_to_octave(127) == 9
 
 
+def test_target_root_octave_deadline_uses_initial_distance_and_measure_round_up() -> None:
+    """Deadline rounds up to whole measures from initial root-octave distance."""
+    deadline_steps, deadline_measures = target_root_octave_deadline(
+        initial_state=(36, 40, 43),
+        target_root_octave=4,
+        max_step_size=6,
+        measure_size=4,
+    )
+
+    assert deadline_steps == 8
+    assert deadline_measures == 2
+
+
 def test_target_root_octave_reward_uses_inverse_octave_distance() -> None:
     """Per-step shaping reward is inverse distance from target root octave."""
     reward_fn = TargetRootOctaveReward(distance_weight=2.0, terminal_window_reward=9.0)
@@ -281,6 +295,8 @@ def test_target_root_octave_reward_uses_inverse_octave_distance() -> None:
     assert result.diagnostics["octave_distance"] == 0
     assert result.diagnostics["distance_reward"] == pytest.approx(2.0)
     assert result.diagnostics["terminal_bonus"] == pytest.approx(0.0)
+    assert result.diagnostics["deadline_step"] is None
+    assert result.diagnostics["deadline_active"] is False
 
 
 def test_target_root_octave_reward_decreases_with_distance() -> None:
@@ -346,6 +362,32 @@ def test_target_root_octave_reward_marks_terminal_success_when_last_three_all_ma
     assert result.diagnostics["terminal_match"]
     assert result.diagnostics["terminal_window_average"] == pytest.approx(1.0)
     assert result.diagnostics["terminal_bonus"] == pytest.approx(5.0)
+
+
+def test_target_root_octave_reward_zeroes_all_reward_after_deadline() -> None:
+    """After the derived deadline, both shaping and terminal scoring shut off."""
+    reward_fn = TargetRootOctaveReward(distance_weight=1.5, terminal_window_reward=8.0)
+
+    result = reward_fn(
+        (48, 55, 60),
+        (60, 64, 67),
+        RewardContext(
+            step_index=4,
+            max_step_size=6,
+            measure_size=4,
+            target_root_octave=4,
+            is_final_step=True,
+            history=((48, 52, 55), (48, 52, 55)),
+        ),
+    )
+
+    assert result.reward == pytest.approx(0.0)
+    assert not result.is_terminal_success
+    assert result.diagnostics["deadline_step"] == 4
+    assert result.diagnostics["deadline_measures"] == 1
+    assert result.diagnostics["deadline_active"]
+    assert result.diagnostics["distance_reward"] == pytest.approx(0.0)
+    assert result.diagnostics["terminal_bonus"] == pytest.approx(0.0)
 
 
 def test_target_root_octave_reward_requires_target_octave() -> None:

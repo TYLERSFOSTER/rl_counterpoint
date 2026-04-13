@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import ceil
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -21,6 +22,32 @@ def midi_to_octave(midi_note_value: int) -> int:
     """Map a MIDI note value to its scientific-pitch octave number."""
 
     return -1 + midi_note_value // 12
+
+
+def target_root_octave_deadline(
+    *,
+    initial_state: ChordState,
+    target_root_octave: int,
+    max_step_size: int,
+    measure_size: int,
+    average_step_fraction: float = 0.5,
+) -> tuple[int, int]:
+    """Return the rewardable deadline in steps and measures for the target-octave task."""
+    if not initial_state:
+        raise ValueError("initial_state must not be empty")
+    if max_step_size < 1:
+        raise ValueError("max_step_size must be at least 1")
+    if measure_size < 1:
+        raise ValueError("measure_size must be at least 1")
+    if average_step_fraction <= 0.0:
+        raise ValueError("average_step_fraction must be positive")
+
+    initial_root_octave = midi_to_octave(initial_state[0])
+    initial_semitone_distance = abs(initial_root_octave - target_root_octave) * 12
+    expected_progress_per_step = max_step_size * average_step_fraction
+    estimated_steps = ceil(initial_semitone_distance / expected_progress_per_step)
+    deadline_measures = max(1, ceil(estimated_steps / measure_size))
+    return deadline_measures * measure_size, deadline_measures
 
 
 @dataclass(frozen=True)
@@ -241,6 +268,7 @@ class TargetRootOctaveReward:
     distance_weight: float = 1.0
     terminal_window_reward: float = 10.0
     terminal_window_size: int = 3
+    deadline_average_step_fraction: float = 0.5
     diagnostics: Mapping[str, object] = field(default_factory=dict)
 
     def __call__(
@@ -259,17 +287,36 @@ class TargetRootOctaveReward:
         root_pitch = target[0]
         root_octave = midi_to_octave(root_pitch)
         octave_distance = abs(root_octave - context.target_root_octave)
-        distance_reward = self.distance_weight / (1 + octave_distance)
         if self.terminal_window_size < 1:
             raise ValueError("terminal_window_size must be at least 1")
 
+        deadline_step = None
+        deadline_measures = None
+        deadline_active = False
+        if (
+            context.measure_size is not None
+            and context.max_step_size is not None
+            and context.history
+        ):
+            deadline_step, deadline_measures = target_root_octave_deadline(
+                initial_state=context.history[0],
+                target_root_octave=context.target_root_octave,
+                max_step_size=context.max_step_size,
+                measure_size=context.measure_size,
+                average_step_fraction=self.deadline_average_step_fraction,
+            )
+            deadline_active = context.step_index >= deadline_step
+
+        distance_reward = (
+            0.0 if deadline_active else self.distance_weight / (1 + octave_distance)
+        )
         terminal_root_octaves = ()
         terminal_distances = ()
         terminal_closeness_scores = ()
         terminal_window_average = 0.0
         terminal_bonus = 0.0
 
-        if context.is_final_step:
+        if context.is_final_step and not deadline_active:
             terminal_chords = (*context.history, target)[-self.terminal_window_size :]
             terminal_root_octaves = tuple(
                 midi_to_octave(chord[0]) for chord in terminal_chords
@@ -286,7 +333,9 @@ class TargetRootOctaveReward:
             )
             terminal_bonus = self.terminal_window_reward * terminal_window_average
 
-        terminal_match = context.is_final_step and terminal_window_average == 1.0
+        terminal_match = (
+            context.is_final_step and not deadline_active and terminal_window_average == 1.0
+        )
 
         return RewardResult(
             reward=distance_reward + terminal_bonus,
@@ -300,6 +349,9 @@ class TargetRootOctaveReward:
                 "root_octave": root_octave,
                 "target_root_octave": context.target_root_octave,
                 "octave_distance": octave_distance,
+                "deadline_step": deadline_step,
+                "deadline_measures": deadline_measures,
+                "deadline_active": deadline_active,
                 "distance_weight": self.distance_weight,
                 "distance_reward": distance_reward,
                 "is_final_step": context.is_final_step,

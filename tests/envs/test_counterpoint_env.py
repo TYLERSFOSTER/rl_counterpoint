@@ -115,6 +115,8 @@ def test_reset_returns_raw_state_and_action_info() -> None:
     assert not info["is_ending_beat"]
     assert info["history"] == (obs,)
     assert info["target_root_octave"] in {2, 3, 4, 5, 6}
+    assert info["reward_deadline_step"] >= 4
+    assert info["reward_deadline_measures"] >= 1
     assert info["action_space"]
     assert info["action_mask"]
     assert len(info["action_space"]) == len(info["action_mask"])
@@ -186,6 +188,35 @@ def test_step_truncates_at_max_steps() -> None:
     assert info["step_index"] == 1
 
 
+def test_step_truncates_at_reward_deadline_when_sooner_than_max_steps() -> None:
+    """The reward deadline becomes the effective truncation limit when earlier."""
+    env = CounterpointEnv(
+        graph_spec=CounterpointGraphSpec(n=2, tonic=60),
+        reward_fn=ConstantReward(reward=1.25),
+        initial_state=None,
+        max_steps=16,
+        measure_size=4,
+        max_step_size=12,
+    )
+    _obs, info = env.reset(seed=0)
+    deadline_step = info["reward_deadline_step"]
+    assert deadline_step <= 16
+
+    for _ in range(deadline_step - 1):
+        step_delta = first_legal_step_delta(info)
+        _obs, _reward, terminated, truncated, info = env.step(step_delta)
+        assert not terminated
+        assert not truncated
+
+    step_delta = first_legal_step_delta(info)
+    _obs, _reward, terminated, truncated, info = env.step(step_delta)
+
+    assert not terminated
+    assert truncated
+    assert info["step_index"] == deadline_step
+    assert info["reward_deadline_step"] == deadline_step
+
+
 def test_valid_step_passes_extended_reward_context() -> None:
     """The env passes step delta, key pitch class, and timed window to reward."""
     reward_fn = RecordingReward()
@@ -207,6 +238,7 @@ def test_valid_step_passes_extended_reward_context() -> None:
     assert context.step_delta == step_delta
     assert context.key_pitch_class == 0
     assert context.measure_size == 4
+    assert context.max_step_size == 2
     assert context.history == (initial_obs,)
     assert context.target_root_octave == env.target_root_octave
     assert not context.is_final_step

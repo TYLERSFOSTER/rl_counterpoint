@@ -24,11 +24,12 @@ from rl_counterpoint.graph.actions import (
 )
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
 from rl_counterpoint.graph.state_space import ChordState, is_valid_node, iter_node_states
+from rl_counterpoint.reward.black_box import target_root_octave_deadline
 from rl_counterpoint.reward.protocol import RewardContext, RewardFn
 
 
 Info = dict[str, Any]
-TARGET_ROOT_OCTAVE_CHOICES = (2, 3, 4, 5, 6)
+TARGET_ROOT_OCTAVE_CHOICES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
 
 @dataclass
@@ -48,6 +49,8 @@ class CounterpointEnv:
     _action_space: tuple[StepDelta, ...] = field(init=False, repr=False)
     _reset_states: tuple[ChordState, ...] = field(init=False, repr=False)
     _target_root_octave: int = field(init=False, default=4, repr=False)
+    _reward_deadline_step: int = field(init=False, default=1, repr=False)
+    _reward_deadline_measures: int = field(init=False, default=1, repr=False)
     _rng: Random = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -81,6 +84,8 @@ class CounterpointEnv:
         self._step_index = 0
         self._history = (self.initial_state,)
         self._target_root_octave = TARGET_ROOT_OCTAVE_CHOICES[0]
+        self._reward_deadline_step = self.measure_size
+        self._reward_deadline_measures = 1
 
     def reset(self, seed: int | None = None) -> tuple[ChordState, Info]:
         """Reset to a sampled valid start chord and episode target octave."""
@@ -91,6 +96,14 @@ class CounterpointEnv:
         self._step_index = 0
         self._history = (self._state,)
         self._target_root_octave = self._rng.choice(TARGET_ROOT_OCTAVE_CHOICES)
+        self._reward_deadline_step, self._reward_deadline_measures = (
+            target_root_octave_deadline(
+                initial_state=self._state,
+                target_root_octave=self._target_root_octave,
+                max_step_size=self.max_step_size,
+                measure_size=self.measure_size,
+            )
+        )
 
         return build_observation(self._state), self._info_for_state(self._state)
 
@@ -106,10 +119,7 @@ class CounterpointEnv:
         if not valid_action:
             self._step_index += 1
             self._history = (*self._history, source)
-            truncated = is_max_step_truncated(
-                step_index=self._step_index,
-                max_steps=self.max_steps,
-            )
+            truncated = self._is_truncated()
             info = self._info_for_state(
                 source,
                 source=source,
@@ -132,12 +142,13 @@ class CounterpointEnv:
             RewardContext(
                 step_index=self._step_index,
                 max_steps=self.max_steps,
+                max_step_size=self.max_step_size,
                 measure_size=self.measure_size,
                 history=self._history,
                 step_delta=step_delta,
                 key_pitch_class=self.graph_spec.tonic_pitch_class,
                 target_root_octave=self._target_root_octave,
-                is_final_step=(self._step_index + 1) >= self.max_steps,
+                is_final_step=(self._step_index + 1) >= self._effective_max_steps(),
                 timed_chord_window=build_timed_chord_window(
                     history=self._history,
                     step_index=self._step_index,
@@ -149,10 +160,7 @@ class CounterpointEnv:
         self._state = target
         self._step_index += 1
         self._history = (*self._history, target)
-        truncated = is_max_step_truncated(
-            step_index=self._step_index,
-            max_steps=self.max_steps,
-        )
+        truncated = self._is_truncated()
         info = self._info_for_state(
             self._state,
             source=source,
@@ -192,8 +200,25 @@ class CounterpointEnv:
     def target_root_octave(self) -> int:
         return self._target_root_octave
 
+    @property
+    def reward_deadline_step(self) -> int:
+        return self._reward_deadline_step
+
+    @property
+    def reward_deadline_measures(self) -> int:
+        return self._reward_deadline_measures
+
     def _action_mask(self, state: ChordState) -> tuple[bool, ...]:
         return step_delta_action_mask(state, self._action_space, self.graph_spec)
+
+    def _effective_max_steps(self) -> int:
+        return min(self.max_steps, self._reward_deadline_step)
+
+    def _is_truncated(self) -> bool:
+        return is_max_step_truncated(
+            step_index=self._step_index,
+            max_steps=self._effective_max_steps(),
+        )
 
     def _info_for_state(self, state: ChordState, **extra: Any) -> Info:
         action_mask = self._action_mask(state)
@@ -216,6 +241,8 @@ class CounterpointEnv:
             ),
             "history": self._history,
             "target_root_octave": self._target_root_octave,
+            "reward_deadline_step": self._reward_deadline_step,
+            "reward_deadline_measures": self._reward_deadline_measures,
             "action_space": self._action_space,
             "action_mask": action_mask,
             "has_legal_actions": any(action_mask),

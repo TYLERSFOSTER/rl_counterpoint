@@ -169,7 +169,7 @@ def run_reinforce_episode(
     gamma: float = 0.99,
     entropy_coefficient: float = 0.0,
     context_measures: int = 3,
-    seed: int = 0,
+    seed: int | None = None,
 ) -> ReinforceEpisodeStats:
     """Collect one episode and perform one explicit REINFORCE update."""
     trajectory = collect_policy_episode(

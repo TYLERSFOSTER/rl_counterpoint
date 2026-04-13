@@ -6,6 +6,7 @@ import json
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from random import Random
 
 import torch
 
@@ -26,13 +27,14 @@ from rl_counterpoint.music.render import write_chord_sequence_to_midi
 from rl_counterpoint.reward.black_box import TargetRootOctaveReward
 
 DEFAULT_MEASURE_SIZE = 4
-DEFAULT_EPISODE_MEASURES = 8
+DEFAULT_EPISODE_MEASURES = 16
 DEFAULT_CONTEXT_MEASURES = 2
-DEFAULT_MAX_STEP_SIZE = 7
-DEFAULT_NUM_EPISODES = 3
-DEFAULT_LEARNING_RATE = 1e-4
-DEFAULT_GAMMA = 0.3
+DEFAULT_MAX_STEP_SIZE = 4
+DEFAULT_NUM_EPISODES = 10000
+DEFAULT_LEARNING_RATE = 1e-3
+DEFAULT_GAMMA = 0.9
 DEFAULT_ENTROPY_COEFFICIENT = 0.01
+DEFAULT_EXPORT_TEMPERATURE = 1.0
 
 
 class DummyTextEmbedder:
@@ -55,6 +57,7 @@ class TrainConfig:
     learning_rate: float = DEFAULT_LEARNING_RATE
     gamma: float = DEFAULT_GAMMA
     entropy_coefficient: float = DEFAULT_ENTROPY_COEFFICIENT
+    export_temperature: float = DEFAULT_EXPORT_TEMPERATURE
     initial_state: tuple[int, ...] | None = None
     tonic: int = 60
     voice_count: int = 3
@@ -194,6 +197,31 @@ def print_episode_summary(episode_index: int, stats: ReinforceEpisodeStats) -> N
     )
 
 
+def choose_export_action_index(
+    *,
+    legal_indices: list[int],
+    legal_logits: torch.Tensor,
+    export_temperature: float,
+    rng: Random,
+) -> int:
+    """Choose one legal action for MIDI export under a temperature knob."""
+    if not legal_indices:
+        raise RuntimeError("no legal StepDelta available during evaluation")
+    if legal_logits.ndim != 1:
+        raise ValueError("legal_logits must be rank 1 [legal_action_dim]")
+    if legal_logits.shape[0] != len(legal_indices):
+        raise ValueError("legal_logits length must match legal_indices length")
+    if export_temperature < 0.0:
+        raise ValueError("export_temperature must be non-negative")
+
+    if export_temperature == 0.0:
+        best_legal_position = int(torch.argmax(legal_logits).item())
+        return legal_indices[best_legal_position]
+
+    probabilities = torch.softmax(legal_logits / export_temperature, dim=0).tolist()
+    return rng.choices(legal_indices, weights=probabilities, k=1)[0]
+
+
 def export_example_episode_midi(
     *,
     run_dir: Path,
@@ -201,11 +229,13 @@ def export_example_episode_midi(
     policy: TransformerStepDeltaPolicy,
     encoder: SymbolicChordEncoder,
     context_measures: int,
-    seed: int = 10_000,
+    export_temperature: float,
+    seed: int | None = None,
 ) -> Path:
-    """Run one deterministic greedy evaluation episode and export it as MIDI."""
+    """Run one temperature-controlled evaluation episode and export it as MIDI."""
     observation, info = env.reset(seed=seed)
     chord_sequence = [observation]
+    rng = Random(seed)
 
     with torch.no_grad():
         while True:
@@ -235,8 +265,12 @@ def export_example_episode_midi(
                 raise RuntimeError("no legal StepDelta available during evaluation")
 
             legal_logits = logits[legal_indices]
-            best_legal_position = int(torch.argmax(legal_logits).item())
-            action_index = legal_indices[best_legal_position]
+            action_index = choose_export_action_index(
+                legal_indices=legal_indices,
+                legal_logits=legal_logits,
+                export_temperature=export_temperature,
+                rng=rng,
+            )
             step_delta = action_space[action_index]
 
             observation, _reward, terminated, truncated, info = env.step(step_delta)
@@ -265,6 +299,7 @@ def main(*, run_dir: Path | None = None) -> None:
     print(f"episode_measures: {config.episode_measures}")
     print(f"max_steps: {config.max_steps}")
     print(f"entropy_coefficient: {config.entropy_coefficient}")
+    print(f"export_temperature: {config.export_temperature}")
 
     for episode_index in range(config.num_episodes):
         stats = run_reinforce_episode(
@@ -275,7 +310,6 @@ def main(*, run_dir: Path | None = None) -> None:
             gamma=config.gamma,
             entropy_coefficient=config.entropy_coefficient,
             context_measures=config.context_measures,
-            seed=episode_index,
         )
         append_metrics(
             run_dir=output_dir,
@@ -300,6 +334,7 @@ def main(*, run_dir: Path | None = None) -> None:
         policy=policy,
         encoder=encoder,
         context_measures=config.context_measures,
+        export_temperature=config.export_temperature,
     )
     print(f"example episode midi: {midi_path}")
 

@@ -155,7 +155,7 @@ def collect_policy_episode(
     policy: TransformerStepDeltaPolicy,
     encoder: SymbolicChordEncoder,
     context_measures: int = 3,
-    seed: int = 0,
+    seed: int | None = None,
 ) -> list[PolicyStepRecord]:
     """Collect one trajectory using the sequence-policy rollout path."""
     rng = Random(seed)

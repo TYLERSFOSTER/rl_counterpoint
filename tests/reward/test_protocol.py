@@ -19,6 +19,7 @@ def test_reward_context_defaults() -> None:
 
     assert context.step_index == 3
     assert context.max_steps is None
+    assert context.max_step_size is None
     assert context.measure_size is None
     assert context.history == ()
     assert context.step_delta is None
@@ -34,12 +35,14 @@ def test_reward_context_accepts_history() -> None:
     context = RewardContext(
         step_index=2,
         max_steps=8,
+        max_step_size=2,
         measure_size=4,
         history=history,
     )
 
     assert context.step_index == 2
     assert context.max_steps == 8
+    assert context.max_step_size == 2
     assert context.measure_size == 4
     assert context.history == history
 

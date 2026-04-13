@@ -20,6 +20,7 @@ class RewardContext:
 
     step_index: int
     max_steps: int | None = None
+    max_step_size: int | None = None
     measure_size: int | None = None
     history: tuple[ChordState, ...] = ()
     step_delta: StepDelta | None = None
