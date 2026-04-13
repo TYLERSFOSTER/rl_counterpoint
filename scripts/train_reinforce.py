@@ -26,12 +26,12 @@ from rl_counterpoint.music.render import write_chord_sequence_to_midi
 from rl_counterpoint.reward.black_box import TargetRootOctaveReward
 
 DEFAULT_MEASURE_SIZE = 4
-DEFAULT_EPISODE_MEASURES = 3
-DEFAULT_CONTEXT_MEASURES = 3
-DEFAULT_MAX_STEP_SIZE = 8
-DEFAULT_NUM_EPISODES = 0
-DEFAULT_LEARNING_RATE = 1e-6
-DEFAULT_GAMMA = 0.75
+DEFAULT_EPISODE_MEASURES = 8
+DEFAULT_CONTEXT_MEASURES = 2
+DEFAULT_MAX_STEP_SIZE = 7
+DEFAULT_NUM_EPISODES = 3
+DEFAULT_LEARNING_RATE = 1e-4
+DEFAULT_GAMMA = 0.3
 
 
 class DummyTextEmbedder:
@@ -53,9 +53,9 @@ class TrainConfig:
     num_episodes: int = DEFAULT_NUM_EPISODES
     learning_rate: float = DEFAULT_LEARNING_RATE
     gamma: float = DEFAULT_GAMMA
-    initial_state: tuple[int, ...] = (3, 6)
+    initial_state: tuple[int, ...] | None = None
     tonic: int = 60
-    voice_count: int = 2
+    voice_count: int = 3
     invalid_action_penalty: float = -1.0
     target_distance_weight: float = 1.0
     target_terminal_window_reward: float = 10.0

@@ -28,7 +28,7 @@ from rl_counterpoint.reward.protocol import RewardContext, RewardFn
 
 
 Info = dict[str, Any]
-TARGET_ROOT_OCTAVE_CHOICES = (1, 2, 3, 4, 5, 7, 8)
+TARGET_ROOT_OCTAVE_CHOICES = (2, 3, 4, 5, 6)
 
 
 @dataclass
@@ -37,7 +37,7 @@ class CounterpointEnv:
 
     graph_spec: CounterpointGraphSpec
     reward_fn: RewardFn
-    initial_state: ChordState
+    initial_state: ChordState | None
     max_steps: int
     measure_size: int
     max_step_size: int
@@ -51,9 +51,6 @@ class CounterpointEnv:
     _rng: Random = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if not is_valid_node(self.initial_state, self.graph_spec):
-            raise ValueError("initial_state must be a valid graph node")
-
         if self.max_steps < 1:
             raise ValueError("max_steps must be at least 1")
 
@@ -72,14 +69,18 @@ class CounterpointEnv:
         if not self._reset_states:
             raise ValueError("graph must contain at least one reset state with a legal StepDelta")
 
+        if self.initial_state is None:
+            self.initial_state = self._reset_states[0]
+        elif not is_valid_node(self.initial_state, self.graph_spec):
+            raise ValueError("initial_state must be a valid graph node")
+        elif not any(self._action_mask(self.initial_state)):
+            raise ValueError("initial_state must have at least one legal StepDelta")
+
         self._rng = Random(0)
         self._state = self.initial_state
         self._step_index = 0
         self._history = (self.initial_state,)
         self._target_root_octave = TARGET_ROOT_OCTAVE_CHOICES[0]
-
-        if not any(self._action_mask(self.initial_state)):
-            raise ValueError("initial_state must have at least one legal StepDelta")
 
     def reset(self, seed: int | None = None) -> tuple[ChordState, Info]:
         """Reset to a sampled valid start chord and episode target octave."""
