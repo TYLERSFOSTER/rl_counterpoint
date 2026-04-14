@@ -30,11 +30,14 @@ DEFAULT_MEASURE_SIZE = 4
 DEFAULT_EPISODE_MEASURES = 16
 DEFAULT_CONTEXT_MEASURES = 2
 DEFAULT_MAX_STEP_SIZE = 4
-DEFAULT_NUM_EPISODES = 10000
-DEFAULT_LEARNING_RATE = 1e-3
+DEFAULT_NUM_EPISODES = 0
+DEFAULT_LEARNING_RATE = 1e-4
 DEFAULT_GAMMA = 0.9
 DEFAULT_ENTROPY_COEFFICIENT = 0.01
 DEFAULT_EXPORT_TEMPERATURE = 1.0
+DEFAULT_BEAT_ROLE_CONSONANCE_WEIGHT = 1.0
+DEFAULT_EARLY_GOAL_WEIGHT = 1.0
+DEFAULT_EPSILON_BEHAVIOR = 0.2
 
 
 class DummyTextEmbedder:
@@ -57,7 +60,10 @@ class TrainConfig:
     learning_rate: float = DEFAULT_LEARNING_RATE
     gamma: float = DEFAULT_GAMMA
     entropy_coefficient: float = DEFAULT_ENTROPY_COEFFICIENT
+    epsilon_behavior: float = DEFAULT_EPSILON_BEHAVIOR
     export_temperature: float = DEFAULT_EXPORT_TEMPERATURE
+    beat_role_consonance_weight: float = DEFAULT_BEAT_ROLE_CONSONANCE_WEIGHT
+    early_goal_weight: float = DEFAULT_EARLY_GOAL_WEIGHT
     initial_state: tuple[int, ...] | None = None
     tonic: int = 60
     voice_count: int = 3
@@ -82,6 +88,8 @@ def build_env(config: TrainConfig) -> CounterpointEnv:
         reward_fn=TargetRootOctaveReward(
             distance_weight=config.target_distance_weight,
             terminal_window_reward=config.target_terminal_window_reward,
+            beat_role_consonance_weight=config.beat_role_consonance_weight,
+            early_goal_weight=config.early_goal_weight,
         ),
         initial_state=config.initial_state,
         max_steps=config.max_steps,
@@ -152,8 +160,8 @@ def save_checkpoint(
     optimizer: torch.optim.Optimizer,
     config: TrainConfig,
     stats: ReinforceEpisodeStats,
-) -> tuple[Path, Path]:
-    """Persist both a per-episode checkpoint and a rolling latest checkpoint."""
+) -> Path:
+    """Persist only the rolling latest checkpoint."""
     run_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "episode_index": episode_index,
@@ -173,11 +181,9 @@ def save_checkpoint(
         "policy_state_dict": policy.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
     }
-    episode_path = run_dir / f"checkpoint_episode_{episode_index:04d}.pt"
     latest_path = run_dir / "checkpoint_latest.pt"
-    torch.save(checkpoint, episode_path)
     torch.save(checkpoint, latest_path)
-    return episode_path, latest_path
+    return latest_path
 
 
 def print_episode_summary(episode_index: int, stats: ReinforceEpisodeStats) -> None:
@@ -299,7 +305,10 @@ def main(*, run_dir: Path | None = None) -> None:
     print(f"episode_measures: {config.episode_measures}")
     print(f"max_steps: {config.max_steps}")
     print(f"entropy_coefficient: {config.entropy_coefficient}")
+    print(f"epsilon_behavior: {config.epsilon_behavior}")
     print(f"export_temperature: {config.export_temperature}")
+    print(f"beat_role_consonance_weight: {config.beat_role_consonance_weight}")
+    print(f"early_goal_weight: {config.early_goal_weight}")
 
     for episode_index in range(config.num_episodes):
         stats = run_reinforce_episode(
@@ -310,13 +319,14 @@ def main(*, run_dir: Path | None = None) -> None:
             gamma=config.gamma,
             entropy_coefficient=config.entropy_coefficient,
             context_measures=config.context_measures,
+            epsilon_behavior=config.epsilon_behavior,
         )
         append_metrics(
             run_dir=output_dir,
             episode_index=episode_index,
             stats=stats,
         )
-        episode_checkpoint, latest_checkpoint = save_checkpoint(
+        latest_checkpoint = save_checkpoint(
             run_dir=output_dir,
             episode_index=episode_index,
             policy=policy,
@@ -325,7 +335,6 @@ def main(*, run_dir: Path | None = None) -> None:
             stats=stats,
         )
         print_episode_summary(episode_index, stats)
-        print(f"episode {episode_index} checkpoint: {episode_checkpoint}")
         print(f"latest checkpoint: {latest_checkpoint}")
 
     midi_path = export_example_episode_midi(

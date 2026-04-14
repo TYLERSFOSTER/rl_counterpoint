@@ -169,6 +169,7 @@ def run_reinforce_episode(
     gamma: float = 0.99,
     entropy_coefficient: float = 0.0,
     context_measures: int = 3,
+    epsilon_behavior: float = 0.0,
     seed: int | None = None,
 ) -> ReinforceEpisodeStats:
     """Collect one episode and perform one explicit REINFORCE update."""
@@ -177,6 +178,7 @@ def run_reinforce_episode(
         policy=policy,
         encoder=encoder,
         context_measures=context_measures,
+        epsilon_behavior=epsilon_behavior,
         seed=seed,
     )
     loss = reinforce_loss(

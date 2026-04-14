@@ -105,6 +105,33 @@ def choose_masked_logit_action(
     return action_index, action_space[action_index]
 
 
+def choose_masked_behavior_action(
+    action_space: tuple[StepDelta, ...],
+    action_mask: tuple[bool, ...],
+    logits: torch.Tensor,
+    *,
+    epsilon_behavior: float,
+    rng: Random,
+) -> tuple[int, StepDelta]:
+    """Sample from (1 - epsilon) policy + epsilon uniform over legal actions."""
+    if not 0.0 <= epsilon_behavior <= 1.0:
+        raise ValueError("epsilon_behavior must be in [0.0, 1.0]")
+
+    if rng.random() < epsilon_behavior:
+        return choose_masked_random_action(
+            action_space,
+            action_mask,
+            rng=rng,
+        )
+
+    return choose_masked_logit_action(
+        action_space,
+        action_mask,
+        logits,
+        rng=rng,
+    )
+
+
 def collect_episode(
     env: CounterpointEnv,
     *,
@@ -155,6 +182,7 @@ def collect_policy_episode(
     policy: TransformerStepDeltaPolicy,
     encoder: SymbolicChordEncoder,
     context_measures: int = 3,
+    epsilon_behavior: float = 0.0,
     seed: int | None = None,
 ) -> list[PolicyStepRecord]:
     """Collect one trajectory using the sequence-policy rollout path."""
@@ -183,10 +211,11 @@ def collect_policy_episode(
         if not isinstance(action_space, tuple) or not isinstance(action_mask, tuple):
             raise TypeError("action_space and action_mask must be tuples")
 
-        action_index, step_delta = choose_masked_logit_action(
+        action_index, step_delta = choose_masked_behavior_action(
             action_space,
             action_mask,
             logits,
+            epsilon_behavior=epsilon_behavior,
             rng=rng,
         )
         next_observation, reward, terminated, truncated, next_info = env.step(step_delta)

@@ -21,7 +21,7 @@ def test_valid_spec_constructs() -> None:
     assert spec.tonic == 60
     assert spec.pitch_count == 128
     assert spec.tonic_pitch_class == 0
-    assert spec.max_chord_width == 18
+    assert spec.max_chord_width == 15
     assert spec.max_adjacent_vertical_interval == 11
     assert spec.max_single_line_interval == 11
     assert spec.allowed_root_pitch_classes == frozenset({3, 4, 5, 7, 8, 9})

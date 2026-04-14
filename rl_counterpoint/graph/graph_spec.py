@@ -24,7 +24,7 @@ class CounterpointGraphSpec:
     pitch_min: int = 0
     pitch_max: int = 127
     max_interval: int = 11
-    max_chord_width_factor: float = 6.0
+    max_chord_width_factor: float = 5.0
     forbidden_adjacent_vertical_intervals: frozenset[int] = field(
         default_factory=lambda: DEFAULT_FORBIDDEN_ADJACENT_VERTICAL_INTERVALS
     )

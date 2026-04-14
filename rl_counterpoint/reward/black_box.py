@@ -32,7 +32,16 @@ def target_root_octave_deadline(
     measure_size: int,
     average_step_fraction: float = 0.5,
 ) -> tuple[int, int]:
-    """Return the rewardable deadline in steps and measures for the target-octave task."""
+    """Return the rewardable deadline from root-motion step budget only.
+
+    This deliberately depends on horizontal progress assumptions:
+    - initial root distance to the target octave
+    - max_step_size as the per-step motion budget
+    - measure_size for rounding to whole measures
+
+    It does not depend on within-chord vertical spread controls such as
+    max_chord_width_factor or adjacent vertical interval trims.
+    """
     if not initial_state:
         raise ValueError("initial_state must not be empty")
     if max_step_size < 1:
@@ -48,6 +57,24 @@ def target_root_octave_deadline(
     estimated_steps = ceil(initial_semitone_distance / expected_progress_per_step)
     deadline_measures = max(1, ceil(estimated_steps / measure_size))
     return deadline_measures * measure_size, deadline_measures
+
+
+def static_consonance_score(
+    *,
+    chord: ChordState,
+    key_pitch_class: int,
+    adjacent_interval_weight: float = 1.0,
+    key_relative_weight: float = 1.0,
+) -> float:
+    """Return the scalar static consonance score for one chord."""
+    return StaticConsonanceReward(
+        adjacent_interval_weight=adjacent_interval_weight,
+        key_relative_weight=key_relative_weight,
+    )(
+        chord,
+        chord,
+        RewardContext(step_index=0, key_pitch_class=key_pitch_class),
+    ).reward
 
 
 @dataclass(frozen=True)
@@ -268,6 +295,8 @@ class TargetRootOctaveReward:
     distance_weight: float = 1.0
     terminal_window_reward: float = 10.0
     terminal_window_size: int = 3
+    beat_role_consonance_weight: float = 1.0
+    early_goal_weight: float = 1.0
     deadline_average_step_fraction: float = 0.5
     diagnostics: Mapping[str, object] = field(default_factory=dict)
 
@@ -315,6 +344,13 @@ class TargetRootOctaveReward:
         terminal_closeness_scores = ()
         terminal_window_average = 0.0
         terminal_bonus = 0.0
+        beat_role_consonance_bonus = 0.0
+        early_goal_bonus = 0.0
+        measure_chords = ()
+        measure_consonance_scores = ()
+        downbeat_consonance = None
+        offbeat_consonances = ()
+        offbeat_consonance_average = None
 
         if context.is_final_step and not deadline_active:
             terminal_chords = (*context.history, target)[-self.terminal_window_size :]
@@ -333,12 +369,47 @@ class TargetRootOctaveReward:
             )
             terminal_bonus = self.terminal_window_reward * terminal_window_average
 
+        if (
+            not deadline_active
+            and self.beat_role_consonance_weight != 0.0
+            and context.measure_size is not None
+            and context.key_pitch_class is not None
+            and is_ending_beat(
+                step_index=context.step_index,
+                measure_size=context.measure_size,
+            )
+        ):
+            measure_chords = (*context.history, target)[-context.measure_size :]
+            if len(measure_chords) >= 2:
+                measure_consonance_scores = tuple(
+                    static_consonance_score(
+                        chord=chord,
+                        key_pitch_class=context.key_pitch_class,
+                    )
+                    for chord in measure_chords
+                )
+                downbeat_consonance = measure_consonance_scores[0]
+                offbeat_consonances = measure_consonance_scores[1:]
+                offbeat_consonance_average = sum(offbeat_consonances) / len(
+                    offbeat_consonances
+                )
+                beat_role_consonance_bonus = self.beat_role_consonance_weight * (
+                    downbeat_consonance - offbeat_consonance_average
+                )
+
         terminal_match = (
             context.is_final_step and not deadline_active and terminal_window_average == 1.0
         )
+        if terminal_match:
+            early_goal_bonus = self.early_goal_weight / (1 + context.step_index)
 
         return RewardResult(
-            reward=distance_reward + terminal_bonus,
+            reward=(
+                distance_reward
+                + terminal_bonus
+                + beat_role_consonance_bonus
+                + early_goal_bonus
+            ),
             is_terminal_success=terminal_match,
             diagnostics={
                 "kind": "target_root_octave",
@@ -362,6 +433,15 @@ class TargetRootOctaveReward:
                 "terminal_closeness_scores": terminal_closeness_scores,
                 "terminal_window_average": terminal_window_average,
                 "terminal_bonus": terminal_bonus,
+                "beat_role_consonance_weight": self.beat_role_consonance_weight,
+                "measure_chords": measure_chords,
+                "measure_consonance_scores": measure_consonance_scores,
+                "downbeat_consonance": downbeat_consonance,
+                "offbeat_consonances": offbeat_consonances,
+                "offbeat_consonance_average": offbeat_consonance_average,
+                "beat_role_consonance_bonus": beat_role_consonance_bonus,
+                "early_goal_weight": self.early_goal_weight,
+                "early_goal_bonus": early_goal_bonus,
                 "terminal_match": terminal_match,
                 **self.diagnostics,
             },

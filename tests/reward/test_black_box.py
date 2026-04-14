@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from rl_counterpoint.envs.observation import TimedChordWindow
+from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
 from rl_counterpoint.reward.black_box import (
     BeatRoleDiagnosticReward,
     ConstantReward,
@@ -18,6 +19,7 @@ from rl_counterpoint.reward.black_box import (
     TargetRootOctaveReward,
     consonance_from_pitch_class,
     midi_to_octave,
+    static_consonance_score,
     target_root_octave_deadline,
 )
 from rl_counterpoint.reward.protocol import RewardContext, RewardResult
@@ -279,6 +281,45 @@ def test_target_root_octave_deadline_uses_initial_distance_and_measure_round_up(
     assert deadline_measures == 2
 
 
+def test_target_root_octave_deadline_is_independent_of_vertical_spread_knobs() -> None:
+    """Deadline uses horizontal step budget, not graph vertical-width settings."""
+    narrow_vertical_spec = CounterpointGraphSpec(
+        n=3,
+        tonic=60,
+        max_interval=7,
+        max_chord_width_factor=3.0,
+    )
+    wide_vertical_spec = CounterpointGraphSpec(
+        n=3,
+        tonic=60,
+        max_interval=11,
+        max_chord_width_factor=9.0,
+    )
+    initial_state = (36, 40, 43)
+    max_step_size = 5
+
+    assert narrow_vertical_spec.max_chord_width != wide_vertical_spec.max_chord_width
+    assert (
+        narrow_vertical_spec.max_adjacent_vertical_interval
+        != wide_vertical_spec.max_adjacent_vertical_interval
+    )
+
+    narrow_deadline = target_root_octave_deadline(
+        initial_state=initial_state,
+        target_root_octave=4,
+        max_step_size=max_step_size,
+        measure_size=4,
+    )
+    wide_deadline = target_root_octave_deadline(
+        initial_state=initial_state,
+        target_root_octave=4,
+        max_step_size=max_step_size,
+        measure_size=4,
+    )
+
+    assert narrow_deadline == wide_deadline
+
+
 def test_target_root_octave_reward_uses_inverse_octave_distance() -> None:
     """Per-step shaping reward is inverse distance from target root octave."""
     reward_fn = TargetRootOctaveReward(distance_weight=2.0, terminal_window_reward=9.0)
@@ -295,6 +336,7 @@ def test_target_root_octave_reward_uses_inverse_octave_distance() -> None:
     assert result.diagnostics["octave_distance"] == 0
     assert result.diagnostics["distance_reward"] == pytest.approx(2.0)
     assert result.diagnostics["terminal_bonus"] == pytest.approx(0.0)
+    assert result.diagnostics["beat_role_consonance_bonus"] == pytest.approx(0.0)
     assert result.diagnostics["deadline_step"] is None
     assert result.diagnostics["deadline_active"] is False
 
@@ -345,7 +387,11 @@ def test_target_root_octave_reward_averages_last_three_chords_on_final_step() ->
 
 def test_target_root_octave_reward_marks_terminal_success_when_last_three_all_match() -> None:
     """Terminal success now means the last three root octaves all hit the target."""
-    reward_fn = TargetRootOctaveReward(distance_weight=1.0, terminal_window_reward=5.0)
+    reward_fn = TargetRootOctaveReward(
+        distance_weight=1.0,
+        terminal_window_reward=5.0,
+        early_goal_weight=2.0,
+    )
 
     result = reward_fn(
         (60, 64, 67),
@@ -362,6 +408,30 @@ def test_target_root_octave_reward_marks_terminal_success_when_last_three_all_ma
     assert result.diagnostics["terminal_match"]
     assert result.diagnostics["terminal_window_average"] == pytest.approx(1.0)
     assert result.diagnostics["terminal_bonus"] == pytest.approx(5.0)
+    assert result.diagnostics["early_goal_bonus"] == pytest.approx(2.0 / 8.0)
+
+
+def test_target_root_octave_reward_adds_no_early_goal_bonus_without_success() -> None:
+    """The reciprocal bonus is terminal-only and absent on non-success."""
+    reward_fn = TargetRootOctaveReward(
+        distance_weight=1.5,
+        terminal_window_reward=8.0,
+        early_goal_weight=3.0,
+    )
+
+    result = reward_fn(
+        (48, 55, 60),
+        (60, 64, 67),
+        RewardContext(
+            step_index=7,
+            target_root_octave=4,
+            is_final_step=True,
+            history=((36, 40, 43), (48, 52, 55)),
+        ),
+    )
+
+    assert not result.is_terminal_success
+    assert result.diagnostics["early_goal_bonus"] == pytest.approx(0.0)
 
 
 def test_target_root_octave_reward_zeroes_all_reward_after_deadline() -> None:
@@ -388,6 +458,52 @@ def test_target_root_octave_reward_zeroes_all_reward_after_deadline() -> None:
     assert result.diagnostics["deadline_active"]
     assert result.diagnostics["distance_reward"] == pytest.approx(0.0)
     assert result.diagnostics["terminal_bonus"] == pytest.approx(0.0)
+    assert result.diagnostics["beat_role_consonance_bonus"] == pytest.approx(0.0)
+
+
+def test_target_root_octave_reward_adds_downbeat_over_offbeat_consonance_bonus() -> None:
+    """At measure end, a more consonant downbeat than offbeats adds reward."""
+    reward_fn = TargetRootOctaveReward(
+        distance_weight=0.0,
+        terminal_window_reward=0.0,
+        beat_role_consonance_weight=2.0,
+    )
+    measure_chords = (
+        (60, 64, 67),
+        (61, 67, 71),
+        (61, 67, 71),
+    )
+    target = (61, 67, 71)
+
+    result = reward_fn(
+        (61, 67, 71),
+        target,
+        RewardContext(
+            step_index=3,
+            measure_size=4,
+            key_pitch_class=0,
+            target_root_octave=4,
+            history=measure_chords,
+        ),
+    )
+
+    downbeat_score = static_consonance_score(
+        chord=measure_chords[0],
+        key_pitch_class=0,
+    )
+    offbeat_score = static_consonance_score(
+        chord=target,
+        key_pitch_class=0,
+    )
+    expected_bonus = 2.0 * (downbeat_score - offbeat_score)
+
+    assert result.reward == pytest.approx(expected_bonus)
+    assert result.diagnostics["measure_chords"] == (*measure_chords, target)[-4:]
+    assert result.diagnostics["downbeat_consonance"] == pytest.approx(downbeat_score)
+    assert result.diagnostics["offbeat_consonance_average"] == pytest.approx(offbeat_score)
+    assert result.diagnostics["beat_role_consonance_bonus"] == pytest.approx(
+        expected_bonus
+    )
 
 
 def test_target_root_octave_reward_requires_target_octave() -> None:

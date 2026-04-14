@@ -9,6 +9,7 @@ import torch
 from rl_counterpoint.algos.rollout import (
     PolicyStepRecord,
     StepRecord,
+    choose_masked_behavior_action,
     choose_masked_logit_action,
     choose_masked_random_action,
     collect_episode,
@@ -102,6 +103,25 @@ def test_choose_masked_logit_action_samples_only_legal_actions() -> None:
     assert action_mask[action_index]
 
 
+def test_choose_masked_behavior_action_uses_uniform_branch_at_epsilon_one() -> None:
+    """Behavior policy becomes uniform-over-legal when epsilon is 1."""
+    action_space = ((-1, 0), (0, 1), (1, 1))
+    action_mask = (False, True, True)
+    logits = torch.tensor([100.0, -1.0, 1.0])
+
+    action_index, step_delta = choose_masked_behavior_action(
+        action_space,
+        action_mask,
+        logits,
+        epsilon_behavior=1.0,
+        rng=Random(0),
+    )
+
+    assert action_index in (1, 2)
+    assert step_delta == action_space[action_index]
+    assert action_mask[action_index]
+
+
 def test_collect_policy_episode_returns_policy_step_records() -> None:
     """Policy-driven rollout records timed-window and logits data per step."""
     env = make_env(max_steps=2)
@@ -133,6 +153,35 @@ def test_collect_policy_episode_returns_policy_step_records() -> None:
     assert trajectory[0].timed_window.valid_mask[-1]
     assert trajectory[0].logits.shape == (len(env.action_space),)
     assert trajectory[-1].truncated or trajectory[-1].terminated
+
+
+def test_collect_policy_episode_accepts_behavior_epsilon() -> None:
+    """Policy rollout can collect under an epsilon-mixture behavior policy."""
+    env = make_env(max_steps=2)
+    encoder = SymbolicChordEncoder(text_embedder=DummyTextEmbedder())
+    policy = TransformerStepDeltaPolicy(
+        embedding_dim=4,
+        action_dim=len(env.action_space),
+        max_window_len=env.measure_size * 3,
+        d_model=8,
+        num_layers=1,
+        num_heads=2,
+        ff_dim=16,
+        dropout=0.0,
+    )
+
+    trajectory = collect_policy_episode(
+        env,
+        policy=policy,
+        encoder=encoder,
+        context_measures=3,
+        epsilon_behavior=1.0,
+        seed=0,
+    )
+
+    assert trajectory
+    assert all(isinstance(step, PolicyStepRecord) for step in trajectory)
+    assert len(trajectory) == 2
 
 
 def test_collect_policy_episode_records_next_observation_chain() -> None:
