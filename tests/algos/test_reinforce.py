@@ -28,6 +28,18 @@ class DummyTextEmbedder:
         return torch.tensor([base, base + 1.0, base + 2.0, base + 3.0], dtype=torch.float32)
 
 
+class FixedLogitPolicy(torch.nn.Module):
+    """Small deterministic policy module for exact loss tests."""
+
+    def __init__(self, logits: torch.Tensor) -> None:
+        super().__init__()
+        self._logits = torch.nn.Parameter(logits.clone().detach())
+
+    def forward(self, encoded_window: torch.Tensor) -> torch.Tensor:
+        del encoded_window
+        return self._logits
+
+
 def make_env(*, max_steps: int = 3) -> CounterpointEnv:
     return CounterpointEnv(
         graph_spec=CounterpointGraphSpec(n=2, tonic=60),
@@ -130,6 +142,7 @@ def test_reinforce_loss_is_finite_for_policy_trajectory() -> None:
         encoder=encoder,
         tonic=env.graph_spec.tonic,
         measure_size=env.measure_size,
+        action_space=env.action_space,
         gamma=0.99,
     )
 
@@ -170,6 +183,7 @@ def test_reinforce_loss_entropy_regularization_lowers_loss() -> None:
         encoder=encoder,
         tonic=env.graph_spec.tonic,
         measure_size=env.measure_size,
+        action_space=env.action_space,
         gamma=0.99,
         entropy_coefficient=0.0,
     )
@@ -179,11 +193,76 @@ def test_reinforce_loss_entropy_regularization_lowers_loss() -> None:
         encoder=encoder,
         tonic=env.graph_spec.tonic,
         measure_size=env.measure_size,
+        action_space=env.action_space,
         gamma=0.99,
         entropy_coefficient=0.1,
     )
 
     assert loss_with_entropy < loss_without_entropy
+
+
+def test_reinforce_loss_uses_goal_biased_operating_policy() -> None:
+    """Loss replay uses the wrapped logits when goal bias is enabled."""
+    timed_window = TimedChordWindow(
+        chord_sequence=((0, 0), (11, 15), (11, 15)),
+        bar_positions=(-1, 0, 1),
+        valid_mask=(False, True, True),
+    )
+    action_space = ((1, 1), (0, 1), (-1, 0))
+    action_mask = (True, True, True)
+    policy = FixedLogitPolicy(torch.zeros(3, dtype=torch.float32))
+    trajectory = [
+        PolicyStepRecord(
+            observation=(11, 15),
+            timed_window=timed_window,
+            action_index=0,
+            step_delta=action_space[0],
+            action_mask=action_mask,
+            logits=torch.zeros(3, dtype=torch.float32),
+            reward=1.0,
+            terminated=False,
+            truncated=False,
+            info={"target_root_octave": 0},
+            next_observation=(12, 16),
+        ),
+        PolicyStepRecord(
+            observation=(11, 15),
+            timed_window=timed_window,
+            action_index=1,
+            step_delta=action_space[1],
+            action_mask=action_mask,
+            logits=torch.zeros(3, dtype=torch.float32),
+            reward=0.0,
+            terminated=False,
+            truncated=True,
+            info={"target_root_octave": 0},
+            next_observation=(11, 16),
+        ),
+    ]
+    encoder = SymbolicChordEncoder(text_embedder=DummyTextEmbedder())
+
+    unbiased_loss = reinforce_loss(
+        trajectory,
+        policy=policy,
+        encoder=encoder,
+        tonic=60,
+        measure_size=4,
+        action_space=action_space,
+        gamma=0.9,
+        goal_bias_weight=0.0,
+    )
+    biased_loss = reinforce_loss(
+        trajectory,
+        policy=policy,
+        encoder=encoder,
+        tonic=60,
+        measure_size=4,
+        action_space=action_space,
+        gamma=0.9,
+        goal_bias_weight=1.0,
+    )
+
+    assert biased_loss < unbiased_loss
 
 
 def test_run_reinforce_episode_returns_stats_and_updates_policy() -> None:

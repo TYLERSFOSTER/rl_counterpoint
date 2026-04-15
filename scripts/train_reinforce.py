@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from rl_counterpoint.algos.reinforce import ReinforceEpisodeStats, run_reinforce_episode
+from rl_counterpoint.algos.rollout import apply_goal_bias_to_logits
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
 from rl_counterpoint.envs.observation import build_timed_chord_window
 from rl_counterpoint.graph.graph_spec import CounterpointGraphSpec
@@ -30,14 +31,15 @@ DEFAULT_MEASURE_SIZE = 4
 DEFAULT_EPISODE_MEASURES = 16
 DEFAULT_CONTEXT_MEASURES = 2
 DEFAULT_MAX_STEP_SIZE = 4
-DEFAULT_NUM_EPISODES = 0
+DEFAULT_NUM_EPISODES = 500
 DEFAULT_LEARNING_RATE = 1e-4
 DEFAULT_GAMMA = 0.9
-DEFAULT_ENTROPY_COEFFICIENT = 0.01
+DEFAULT_ENTROPY_COEFFICIENT = 0.00
 DEFAULT_EXPORT_TEMPERATURE = 1.0
 DEFAULT_BEAT_ROLE_CONSONANCE_WEIGHT = 1.0
-DEFAULT_EARLY_GOAL_WEIGHT = 1.0
-DEFAULT_EPSILON_BEHAVIOR = 0.2
+DEFAULT_EARLY_GOAL_WEIGHT = 1000.0
+DEFAULT_EPSILON_BEHAVIOR = 0.9
+DEFAULT_GOAL_BIAS_WEIGHT = 1000.0
 
 
 class DummyTextEmbedder:
@@ -61,6 +63,7 @@ class TrainConfig:
     gamma: float = DEFAULT_GAMMA
     entropy_coefficient: float = DEFAULT_ENTROPY_COEFFICIENT
     epsilon_behavior: float = DEFAULT_EPSILON_BEHAVIOR
+    goal_bias_weight: float = DEFAULT_GOAL_BIAS_WEIGHT
     export_temperature: float = DEFAULT_EXPORT_TEMPERATURE
     beat_role_consonance_weight: float = DEFAULT_BEAT_ROLE_CONSONANCE_WEIGHT
     early_goal_weight: float = DEFAULT_EARLY_GOAL_WEIGHT
@@ -236,6 +239,7 @@ def export_example_episode_midi(
     encoder: SymbolicChordEncoder,
     context_measures: int,
     export_temperature: float,
+    goal_bias_weight: float = 0.0,
     seed: int | None = None,
 ) -> Path:
     """Run one temperature-controlled evaluation episode and export it as MIDI."""
@@ -263,6 +267,14 @@ def export_example_episode_midi(
             action_mask = info["action_mask"]
             if not isinstance(action_space, tuple) or not isinstance(action_mask, tuple):
                 raise TypeError("action_space and action_mask must be tuples")
+            adjusted_logits = apply_goal_bias_to_logits(
+                current_state=observation,
+                action_space=action_space,
+                action_mask=action_mask,
+                logits=logits,
+                target_root_octave=info.get("target_root_octave"),
+                goal_bias_weight=goal_bias_weight,
+            )
 
             legal_indices = [
                 index for index, is_legal in enumerate(action_mask) if is_legal
@@ -270,7 +282,7 @@ def export_example_episode_midi(
             if not legal_indices:
                 raise RuntimeError("no legal StepDelta available during evaluation")
 
-            legal_logits = logits[legal_indices]
+            legal_logits = adjusted_logits[legal_indices]
             action_index = choose_export_action_index(
                 legal_indices=legal_indices,
                 legal_logits=legal_logits,
@@ -306,6 +318,7 @@ def main(*, run_dir: Path | None = None) -> None:
     print(f"max_steps: {config.max_steps}")
     print(f"entropy_coefficient: {config.entropy_coefficient}")
     print(f"epsilon_behavior: {config.epsilon_behavior}")
+    print(f"goal_bias_weight: {config.goal_bias_weight}")
     print(f"export_temperature: {config.export_temperature}")
     print(f"beat_role_consonance_weight: {config.beat_role_consonance_weight}")
     print(f"early_goal_weight: {config.early_goal_weight}")
@@ -320,6 +333,7 @@ def main(*, run_dir: Path | None = None) -> None:
             entropy_coefficient=config.entropy_coefficient,
             context_measures=config.context_measures,
             epsilon_behavior=config.epsilon_behavior,
+            goal_bias_weight=config.goal_bias_weight,
         )
         append_metrics(
             run_dir=output_dir,
@@ -344,6 +358,7 @@ def main(*, run_dir: Path | None = None) -> None:
         encoder=encoder,
         context_measures=config.context_measures,
         export_temperature=config.export_temperature,
+        goal_bias_weight=config.goal_bias_weight,
     )
     print(f"example episode midi: {midi_path}")
 

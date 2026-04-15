@@ -23,16 +23,17 @@ def test_train_config_binds_eight_measure_episode_cap() -> None:
     assert config.measure_size == 4
     assert config.max_steps == 64
     assert config.max_step_size == 4
-    assert config.num_episodes == 0
-    assert config.learning_rate == 1e-4
+    assert config.num_episodes == 100_000
+    assert config.learning_rate == 1e-3
     assert config.gamma == 0.9
     assert config.target_distance_weight == 1.0
     assert config.target_terminal_window_reward == 10.0
     assert config.entropy_coefficient == 0.01
     assert config.epsilon_behavior == 0.2
+    assert config.goal_bias_weight == 0.0
     assert config.export_temperature == 1.0
     assert config.beat_role_consonance_weight == 1.0
-    assert config.early_goal_weight == 1.0
+    assert config.early_goal_weight == 2.0
 
 
 def test_choose_export_action_index_uses_greedy_argmax_at_zero_temperature() -> None:
@@ -154,9 +155,10 @@ def test_train_reinforce_main_prints_stats_and_writes_artifacts(
     assert "max_steps: 64" in output
     assert "entropy_coefficient: 0.01" in output
     assert "epsilon_behavior: 0.2" in output
+    assert "goal_bias_weight: 0.0" in output
     assert "export_temperature: 1.0" in output
     assert "beat_role_consonance_weight: 1.0" in output
-    assert "early_goal_weight: 1.0" in output
+    assert "early_goal_weight: 2.0" in output
     assert "episode 0 return:" in output
     assert "episode 0 mean_step_reward:" in output
     assert "episode 0 target_root_octave:" in output
@@ -177,7 +179,7 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     script_path = tmp_path = PROJECT_ROOT / "scripts" / "train_reinforce.py"
     script_text = script_path.read_text()
     patched_text = script_text.replace(
-        "DEFAULT_NUM_EPISODES = 0",
+        "DEFAULT_NUM_EPISODES = 100_000",
         "DEFAULT_NUM_EPISODES = 2",
         1,
     )
@@ -200,9 +202,10 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     assert "max_steps: 64" in result.stdout
     assert "entropy_coefficient: 0.01" in result.stdout
     assert "epsilon_behavior: 0.2" in result.stdout
+    assert "goal_bias_weight: 0.0" in result.stdout
     assert "export_temperature: 1.0" in result.stdout
     assert "beat_role_consonance_weight: 1.0" in result.stdout
-    assert "early_goal_weight: 1.0" in result.stdout
+    assert "early_goal_weight: 2.0" in result.stdout
     assert "episode 0 return:" in result.stdout
     assert "episode 0 target_root_octave:" in result.stdout
     assert "example episode midi:" in result.stdout

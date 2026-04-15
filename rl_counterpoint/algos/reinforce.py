@@ -7,7 +7,11 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from rl_counterpoint.algos.rollout import PolicyStepRecord, collect_policy_episode
+from rl_counterpoint.algos.rollout import (
+    PolicyStepRecord,
+    apply_goal_bias_to_logits,
+    collect_policy_episode,
+)
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
 from rl_counterpoint.models.policy import (
     SymbolicChordEncoder,
@@ -116,8 +120,10 @@ def reinforce_loss(
     encoder: SymbolicChordEncoder,
     tonic: int,
     measure_size: int,
+    action_space: tuple[tuple[int, ...], ...],
     gamma: float,
     entropy_coefficient: float = 0.0,
+    goal_bias_weight: float = 0.0,
 ) -> Tensor:
     """Compute the REINFORCE loss by replaying one collected trajectory."""
     if not trajectory:
@@ -142,15 +148,23 @@ def reinforce_loss(
             target_root_octave=step.info.get("target_root_octave"),
         )
         logits = policy(encoded_window)
-        log_prob = masked_log_probability(
+        adjusted_logits = apply_goal_bias_to_logits(
+            current_state=step.observation,
+            action_space=action_space,
+            action_mask=step.action_mask,
             logits=logits,
+            target_root_octave=step.info.get("target_root_octave"),
+            goal_bias_weight=goal_bias_weight,
+        )
+        log_prob = masked_log_probability(
+            logits=adjusted_logits,
             action_mask=step.action_mask,
             action_index=step.action_index,
         )
         losses.append(-log_prob * return_t)
         entropies.append(
             masked_entropy(
-                logits=logits,
+                logits=adjusted_logits,
                 action_mask=step.action_mask,
             )
         )
@@ -170,6 +184,7 @@ def run_reinforce_episode(
     entropy_coefficient: float = 0.0,
     context_measures: int = 3,
     epsilon_behavior: float = 0.0,
+    goal_bias_weight: float = 0.0,
     seed: int | None = None,
 ) -> ReinforceEpisodeStats:
     """Collect one episode and perform one explicit REINFORCE update."""
@@ -179,6 +194,7 @@ def run_reinforce_episode(
         encoder=encoder,
         context_measures=context_measures,
         epsilon_behavior=epsilon_behavior,
+        goal_bias_weight=goal_bias_weight,
         seed=seed,
     )
     loss = reinforce_loss(
@@ -187,8 +203,10 @@ def run_reinforce_episode(
         encoder=encoder,
         tonic=env.graph_spec.tonic,
         measure_size=env.measure_size,
+        action_space=env.action_space,
         gamma=gamma,
         entropy_coefficient=entropy_coefficient,
+        goal_bias_weight=goal_bias_weight,
     )
 
     optimizer.zero_grad()

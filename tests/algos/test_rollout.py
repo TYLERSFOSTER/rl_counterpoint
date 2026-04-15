@@ -9,6 +9,7 @@ import torch
 from rl_counterpoint.algos.rollout import (
     PolicyStepRecord,
     StepRecord,
+    apply_goal_bias_to_logits,
     choose_masked_behavior_action,
     choose_masked_logit_action,
     choose_masked_random_action,
@@ -122,6 +123,21 @@ def test_choose_masked_behavior_action_uses_uniform_branch_at_epsilon_one() -> N
     assert action_mask[action_index]
 
 
+def test_apply_goal_bias_to_logits_increases_goalward_action_scores() -> None:
+    """The wrapper adds positive bias to actions that reduce goal distance."""
+    logits = torch.zeros(3, dtype=torch.float32)
+    adjusted_logits = apply_goal_bias_to_logits(
+        current_state=(11, 15),
+        action_space=((1, 1), (0, 1), (-1, 0)),
+        action_mask=(True, True, True),
+        logits=logits,
+        target_root_octave=0,
+        goal_bias_weight=2.0,
+    )
+
+    assert torch.allclose(adjusted_logits, torch.tensor([2.0, 0.0, 0.0]))
+
+
 def test_collect_policy_episode_returns_policy_step_records() -> None:
     """Policy-driven rollout records timed-window and logits data per step."""
     env = make_env(max_steps=2)
@@ -182,6 +198,40 @@ def test_collect_policy_episode_accepts_behavior_epsilon() -> None:
     assert trajectory
     assert all(isinstance(step, PolicyStepRecord) for step in trajectory)
     assert len(trajectory) == 2
+
+
+def test_collect_policy_episode_records_goal_biased_logits(monkeypatch) -> None:
+    """Collected policy records store the wrapped logits actually used for acting."""
+    env = make_env(max_steps=1)
+    encoder = SymbolicChordEncoder(text_embedder=DummyTextEmbedder())
+
+    class ZeroPolicy(torch.nn.Module):
+        def forward(self, encoded_window: torch.Tensor) -> torch.Tensor:
+            return torch.zeros(len(env.action_space), dtype=torch.float32)
+
+    def fake_apply_goal_bias_to_logits(**kwargs):
+        logits = kwargs["logits"]
+        return logits + 1.0
+
+    monkeypatch.setattr(
+        "rl_counterpoint.algos.rollout.apply_goal_bias_to_logits",
+        fake_apply_goal_bias_to_logits,
+    )
+    policy = ZeroPolicy()
+    trajectory = collect_policy_episode(
+        env,
+        policy=policy,
+        encoder=encoder,
+        context_measures=3,
+        goal_bias_weight=1.5,
+        seed=0,
+    )
+
+    assert trajectory
+    assert torch.allclose(
+        trajectory[0].logits,
+        torch.ones(len(env.action_space), dtype=torch.float32),
+    )
 
 
 def test_collect_policy_episode_records_next_observation_chain() -> None:

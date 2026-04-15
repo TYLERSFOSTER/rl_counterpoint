@@ -7,16 +7,18 @@ from random import Random
 from typing import Any
 
 import torch
+from torch import Tensor
 
 from rl_counterpoint.envs.counterpoint_env import CounterpointEnv
 from rl_counterpoint.envs.observation import TimedChordWindow, build_timed_chord_window
-from rl_counterpoint.graph.actions import StepDelta
+from rl_counterpoint.graph.actions import StepDelta, step_delta_to_next_state
 from rl_counterpoint.graph.state_space import ChordState
 from rl_counterpoint.models.policy import (
     SymbolicChordEncoder,
     TransformerStepDeltaPolicy,
     encode_timed_chord_window,
 )
+from rl_counterpoint.reward.black_box import midi_to_octave
 
 
 Info = dict[str, Any]
@@ -52,6 +54,72 @@ class PolicyStepRecord:
     truncated: bool
     info: Info
     next_observation: ChordState
+
+
+def root_octave_distance(
+    state: ChordState,
+    *,
+    target_root_octave: int,
+) -> int:
+    """Return the absolute root-octave distance from one chord state to target."""
+    if not state:
+        raise ValueError("state must not be empty")
+
+    return abs(midi_to_octave(state[0]) - target_root_octave)
+
+
+def goal_progress_score(
+    current_state: ChordState,
+    step_delta: StepDelta,
+    *,
+    target_root_octave: int,
+) -> int:
+    """Return signed improvement in root-octave distance under one action."""
+    next_state = step_delta_to_next_state(current_state, step_delta)
+    current_distance = root_octave_distance(
+        current_state,
+        target_root_octave=target_root_octave,
+    )
+    next_distance = root_octave_distance(
+        next_state,
+        target_root_octave=target_root_octave,
+    )
+    return current_distance - next_distance
+
+
+def apply_goal_bias_to_logits(
+    *,
+    current_state: ChordState,
+    action_space: tuple[StepDelta, ...],
+    action_mask: tuple[bool, ...],
+    logits: Tensor,
+    target_root_octave: int | None,
+    goal_bias_weight: float,
+) -> Tensor:
+    """Wrap policy logits with an additive goal-progress bias over legal actions."""
+    if logits.ndim != 1:
+        raise ValueError("logits must be rank 1 [action_dim]")
+    if logits.shape[0] != len(action_space):
+        raise ValueError("logits length must match action_space length")
+    if len(action_mask) != len(action_space):
+        raise ValueError("action_mask length must match action_space length")
+    if goal_bias_weight < 0.0:
+        raise ValueError("goal_bias_weight must be non-negative")
+
+    if target_root_octave is None or goal_bias_weight == 0.0:
+        return logits
+
+    adjusted_logits = logits.clone()
+    for index, (step_delta, is_legal) in enumerate(zip(action_space, action_mask, strict=True)):
+        if not is_legal:
+            continue
+        adjusted_logits[index] = adjusted_logits[index] + goal_bias_weight * goal_progress_score(
+            current_state,
+            step_delta,
+            target_root_octave=target_root_octave,
+        )
+
+    return adjusted_logits
 
 
 def choose_masked_random_action(
@@ -183,6 +251,7 @@ def collect_policy_episode(
     encoder: SymbolicChordEncoder,
     context_measures: int = 3,
     epsilon_behavior: float = 0.0,
+    goal_bias_weight: float = 0.0,
     seed: int | None = None,
 ) -> list[PolicyStepRecord]:
     """Collect one trajectory using the sequence-policy rollout path."""
@@ -211,10 +280,18 @@ def collect_policy_episode(
         if not isinstance(action_space, tuple) or not isinstance(action_mask, tuple):
             raise TypeError("action_space and action_mask must be tuples")
 
+        adjusted_logits = apply_goal_bias_to_logits(
+            current_state=observation,
+            action_space=action_space,
+            action_mask=action_mask,
+            logits=logits,
+            target_root_octave=info.get("target_root_octave"),
+            goal_bias_weight=goal_bias_weight,
+        )
         action_index, step_delta = choose_masked_behavior_action(
             action_space,
             action_mask,
-            logits,
+            adjusted_logits,
             epsilon_behavior=epsilon_behavior,
             rng=rng,
         )
@@ -226,7 +303,7 @@ def collect_policy_episode(
                 action_index=action_index,
                 step_delta=step_delta,
                 action_mask=action_mask,
-                logits=logits.detach().clone(),
+                logits=adjusted_logits.detach().clone(),
                 reward=reward,
                 terminated=terminated,
                 truncated=truncated,
