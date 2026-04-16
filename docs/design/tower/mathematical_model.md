@@ -47,6 +47,7 @@ In particular, the following ideas are project-manager-originated and should be 
 - the HNSW-like / hierarchical-search intuition for why the tower should produce a major speedup
 - the dimensionality claim that reducing the search tier by tier radically reduces effective search dimension when out-degree is the operative local complexity bound
 - the fact that, in this voiceleading setting, the quotient/projection morphisms arise canonically from the problem rather than needing to be chosen randomly
+- the concrete action-fiber observation that the admissible tier-$k$ action space is obtained by intersecting the fiber over the lower-tier action with the outgoing star at the projected current state
 
 This document is a technical writeup of that design.
 
@@ -105,6 +106,73 @@ where $\lambda_0<\lambda_1<\cdots<\lambda_{n-1}$. It is an ordered $n$-tuple of 
 
 The tuple is ordered from bottom to top. Node validity determines which such tuples actually lie in $G(n)_0$.
 
+### Node pruning structure
+
+The node-pruning structure is organized around exactly two kinds of vertical gaps:
+
+1. the **outer gap**
+$$
+\lambda_{n-1}-\lambda_0
+$$
+
+2. the **adjacent gaps**
+$$
+\lambda_{i+1}-\lambda_i
+\qquad (0\le i \le n-2)
+$$
+
+Here “adjacent” means exactly neighboring coordinates in the ordered chord tuple, in contrast with the full outer span.
+
+This means:
+
+- there is no third special class of gap
+- the top adjacent gap
+  $$
+  \lambda_{n-1}-\lambda_{n-2}
+  $$
+  is treated as an ordinary adjacent gap
+- the only specially treated non-adjacent gap is the full outer gap
+  $$
+  \lambda_{n-1}-\lambda_0
+  $$
+
+So for fixed current rank $n$ and intended maximum rank $N$, the node-validity template is:
+
+a chord
+$$
+s=(\lambda_0,\dots,\lambda_{n-1})
+$$
+lies in $G(n)_0$ only if:
+
+1. it is strictly increasing
+$$
+\lambda_0<\lambda_1<\cdots<\lambda_{n-1}
+$$
+
+2. every adjacent gap satisfies the fixed adjacent-gap pruning rules
+$$
+\lambda_{i+1}-\lambda_i \le M_{\mathrm{adj}}
+$$
+and
+$$
+\lambda_{i+1}-\lambda_i \notin F_{\mathrm{adj}}
+$$
+
+3. the outer gap satisfies its own rank/max-rank-dependent width band
+$$
+L(n,N)\;\le\;\lambda_{n-1}-\lambda_0\;\le\; U(n,N)
+$$
+
+4. the root pitch class satisfies the root-class pruning rule
+
+5. the outer interval class satisfies the outer-interval-class pruning rule
+
+This is the intended reinterpretation of the older flat-system node pruning in tower form:
+
+- the adjacent-gap rules are fixed local-voice rules
+- the outer-gap rule is the scaffold-width rule
+- the scaffold-width rule is the one that varies with rank and intended maximum tower depth
+
 ### Edges
 A directed edge in $G(n)_\bullet$ is a valid voiceleading $s \xrightarrow{\Delta s} s'$ where:
 
@@ -113,6 +181,108 @@ A directed edge in $G(n)_\bullet$ is a valid voiceleading $s \xrightarrow{\Delta
 - the transition satisfies the rank-$n$ edge-validity rules
 
 So morphisms in these graphs are naturally represented by $n$-tuples of moves. This is why edge projections are natural once node projections are fixed.
+
+### Edge pruning structure
+
+For fixed current rank $n$ and intended maximum rank $N$, a directed edge in $G(n)_\bullet$ is a valid voiceleading
+
+$$
+s \xrightarrow{\Delta s} s'
+$$
+
+iff all of the following hold:
+
+1. **Valid endpoints**
+   $$
+   s,s' \in G(n)_0
+   $$
+
+2. **Realized by the move vector**
+   $$
+   s' = s + \Delta s
+   $$
+
+3. **No self-loop**
+   $$
+   s \ne s'
+   $$
+
+4. **No voice crossing**
+
+   If
+   $$
+   s=(\lambda_0,\dots,\lambda_{n-1}),
+   \qquad
+   s'=(\mu_0,\dots,\mu_{n-1}),
+   $$
+   then for all $0 \le i \le n-2$,
+   $$
+   \mu_i < \lambda_{i+1}
+   \qquad\text{and}\qquad
+   \lambda_i < \mu_{i+1}.
+   $$
+
+5. **No parallel fifths**
+
+   For no pair $0 \le i < j \le n-1$ do we have both
+   $$
+   \lambda_j-\lambda_i = 7
+   \qquad\text{and}\qquad
+   \mu_j-\mu_i = 7.
+   $$
+
+6. **Single-line motion cap**
+
+   For every voice $i$,
+   $$
+   \mu_i - \lambda_i \le M_{\mathrm{move}}.
+   $$
+
+   This is the retained one-sided single-line motion rule from the older system.
+
+   It is important that this motion parameter is conceptually distinct from the node-side pruning parameters.
+
+   In particular:
+
+   - node-side vertical pruning uses adjacent-gap rules and outer-width-band rules
+   - edge-side pruning uses the motion parameter $M_{\mathrm{move}}$
+
+   These are not the same family of constraints.
+
+7. **Projection compatibility**
+
+   For $n \ge 2$,
+   $$
+   \operatorname{pr}^n(s)\xrightarrow{\operatorname{pr}^n(\Delta s)}\operatorname{pr}^n(s')
+   $$
+   must be a valid edge in $G(n-1)_\bullet$.
+
+So the older edge-pruning rules are retained, and the tower adds the graph-morphism compatibility requirement on top of them.
+
+### Edge pruning parameter ownership
+
+The edge-pruning decisions recorded here are:
+
+- the one-sided single-line motion cap
+  $$
+  \mu_i-\lambda_i \le M_{\mathrm{move}}
+  $$
+  is retained from the older system
+- $M_{\mathrm{move}}$ does **not** depend on rank
+- $M_{\mathrm{move}}$ is conceptually distinct from the node-side vertical pruning parameters
+- “no voice crossing” is a hard constant of the mathematical model
+- “no parallel fifths” is a hard constant of the mathematical model
+
+So the edge-pruning side of the model has the following fixed structure:
+
+- valid endpoints
+- no self-loops
+- no crossing
+- no parallel fifths
+- one-sided single-line motion cap
+- projection compatibility
+
+with only the motion bound $M_{\mathrm{move}}$ appearing as an explicit numerical edge parameter.
 
 ### Projections on states
 Because a rank-$n$ state is an $n$-tuple, the node sets carry natural coordinate projections. These are fixed as follows.
@@ -260,6 +430,61 @@ Here:
 
 This is another project-manager design insight: if a scaffold chord needs to be wide, it should be structurally required to be wide, not merely permitted to be wide by accident. So the "future room" condition is simply part of the ordinary node pruning, expressed by a width band rather than only a width ceiling.
 
+### Node pruning parameter ownership
+
+The node-pruning side of the model is now understood as follows.
+
+The ambient pitch universe
+$$
+\{0,\dots,127\}
+$$
+is fixed by the MIDI protocol and is therefore not treated as a free parameter of the model.
+
+The retained adjacent-gap rules from the older system are:
+
+- adjacent-gap cap
+  $$
+  \lambda_{i+1}-\lambda_i \le M_{\mathrm{adj}}
+  $$
+- forbidden adjacent-gap set
+  $$
+  \lambda_{i+1}-\lambda_i \notin F_{\mathrm{adj}}
+  $$
+
+These are carried over unchanged as fixed local-voice pruning rules.
+
+The outer-width rule is the part that changes in the tower setting.
+
+The center of the width band is taken to be
+
+$$
+C(N)=\lceil M_{\mathrm{adj}}\,N\rceil,
+$$
+
+where $N$ is the intended maximum rank of the tower.
+
+So the width band is determined from:
+
+- the central intended width $C(N)$
+- one maximum vertical error $E_{\mathrm{vert}}$
+
+namely
+
+$$
+L(n,N)=C(N)-E_{\mathrm{vert}},
+\qquad
+U(n,N)=C(N)+E_{\mathrm{vert}}.
+$$
+
+Thus:
+
+- the adjacent-gap rules stay fixed
+- the forbidden adjacent-gap set stays fixed
+- the width band depends on the intended maximum rank $N$
+- the width band is centered on a scale determined by $M_{\mathrm{adj}}$
+
+This is the intended tower reinterpretation of the older flat-system width rule.
+
 ### Stabilization Above Rank 4
 
 The current design discussion focuses on
@@ -315,6 +540,78 @@ The important difference here is:
 
 That is a major part of the elegance of the model.
 
+#### Concrete action-space reduction at tier $k$
+
+The project manager's most concrete formulation of the speedup mechanism is the following.
+
+At state $s_t^k$, the admissible tier-$k$ action space is not the full outgoing star of all possible rank-$k$ actions.
+
+Rather, it is the constrained set
+
+$$
+\operatorname{pr}^k^{-1}(\alpha_t^{k-1})\;\;\cap\;\;\partial_0^{-1}\big(\operatorname{pr}^n(s_t^n)\big).
+$$
+
+In words:
+
+- first fix the lower-tier action $\alpha_t^{k-1}$
+- then consider only those rank-$k$ actions projecting to it
+- then intersect that fiber with the legal outgoing star at the projected current state
+
+So the admissible tier-$k$ search is not a search over the full rank-$k$ action space.
+
+It is a search over a much smaller constrained fiber slice.
+
+This is the most concrete mathematical reason the search burden should collapse.
+
+The speedup is therefore not only a vague “hierarchy helps” effect.
+
+It comes from the fact that each tier searches:
+
+- inside a fiber over an already chosen lower-tier action
+- and inside the legal outgoing star of the current projected state
+
+That double restriction is exactly why the higher-tier action space is so much smaller than the naive flat one.
+
+### Parameter ownership summary
+
+The graph family is therefore determined mathematically by the following kinds of ingredients.
+
+#### Fixed structural constants
+
+- MIDI pitch universe $\{0,\dots,127\}$
+- no voice crossing
+- no parallel fifths
+
+#### Fixed pruning parameters
+
+- tonic $\tau$
+- allowed root pitch classes
+- allowed outer-interval classes
+- adjacent-gap cap $M_{\mathrm{adj}}$
+- forbidden adjacent-gap set $F_{\mathrm{adj}}$
+- edge motion cap $M_{\mathrm{move}}$
+
+#### Tower-dependent width parameters
+
+- intended maximum rank $N$
+- central intended width
+  $$
+  C(N)=\lceil M_{\mathrm{adj}}\,N\rceil
+  $$
+- maximum vertical error $E_{\mathrm{vert}}$
+- width band
+  $$
+  L(n,N)=C(N)-E_{\mathrm{vert}},
+  \qquad
+  U(n,N)=C(N)+E_{\mathrm{vert}}
+  $$
+
+So the mathematically important dependency structure is:
+
+- most local pruning rules stay fixed across the tower
+- the outer-width scaffold rule is the main place where the intended maximum tower depth enters
+
 #### Dimensionality Interpretation
 
 Another project-manager observation is that if local out-degree is taken as a proxy for local search dimension, then:
@@ -352,5 +649,6 @@ This mathematical model, including:
 - the use of genuinely $k$-part rewards
 - the width-band scaffold condition
 - the hierarchical-search / HNSW-style training-speedup intuition
+- the constrained-fiber action-space reduction
 
 is the project manager's design and should be understood that way by any future engineer reading this document.

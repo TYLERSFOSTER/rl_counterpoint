@@ -13,12 +13,17 @@ The following rules come form the book [*Tonal Counterpoint for the 21st-Century
 
 ### Single jumps
 - Intervals should be, *most often*, **consonant**. Specifically, they should come from the set $$\{\text{m3},\;\text{M3},\;\text{P4},\;\text{P5},\;\text{M6},\;\text{P8}\}.$$
-- Dissonany intervals should be used sparingly. These are the intervals $$\{\text{m2},\;\text{M2},\;\text{A4/d5},\;\text{m6},\;\text{m7},\;\text{M7}\}.$$
-  - Diminished and augmented intervals need to be subsequently "resolved" by moving up or down a single scale degree
+  - **COMPUTATIONAL NOTE:** This refers to horizontal intervals, i.e., to the individual component actions. The $k^{\text{th}}$ component of the total $\Delta s$ must come from $\{3, 4, 5, 7,8,9\}\;(\!\!\!\mod 12)$... or is that $7,9,10$?... I might have these numbers wrong. Regardless, the point is that the reward here should check that the consant-to-dissonant distribution in the rank $1$ window $W^{1}_{t}$ closely matches a preset one like maye $(\text{consonant};\:\text{disonant})=(80:20)$ over $W^{1}_{t}$.
+- Dissonant intervals should be used sparingly. These are the intervals $$\{\text{m2},\;\text{M2},\;\text{A4/d5},\;\text{m6},\;\text{m7},\;\text{M7}\}.$$
   - 7ths and also large consonant jumps should be subsequently moved in the opposite direction, with a kind of switchback.
+    - **COMPUTATIONAL NOTE:** Here I imagine a reward term that is the weighted product of two values, gotten from **(i)** a Boolean check that absolute value $\left|\Delta s^{1}_{t-1}\right|$, i.e., the distance $\left|s^{1}_{t}-s^{1}_{t-1}\right|$, is sufficiently large, like say $6$ or larger, and **(ii)** a Boolean check that the proposed action $\Delta s^{1}_{t}$ moves in the opposite direction, i.e., that $$\operatorname{sgn}(\Delta s^{1}_{t-1})-\operatorname{sgn}(\Delta s^{1}_{t-1})\;\equiv\;0\;(\!\!\!\!\!\mod 2).$$
+  - Diminished and augmented intervals need to be subsequently "resolved" by moving up or down a single scale degree
+    - **COMPUTATIONAL NOTE:** This term should be computed in much the same way a the one immediately above, except that the Booleans are now **(i)** a check that $\left|\Delta s^{1}_{t-1}\right|$ is a diminished or augmented interval, and **(ii)** a check that the move $s^{1}_{t-1}\mapsto s^{1}_{t}$ is a move up or down consecutive scale degrees... Concretely, **(ii)** could be a check that $s^{1}_{t-1}$ and $s^{1}_{t}$ are both inour underlying scale, with $\left|\Delta s^{1}_{t-1}\right|\le 2$ (ensures consecutive).
 ### Consecutive jumps
 - Avoid jumps that give the "recent" melody a range of more than an octave.
+  - **COMPUTATIONAL NOTE:** A weighted Boolean reward term checking that $$\max\{s^{1}_{t-4},\;\dots,\;s^{1}_{t-1}\}-\min\{s^{1}_{t-4},\;\dots,\;s^{1}_{t-1}\}\;\le\;12.$$
 - Avoid consecutive 4ths and 5ths.
+  - **COMPUTATIONAL NOTE:** A weighted term that does a check that $$\text{if}\;\;\Delta s^{1}_{t-2}\;=\;\Delta s^{1}_{t-1},\;\;\text{then}\;\;\Delta s^{1}_{t-1}\notin\{5,7\}.$$
 ### Steps and jumps
 - Follow large leaps with *small* step in opposite direction.
 - Avoid stepwise motion followed by a leap in the opposite direction.
