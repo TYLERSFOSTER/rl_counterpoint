@@ -119,13 +119,19 @@ In what follows, it is important to realize that if $n>1$, then the entry index 
   - $\text{P8}$ over tonic at beginning or end of phrase
   - $\text{P5}$ over dominant pitches at or near beginning or end of phrase.
   - $\text{P8}$ can appear over dominant approximately midway through phrase, surrounded by $3$s and $6$s.
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Use the same tonic-normalized pitch-class convention as the older system: replace each pitch by $(\lambda_i-\tau)\;(\pmod{12})$ and each vertical interval by $(\lambda_j-\lambda_i)\;(\pmod{12})$. Then detect phrase-position templates against the window $W^2_t$: tonic $\text{P8}$ at the beginning or end, dominant $\text{P5}$ near the beginning or end, and dominant $\text{P8}$ near the midpoint. These are reward terms, not pruning rules. They should be implemented as weighted pattern detectors over $W^2_t$ using phrase-position masks.
 - Between these loci in the phrase, imperfect cadences should be used to maintain sense of flow.
   - Parallel $3$rds and $6$ths are ok, be more than 4 successive is excessive (destroys sense of line indpendence)
   - $\text{P5}$ and $\text{P8}$ are ok at these places, but only if surrounded by $\text{3}$ rds and $\text{6}$ ths.
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Between structural loci, reward high local density of imperfect consonances, especially $3$rds and $6$ths. Also introduce a hyperparameter $H_{\mathrm{parallel36}}$ controlling the maximum tolerated run length of successive parallel $3$rds or $6$ths before the reward turns into a penalty. Perfect intervals away from structural loci should receive reward only when the surrounding window contains enough imperfect consonance on both sides.
 - Avoid parallel perfect intevals.
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** This is pruning rather than reward. For a pair of voices $(i,j)$, forbid an edge $s\to \mu$ when the interval is perfect at both endpoints and the voices move in parallel or similar motion:
+    $$
+    (\lambda_j-\lambda_i)\;(\pmod{12})\in\{0,7\},
+    \qquad
+    (\mu_j-\mu_i)\;(\pmod{12})=(\lambda_j-\lambda_i)\;(\pmod{12}),
+    $$
+    with matching nonzero motion direction. The existing no-parallel-fifths pruning is the special case for interval class $7$.
 ### Harmonic succesions
 - **COMPUTATIONAL NOTE:** For all of these, the basic pattern is to take the vertical interval $\pmod{12}$, minus $\lambda_{\text{tonic}}$ and then do convolutional checks for these progreesions, since the progressions are defined as characteritic functions on
   $$
@@ -176,7 +182,7 @@ In what follows, it is important to realize that if $n>1$, then the entry index 
   - *ascending seconds*:
     - $\text{I}\to\text{ii}\to\text{iii}$
     - $\text{iv}\to\text{V}\to\text{VI}\to\text{vii}^{\circ}$
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Use the tonic-relative/mod-$12$ chord-template detector described immediately above. Common progressions are positive reward templates on $W^k_t$: convolve the tonic-normalized chord-factor evidence against the listed progression tensors and add a weighted reward for matches. The detector should count only the harmonic fact being tested at rank $k$; inherited lower-rank facts should not be rescored unless the template explicitly requires the full $k$-voice sonority.
 - Avoid *RETROgressions*:
   - ascending thirds:
     - $\text{VI}\to\text{i}$
@@ -186,16 +192,16 @@ In what follows, it is important to realize that if $n>1$, then the entry index 
     - $\text{vii}^{\circ}\to\text{VI}\to\text{V}\to\text{iv}$
   - ***completely avoid***:
     - $\text{V}\to\text{IV}\;\text{(iv)}$
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Use the same tonic-relative progression detector, but assign negative reward to retrogression templates. The $\text{V}\to\text{IV}$ or $\text{V}\to\text{iv}$ case should be treated as a hard pruning candidate or as a very large penalty; this choice should be fixed when the graph/reward boundary is finalized.
 - Avoid retrogressions when approaching the cadence.
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Reuse the retrogression detector, multiplied by a cadence-proximity weight. If $d_{\mathrm{goal}}(t)$ is the number of steps remaining before the goal/deadline, the penalty should increase as $d_{\mathrm{goal}}(t)$ decreases. This makes retrogression near the terminal cadence more costly than retrogression early in the passage.
 - Use lots of $\text{3}$ rds for vertical intervals
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Reward a sufficiently high density of vertical $3$rds in $W^k_t$. In the tower model, this should generally be computed on the new interval facts introduced at rank $k$, not on inherited parent intervals. For example, at $G(3)$, do not rescore the inherited outer dyad if it was already handled in $G(2)$.
 ### Cadences
 - End with a cadence
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** This is a terminal or near-terminal reward. At the end of the passage, apply cadence-template detectors to the final $L_{\mathrm{cad}}$ steps of $W^k_t$, using tonic-relative pitch classes and the current meter position. The reward is only paid when the cadence template appears at the goal/deadline boundary.
 - For $1^{\text{st}}$-species, use a perfect cadence
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** In $G(2)$, specialize the terminal cadence detector to a perfect cadence. Concretely, detect dominant-to-tonic motion in the final cadence window after subtracting tonic and passing to mod $12$, with the dominant preparation on the upbeat or weaker position and the tonic arrival on the downbeat or stronger position.
 ## $2$-simplices: three's a crowd, ie., a *trio*
 <p align="center">
   <picture>
@@ -206,48 +212,62 @@ In what follows, it is important to realize that if $n>1$, then the entry index 
 </p>
 
 ### Vertical intervals
-- Dissonant vertical intervals occur more often on offbeat.
-  - **COMPUTATIONAL NOTE:** [...]
-- Dissonant vertical intervals can occur on onbeat only rearely, and only if follwed by a vertical consonance.
-  - **COMPUTATIONAL NOTE:** [...]
+- Dissonant vertical intervals occur more often on upbeat.
+  - **COMPUTATIONAL NOTE:** Replace the older "accented/unaccented" language with downbeat/upbeat language. Reward dissonant vertical intervals when they occur on upbeat positions and penalize them when they occur on downbeat positions. At rank $k$, compute this on the new vertical facts introduced by the newly added voice, not on intervals already present in the parent graph. For instance, in $G(3)$ the inherited outer interval has already been handled in $G(2)$.
+- Dissonant vertical intervals can occur on downbeat only rearely, and only if follwed by a vertical consonance.
+  - **COMPUTATIONAL NOTE:** Penalize downbeat dissonance unless the proposed next state resolves the newly introduced dissonant interval to a consonant interval. This reward term needs both the current window $W^k_t$ and the proposed action $\Delta s^k_t$, since it checks the transition into the next chord. The tolerance for downbeat dissonance should be a hyperparameter.
 - Consonant intervals should occur $>$ half the time among all vertical intervals (not clear here if "all vertical" means all $(n+1)$-choose-$2$ edges in the $n$-simplex $\Delta^{n}$)
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Interpret "all vertical intervals" in tower form as the new vertical interval facts introduced at rank $k$, unless a full-sonority detector is explicitly being used. Reward the consonant ratio
+    $$
+    \frac{\#\{\text{new consonant vertical facts in }W^k_t\}}{\#\{\text{new vertical facts in }W^k_t\}}
+    $$
+    when it exceeds a threshold $q_{\mathrm{cons}}$, with $q_{\mathrm{cons}}$ a hyperparameter.
 
 ### Melodic motion
-- Pedal in $2^{nd}$-species is allowed, and can even be encouraged, to repeat for down/off beat pairs.
-  - **COMPUTATIONAL NOTE:** [...]
+- Pedal in $2^{nd}$-species is allowed, and can even be encouraged, to repeat for downbeat/upbeat pairs.
+  - **COMPUTATIONAL NOTE:** Reward $\Delta\lambda_0=0$ across a downbeat/upbeat pair when a pedal repetition is desired. This should be a small positive reward or style knob, not a hard legality rule.
 - Non-harmonic tones:
   - Good balance between chord tones and non-chord tones.
-    - **COMPUTATIONAL NOTE:** [...]
+    - **COMPUTATIONAL NOTE:** After subtracting tonic and passing to mod $12$, classify the newly added note as a chord tone or non-chord tone relative to the active chord-template evidence. Reward a target chord-tone/non-chord-tone distribution over $W^k_t$, with the target ratio controlled by a hyperparameter.
   - Move stepwise to and from disonant pitches, so that most dissonances are neighboring or passing tones.
-    - **COMPUTATIONAL NOTE:** [...]
-  - unaccented passing tones should occur more often than other dissoances.
-    - **COMPUTATIONAL NOTE:** [...]
-  - Accentented non-harmonic tones shoul dbe followed by a chord tones.
-    - **COMPUTATIONAL NOTE:** [...]
+    - **COMPUTATIONAL NOTE:** If the newly added voice creates a dissonance at time $t$, reward stepwise approach and stepwise departure:
+      $$
+      |\Delta\lambda_{\mathrm{new},t-1}|\le S_{\mathrm{step}},
+      \qquad
+      |\Delta\lambda_{\mathrm{new},t}|\le S_{\mathrm{step}}.
+      $$
+      Neighbor-tone and passing-tone variants can be distinguished by whether the two step directions oppose or agree.
+  - upbeat passing tones should occur more often than other dissoances.
+    - **COMPUTATIONAL NOTE:** Reward upbeat dissonances more strongly when they are passing tones: stepwise in, stepwise out, and same melodic direction across the three-note figure. Other upbeat dissonances should receive less reward or a mild penalty.
+  - Downbeat non-harmonic tones should be followed by chord tones.
+    - **COMPUTATIONAL NOTE:** If the newly added note is non-chordal on a downbeat, reward only if the next event resolves to a chord tone. Otherwise apply a penalty whose strength is controlled by a hyperparameter.
   - The only *skips* and *leaps* in $2^{\text{nd}}$-species occur between chord tones.
-    - **COMPUTATIONAL NOTE:** [...]
-  - The above *consonant/chordal skips and leaps* occur freely, on down and offbeats.
-    - **COMPUTATIONAL NOTE:** [...]
+    - **COMPUTATIONAL NOTE:** If $|\Delta\lambda_{\mathrm{new},t}|>S_{\mathrm{step}}$, require both the source and target notes of the newly moving voice to be chord tones. This may ultimately be pruning rather than reward, but for reward design it is naturally a large penalty for leaps involving non-chord tones.
+  - The above *consonant/chordal skips and leaps* occur freely, on downbeats and upbeats.
+    - **COMPUTATIONAL NOTE:** This is an exception/gating rule for the preceding penalty: do not penalize skips or leaps when both endpoints are chord tones and the new vertical facts are consonant, regardless of downbeat/upbeat position.
 
 ### Harmonic considerations
 - Do not ommit the root or third of a chord, be it triad or seventh
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** For each inferred chord template in $W^k_t$, reward the presence of root and third factors among the $k$ voices. This is a genuinely rank-$k$ sonority fact, so it can use the full current chord rather than only the new pairwise intervals.
 - Triads should be implied in one of the following ways:
   - Include all 3 chord factors: root, third, and fifth
   - Write 2 roots and one third
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Reward valid triad-factor occupancy patterns after tonic normalization. The main positive patterns are $\{R,3,5\}$ and $\{R,R,3\}$, interpreted relative to the inferred chord root. This should be implemented as a factor-count reward over the current $k$-voice sonority.
 - When a non-harmonic tone is involved, it is preferable to include root and third factor
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** If any newly added note is classified as non-harmonic, reward the remaining harmonic support more strongly when root and third are present. This prevents a non-harmonic tone from making the chord identity ambiguous.
 - Do not double the leading tone of the scale **[SHOULD BE PRUNING RULE]**
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** This is pruning. Forbid any state containing two distinct voices whose tonic-relative pitch class is the leading tone:
+    $$
+    (\lambda_i-\tau)\;(\pmod{12})=(\lambda_j-\tau)\;(\pmod{12})=11
+    \qquad\text{for }i\ne j.
+    $$
 - Seventh chords should be implied by root, third, and seventh
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Reward seventh-chord evidence when the current sonority contains root, third, and seventh factors after tonic-relative/mod-$12$ normalization. This is a full-sonority detector, not a pairwise consonance detector.
 - Six-four chords should be one of these three:
   - cadential
   - passing
   - arpegiating
-  - **COMPUTATIONAL NOTE:** [...]
+  - **COMPUTATIONAL NOTE:** Ignore for now. This requires a separate inversion-specific distinction between cadential, passing, and arpeggiating six-four contexts.
   
 
 ## $3$-simplices: the barber shop *quartet*
