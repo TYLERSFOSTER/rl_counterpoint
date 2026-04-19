@@ -1,6 +1,24 @@
-# rl_counterpoint
+# RL Counterpoint
 
 `rl_counterpoint` is a reinforcement learning project for counterpoint and voice-leading generation over a constrained graph of ordered chord states.
+
+<figure
+style="
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+"
+>
+<p align="center">
+  <picture>
+    <source srcset="assets/images/hrl_dark.png" media="(prefers-color-scheme: dark)">
+    <source srcset="assets/images/hrl_light.png" media="(prefers-color-scheme: light)">
+    <img src="assets/MPK_Mini.jpg" alt="MIDIControl001" width="500">
+  </picture>
+<figcaption style="margin-top: 8px; text-align: center; font-size: 0.95em;">
+    Figure 2. Early experiments with API-call-based image continuation
+</figcaption>
+</figure><br>
 
 ## Overview
 
