@@ -17,13 +17,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def test_train_config_binds_eight_measure_episode_cap() -> None:
     """The training harness derives max_steps from the fixed measure cap."""
-    config = train_reinforce.TrainConfig()
+    config = train_reinforce.TrainConfig(
+        measure_size=4,
+        episode_measures=16,
+        max_step_size=4,
+        num_episodes=7,
+        learning_rate=1e-3,
+        entropy_coefficient=0.01,
+        epsilon_behavior=0.2,
+        goal_bias_weight=0.0,
+        early_goal_weight=2.0,
+    )
 
     assert config.episode_measures == 16
     assert config.measure_size == 4
     assert config.max_steps == 64
     assert config.max_step_size == 4
-    assert config.num_episodes == 100_000
+    assert config.num_episodes == 7
     assert config.learning_rate == 1e-3
     assert config.gamma == 0.9
     assert config.target_distance_weight == 1.0
@@ -142,6 +152,10 @@ def test_train_reinforce_main_prints_stats_and_writes_artifacts(
     @train_reinforce.dataclass(frozen=True)
     class ShortTrainConfig(original_train_config):
         num_episodes: int = 2
+        entropy_coefficient: float = 0.01
+        epsilon_behavior: float = 0.2
+        goal_bias_weight: float = 0.0
+        early_goal_weight: float = 2.0
 
     train_reinforce.TrainConfig = ShortTrainConfig
     try:
@@ -179,8 +193,16 @@ def test_train_reinforce_script_runs_by_file_path() -> None:
     script_path = tmp_path = PROJECT_ROOT / "scripts" / "train_reinforce.py"
     script_text = script_path.read_text()
     patched_text = script_text.replace(
-        "DEFAULT_NUM_EPISODES = 100_000",
-        "DEFAULT_NUM_EPISODES = 2",
+        "config = TrainConfig()",
+        (
+            "config = TrainConfig("
+            "num_episodes=2, "
+            "entropy_coefficient=0.01, "
+            "epsilon_behavior=0.2, "
+            "goal_bias_weight=0.0, "
+            "early_goal_weight=2.0"
+            ")"
+        ),
         1,
     )
     temp_script = PROJECT_ROOT / "scripts" / "_tmp_train_reinforce_test.py"
