@@ -301,7 +301,7 @@ def test_train_rank1_episode_with_artifacts_optimizer_step_changes_params(
     assert not torch.allclose(policy.logits.detach(), before)
 
 
-def test_rank1_protocol_does_not_import_rank2_parent_training_machinery() -> None:
+def test_training_protocol_does_not_import_frozen_legacy_project() -> None:
     project_root = Path(__file__).parents[3]
     source_text = (project_root / "tower" / "train" / "protocol.py").read_text()
 
@@ -402,6 +402,29 @@ def test_train_rank2_episode_uses_lift_fiber_mask_for_child_choices() -> None:
     step = result.trajectory.steps[0]
     assert step.diagnostics["active_choices"] == (-1, 0, 1)
     assert step.diagnostics["active_sampler"]["active_choices"] == (-1, 0, 1)
+
+
+def test_train_rank2_episode_records_parent_top_m_sampler_diagnostics() -> None:
+    parent_policy = TinyRank1Policy()
+    child_policy = TinyRank2Policy()
+    child_optimizer = torch.optim.SGD(child_policy.parameters(), lr=0.1)
+
+    result = train_rank2_episode(
+        parent_policy=parent_policy,
+        child_policy=child_policy,
+        child_optimizer=child_optimizer,
+        initial_state=(60, 64),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        parent_top_m=1,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    parent_sampler = result.trajectory.steps[0].diagnostics["parent_sampler"]
+    assert parent_sampler["top_m"] == 1
+    assert parent_sampler["top_indices"] == (1,)
+    assert parent_sampler["parent_actions"] == ((-1,), (1,))
 
 
 def test_train_rank2_episode_loss_ignores_parent_logprob_gradient() -> None:
@@ -564,6 +587,42 @@ def test_train_rank2_episode_with_artifacts_records_accepted_at_budget(
         )
     )
     assert manifest["ranks"]["2"]["status"] == "accepted"
+
+
+def test_train_rank2_episode_with_artifacts_leaves_parent_checkpoint_unchanged(
+    tmp_path: Path,
+) -> None:
+    rank_1_paths = prepare_accepted_rank1_parent(tmp_path=tmp_path)
+    parent_checkpoint_bytes = rank_1_paths.checkpoint_latest_path.read_bytes()
+    parent_checkpoint_payload = load_latest_checkpoint(rank_1_paths)
+    child_policy = TinyRank2Policy()
+
+    train_rank2_episode_with_artifacts(
+        parent_policy=TinyRank1Policy(),
+        child_policy=child_policy,
+        child_optimizer=torch.optim.SGD(child_policy.parameters(), lr=0.1),
+        config=TowerRankConfig(
+            rank=2,
+            lineage_id="lineage-a",
+            episode_budget=1,
+            max_step_size=1,
+            parent_checkpoint="rank_1/checkpoint_latest.pt",
+            parent_sampler_config={"top_m": 1},
+            training_config={"max_steps": 1},
+        ),
+        paths=TowerArtifactPaths(
+            lineage_id="lineage-a",
+            rank=2,
+            artifact_root=tmp_path,
+        ),
+        initial_state=(60, 64),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        episode_index=0,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert rank_1_paths.checkpoint_latest_path.read_bytes() == parent_checkpoint_bytes
+    assert load_latest_checkpoint(rank_1_paths) == parent_checkpoint_payload
 
 
 def test_train_rank2_episode_with_artifacts_rejects_missing_accepted_parent(
