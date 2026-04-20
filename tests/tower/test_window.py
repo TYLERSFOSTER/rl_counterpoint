@@ -9,6 +9,7 @@ from tower.window import (
     TowerWindow,
     bar_position,
     build_window,
+    frontier_state,
     is_downbeat,
     is_ending_beat,
     pad_state,
@@ -52,6 +53,38 @@ def test_build_window_left_pads_short_history() -> None:
     assert all(state == (0,) for state in window.states[:-1])
     assert window.bar_positions == (PAD_BAR_POSITION,) * 7 + (0,)
     assert window.valid_mask == (False,) * 7 + (True,)
+
+
+def test_frontier_state_returns_final_valid_state() -> None:
+    window = build_window(
+        history=((60,), (62,), (64,)),
+        step_index=2,
+        measure_size=4,
+        context_measures=2,
+    )
+
+    assert frontier_state(window) == (64,)
+
+
+def test_frontier_state_ignores_final_padding_if_present() -> None:
+    window = TowerWindow(
+        states=((0,), (60,), (62,), (0,)),
+        bar_positions=(PAD_BAR_POSITION, 0, 1, PAD_BAR_POSITION),
+        valid_mask=(False, True, True, False),
+    )
+
+    assert frontier_state(window) == (62,)
+
+
+def test_frontier_state_rejects_all_padding_window() -> None:
+    window = TowerWindow(
+        states=((0,), (0,)),
+        bar_positions=(PAD_BAR_POSITION, PAD_BAR_POSITION),
+        valid_mask=(False, False),
+    )
+
+    with pytest.raises(ValueError, match="at least one valid state"):
+        frontier_state(window)
 
 
 def test_build_window_records_real_bar_positions() -> None:

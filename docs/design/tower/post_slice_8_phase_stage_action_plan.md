@@ -350,11 +350,44 @@ Stop if:
 | policy API conflicts with existing sampler API |
 | model requires parent diagnostic inputs |
 
-### Stage 3.3: Sampler Integration
+### Stage 3.3: Frontier Contract And Sampler Integration
 
 Goal:
 
-Use the real policy through existing active and parent samplers.
+Resolve the discovered policy API ambiguity, then use the real policy through
+existing active and parent samplers.
+
+#### Action 3.3.0: Clarify Policy Frontier/Window Contract
+
+Files:
+
+| File | Work |
+| --- | --- |
+| `docs/design/tower/policy_frontier_window_contract.md` | create policy frontier/window contract |
+
+Required content:
+
+| Item | Decision to record |
+| --- | --- |
+| policy input | window-primary / encoded-window-primary |
+| frontier state | final valid state of the window |
+| independent state input | not part of model input |
+| rollout state | may remain local graph/legality/application state |
+| sampler responsibility | derive frontier from window or encoded window where needed |
+| transformer policy | consumes `EncodedTowerWindow` directly |
+| existing protocol | decide adapter/refactor path for `RankPolicy` and samplers |
+
+Tests:
+
+None. Documentation/design-correction action only.
+
+Stop if:
+
+| Stop condition |
+| --- |
+| the correction implies parent logits/logprobs/top-m candidates as model input |
+| the correction requires changing graph/window tuple contracts |
+| the correction makes rollout state and window frontier intentionally divergent |
 
 #### Action 3.3.1: Verify Real Policy Sampler Compatibility
 

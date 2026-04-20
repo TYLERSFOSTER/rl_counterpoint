@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Generic, Mapping, TypeVar
+from typing import Generic, Mapping, TypeVar, cast
 
 import torch
 
-from tower.policy.base import RankPolicy
+from tower.policy.base import PolicyOutput, RankPolicy
+from tower.policy.observation import encode_tower_window
+from tower.policy.transformer import TowerTransformerPolicy
 from tower.state_action import TowerAction, TowerState, rank_of_state
-from tower.window import TowerWindow
+from tower.window import TowerWindow, frontier_state
 
 ChoiceT = TypeVar("ChoiceT")
+LegacyRankPolicyCall = Callable[..., PolicyOutput]
 
 
 @dataclass(frozen=True)
@@ -78,19 +82,27 @@ def scripted_result(
 def sample_active_choice_from_policy(
     *,
     policy: RankPolicy,
-    state: TowerState,
     window: TowerWindow,
     active_choices: tuple[int, ...],
+    state: TowerState | None = None,
+    measure_size: int = 4,
     generator: torch.Generator | None = None,
 ) -> SamplerResult[int]:
     """Sample an active coordinate choice from rank-local policy logits."""
     if not active_choices:
         raise ValueError("active_choices must not be empty")
-    state_rank = rank_of_state(state)
-    if policy.rank != state_rank:
-        raise ValueError("policy rank must match state rank")
+    current_state = _frontier_for_policy(
+        policy=policy,
+        window=window,
+        state=state,
+    )
 
-    output = policy(state=state, window=window)
+    output = _policy_output(
+        policy=policy,
+        window=window,
+        state=current_state,
+        measure_size=measure_size,
+    )
     logits = output.logits
     if logits.ndim != 1:
         raise ValueError("policy logits must be a vector")
@@ -112,6 +124,7 @@ def sample_active_choice_from_policy(
         diagnostics={
             "selected_index": selected_index,
             "active_choices": active_choices,
+            "frontier_state": current_state,
             "policy": output.diagnostics,
         },
     )
@@ -120,9 +133,10 @@ def sample_active_choice_from_policy(
 def sample_parent_top_m_from_policy(
     *,
     policy: RankPolicy,
-    state: TowerState,
     window: TowerWindow,
     parent_actions: tuple[TowerAction, ...],
+    state: TowerState | None = None,
+    measure_size: int = 4,
     top_m: int = 1,
     generator: torch.Generator | None = None,
 ) -> SamplerResult[TowerAction]:
@@ -131,11 +145,18 @@ def sample_parent_top_m_from_policy(
         raise ValueError("parent_actions must not be empty")
     if top_m < 1:
         raise ValueError("top_m must be at least 1")
-    state_rank = rank_of_state(state)
-    if policy.rank != state_rank:
-        raise ValueError("policy rank must match state rank")
+    current_state = _frontier_for_policy(
+        policy=policy,
+        window=window,
+        state=state,
+    )
 
-    output = policy(state=state, window=window)
+    output = _policy_output(
+        policy=policy,
+        window=window,
+        state=current_state,
+        measure_size=measure_size,
+    )
     logits = output.logits
     if logits.ndim != 1:
         raise ValueError("policy logits must be a vector")
@@ -167,6 +188,42 @@ def sample_parent_top_m_from_policy(
             "top_indices": tuple(int(index.item()) for index in top.indices),
             "top_m": effective_top_m,
             "parent_actions": parent_actions,
+            "frontier_state": current_state,
             "policy": output.diagnostics,
         },
     )
+
+
+def _frontier_for_policy(
+    *,
+    policy: RankPolicy,
+    window: TowerWindow,
+    state: TowerState | None,
+) -> TowerState:
+    current_state = frontier_state(window)
+    state_rank = rank_of_state(current_state)
+    if policy.rank != state_rank:
+        raise ValueError("policy rank must match state rank")
+    if state is not None and state != current_state:
+        raise ValueError("state must match window frontier")
+    return current_state
+
+
+def _policy_output(
+    *,
+    policy: RankPolicy,
+    window: TowerWindow,
+    state: TowerState,
+    measure_size: int,
+) -> PolicyOutput:
+    if isinstance(policy, TowerTransformerPolicy):
+        return policy(
+            encode_tower_window(
+                window=window,
+                measure_size=measure_size,
+                rank=policy.rank,
+            )
+        )
+
+    legacy_policy = cast(LegacyRankPolicyCall, policy)
+    return legacy_policy(state=state, window=window)

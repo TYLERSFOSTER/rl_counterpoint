@@ -24,6 +24,25 @@ def pad_state(*, rank: int) -> TowerState:
     return (0,) * rank
 
 
+def frontier_state(window: TowerWindow) -> TowerState:
+    """Return the final valid state in a tower window."""
+    if not isinstance(window, TowerWindow):
+        raise TypeError("window must be a TowerWindow")
+    if not window.states:
+        raise ValueError("window.states must not be empty")
+    if not (
+        len(window.states) == len(window.valid_mask) == len(window.bar_positions)
+    ):
+        raise ValueError("window fields must have the same length")
+
+    for state, is_valid in reversed(
+        tuple(zip(window.states, window.valid_mask, strict=True))
+    ):
+        if is_valid:
+            return state
+    raise ValueError("window must contain at least one valid state")
+
+
 def bar_position(*, step_index: int, measure_size: int) -> int:
     """Return the position of one step inside the current measure."""
     if measure_size < 1:

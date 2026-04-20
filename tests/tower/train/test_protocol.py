@@ -9,6 +9,10 @@ import torch
 
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import PolicyOutput
+from tower.policy.transformer import (
+    TowerTransformerPolicy,
+    TowerTransformerPolicyConfig,
+)
 from tower.reward.context import TowerRewardContext
 from tower.reward.result import TowerRewardResult
 from tower.train.checkpoint import (
@@ -65,6 +69,26 @@ class TinyRank2Policy(torch.nn.Module):
         assert len(state) == 2
         assert window.valid_mask[-1]
         return PolicyOutput(logits=self.logits)
+
+
+def make_tiny_transformer_policy(
+    *,
+    rank: int,
+    action_dim: int,
+) -> TowerTransformerPolicy:
+    return TowerTransformerPolicy(
+        TowerTransformerPolicyConfig(
+            rank=rank,
+            input_feature_dim=rank,
+            action_dim=action_dim,
+            max_window_len=8,
+            d_model=8,
+            num_layers=1,
+            num_heads=2,
+            ff_dim=16,
+            dropout=0.0,
+        )
+    )
 
 
 def test_train_rank1_episode_runs_one_episode() -> None:
@@ -339,6 +363,28 @@ def test_train_rank2_episode_runs_over_frozen_parent() -> None:
     assert "active_sampler" in step.diagnostics
     assert result.metrics["rank"] == 2
     assert result.metrics["episode_return"] == 1.0
+
+
+def test_train_rank1_episode_runs_with_transformer_policy() -> None:
+    policy = make_tiny_transformer_policy(rank=1, action_dim=2)
+    optimizer = torch.optim.SGD(policy.parameters(), lr=0.01)
+
+    result = train_rank1_episode(
+        policy=policy,  # type: ignore[arg-type]
+        optimizer=optimizer,
+        initial_state=(60,),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.trajectory.rank == 1
+    assert len(result.trajectory.steps) == 1
+    step = result.trajectory.steps[0]
+    assert step.diagnostics["active_sampler"]["frontier_state"] == (60,)
+    assert step.diagnostics["active_sampler"]["policy"]["policy"] == "tower_transformer"
+    assert isinstance(step.active_logprob, torch.Tensor)
 
 
 def test_train_rank2_episode_freezes_and_preserves_parent_params() -> None:

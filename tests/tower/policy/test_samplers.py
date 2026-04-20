@@ -13,6 +13,10 @@ from tower.policy.samplers import (
     sample_parent_top_m_from_policy,
     scripted_result,
 )
+from tower.policy.transformer import (
+    TowerTransformerPolicy,
+    TowerTransformerPolicyConfig,
+)
 from tower.window import TowerWindow, build_window
 
 
@@ -40,6 +44,27 @@ def make_rank_1_window() -> TowerWindow:
         step_index=0,
         measure_size=4,
         context_measures=1,
+    )
+
+
+def make_transformer_policy(
+    *,
+    rank: int,
+    action_dim: int,
+    max_window_len: int = 4,
+) -> TowerTransformerPolicy:
+    return TowerTransformerPolicy(
+        TowerTransformerPolicyConfig(
+            rank=rank,
+            input_feature_dim=rank,
+            action_dim=action_dim,
+            max_window_len=max_window_len,
+            d_model=8,
+            num_layers=1,
+            num_heads=2,
+            ff_dim=16,
+            dropout=0.0,
+        )
     )
 
 
@@ -157,7 +182,52 @@ def test_sample_active_choice_from_policy_returns_choice_from_active_choices() -
     assert isinstance(result.logprob, torch.Tensor)
     assert result.logprob.ndim == 0
     assert result.diagnostics["active_choices"] == (-1, 0, 1)
+    assert result.diagnostics["frontier_state"] == (60,)
     assert result.diagnostics["policy"] == {"state": (60,)}
+
+
+def test_sample_active_choice_from_policy_derives_frontier_state() -> None:
+    policy = DummyPolicy(rank=1, logits=torch.tensor([0.0, 8.0, -8.0]))
+
+    result = sample_active_choice_from_policy(
+        policy=policy,
+        window=make_rank_1_window(),
+        active_choices=(-1, 0, 1),
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.choice == 0
+    assert result.diagnostics["frontier_state"] == (60,)
+    assert result.diagnostics["policy"] == {"state": (60,)}
+
+
+def test_sample_active_choice_from_policy_rejects_state_window_mismatch() -> None:
+    policy = DummyPolicy(rank=1, logits=torch.tensor([0.0, 1.0]))
+
+    with pytest.raises(ValueError, match="state must match window frontier"):
+        sample_active_choice_from_policy(
+            policy=policy,
+            state=(61,),
+            window=make_rank_1_window(),
+            active_choices=(-1, 1),
+        )
+
+
+def test_sample_active_choice_from_policy_supports_transformer_policy() -> None:
+    policy = make_transformer_policy(rank=1, action_dim=3)
+
+    result = sample_active_choice_from_policy(
+        policy=policy,  # type: ignore[arg-type]
+        window=make_rank_1_window(),
+        active_choices=(-1, 0, 1),
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.choice in {-1, 0, 1}
+    assert isinstance(result.logprob, torch.Tensor)
+    assert result.logprob.requires_grad
+    assert result.diagnostics["frontier_state"] == (60,)
+    assert result.diagnostics["policy"]["policy"] == "tower_transformer"
 
 
 def test_sample_active_choice_from_policy_is_reproducible_with_generator() -> None:
@@ -251,8 +321,27 @@ def test_sample_parent_top_m_from_policy_top_1_chooses_argmax() -> None:
     assert result.diagnostics["selected_index"] == 1
     assert result.diagnostics["top_indices"] == (1,)
     assert result.diagnostics["parent_actions"] == ((-1,), (0,), (1,))
+    assert result.diagnostics["frontier_state"] == (60,)
     assert isinstance(result.logprob, torch.Tensor)
     assert result.logprob.requires_grad is False
+
+
+def test_sample_parent_top_m_from_policy_supports_transformer_policy() -> None:
+    policy = make_transformer_policy(rank=1, action_dim=3)
+
+    result = sample_parent_top_m_from_policy(
+        policy=policy,  # type: ignore[arg-type]
+        window=make_rank_1_window(),
+        parent_actions=((-1,), (0,), (1,)),
+        top_m=2,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.choice in {(-1,), (0,), (1,)}
+    assert isinstance(result.logprob, torch.Tensor)
+    assert result.logprob.requires_grad is False
+    assert result.diagnostics["frontier_state"] == (60,)
+    assert result.diagnostics["policy"]["policy"] == "tower_transformer"
 
 
 def test_sample_parent_top_m_from_policy_samples_only_from_top_m_actions() -> None:

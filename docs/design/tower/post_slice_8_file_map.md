@@ -139,6 +139,21 @@ uv run pytest tests/tower/policy/test_observation.py tests/tower/test_import_bou
 
 ## Phase 3 File Map: Transformer-Family Rank Policy
 
+### Design-Correction File
+
+| File | Status | Ownership |
+| --- | --- | --- |
+| `docs/design/tower/policy_frontier_window_contract.md` | new | policy/window API correction |
+
+`docs/design/tower/policy_frontier_window_contract.md` owns:
+
+| Decision | Purpose |
+| --- | --- |
+| window-primary policy input | prevent separate `state` and `window` model inputs from drifting |
+| frontier derivation | define current state as the final valid state of the window |
+| rollout exception | preserve local graph state where action enumeration/application needs it |
+| sampler adaptation path | decide how samplers call real transformer policies |
+
 ### Source Files
 
 | File | Status | Ownership |
@@ -397,14 +412,15 @@ it:
 | 2 | Phase 2.Stage 2.2.Action 2.2.1 | same observation files |
 | 3 | Phase 3.Stage 3.1.Action 3.1.1 | `tower/policy/transformer.py`, `tests/tower/policy/test_transformer.py` |
 | 4 | Phase 3.Stage 3.2.Action 3.2.1 | same transformer files |
-| 5 | Phase 3.Stage 3.3.Action 3.3.1 | sampler/protocol tests |
-| 6 | Phase 4.Stage 4.1.Action 4.1.1 | `tower/music/*`, `tests/tower/music/test_render.py` |
-| 7 | Phase 4.Stage 4.2.Action 4.2.1 | same music files |
-| 8 | Phase 5.Stage 5.1.Action 5.1.1 | `tower/train/runner.py`, `tests/tower/train/test_runner.py` |
-| 9 | Phase 5.Stage 5.2.Action 5.2.1 | same runner files |
-| 10 | Phase 5.Stage 5.3.Action 5.3.1 | same runner files |
-| 11 | Phase 5.Stage 5.4.Action 5.4.1 | same runner files |
-| 12 | Phase 5.Stage 5.5.Action 5.5.1 | `scripts/tower_train.py`, `tests/tower/train/test_runner_script.py` |
+| 5 | Phase 3.Stage 3.3.Action 3.3.0 | `docs/design/tower/policy_frontier_window_contract.md` |
+| 6 | Phase 3.Stage 3.3.Action 3.3.1 | sampler/protocol tests |
+| 7 | Phase 4.Stage 4.1.Action 4.1.1 | `tower/music/*`, `tests/tower/music/test_render.py` |
+| 8 | Phase 4.Stage 4.2.Action 4.2.1 | same music files |
+| 9 | Phase 5.Stage 5.1.Action 5.1.1 | `tower/train/runner.py`, `tests/tower/train/test_runner.py` |
+| 10 | Phase 5.Stage 5.2.Action 5.2.1 | same runner files |
+| 11 | Phase 5.Stage 5.3.Action 5.3.1 | same runner files |
+| 12 | Phase 5.Stage 5.4.Action 5.4.1 | same runner files |
+| 13 | Phase 5.Stage 5.5.Action 5.5.1 | `scripts/tower_train.py`, `tests/tower/train/test_runner_script.py` |
 
 ## Stop Conditions
 
@@ -416,26 +432,28 @@ Pause and resynchronize if:
 | graph/window modules need torch tensors | violates tuple graph core |
 | observation file needs training runner imports | layer leak |
 | transformer file needs runner imports | layer leak |
+| policy/sampler API treats `state` and `window` as independent model inputs | ambiguous frontier/window contract |
 | child model needs parent logits/logprobs/top-m candidates | violates owner model decision |
 | MIDI utility needs policy internals | layer leak |
 | script starts owning training logic | runner/script boundary leak |
 
 ## Next Phase.Stage.Action
 
-After this map is accepted, the next proposed action is:
+Given completed Actions 2.1.1, 2.2.1, 3.1.1, and 3.2.1, the next proposed
+action is:
 
 ```text
-Post-Slice-8 Phase 2.Stage 2.1.Action 2.1.1:
-Add Encoded Tower Window Shell
+Post-Slice-8 Phase 3.Stage 3.3.Action 3.3.0:
+Clarify Policy Frontier/Window Contract
 ```
 
-That is the first code implementation action in the post-Slice-8 plan.
+This is a documentation/design-correction action inserted before sampler
+compatibility work resumes.
 
 Expected files:
 
 ```text
-tower/policy/observation.py
-tests/tower/policy/test_observation.py
+docs/design/tower/policy_frontier_window_contract.md
 ```
 
 No code implementation is approved by this document.

@@ -69,6 +69,7 @@ def train_rank1_episode(
             state=kwargs["state"],  # type: ignore[arg-type]
             window=kwargs["window"],  # type: ignore[arg-type]
             active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
+            measure_size=measure_size,
             generator=generator,
         )
 
@@ -231,6 +232,7 @@ def train_rank2_episode(
             state=parent_state,  # type: ignore[arg-type]
             window=kwargs["window"],  # type: ignore[arg-type]
             parent_actions=parent_actions,
+            measure_size=measure_size,
             top_m=parent_top_m,
             generator=generator,
         )
@@ -241,6 +243,7 @@ def train_rank2_episode(
             state=kwargs["state"],  # type: ignore[arg-type]
             window=kwargs["window"],  # type: ignore[arg-type]
             active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
+            measure_size=measure_size,
             generator=generator,
         )
 
