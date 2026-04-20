@@ -51,6 +51,13 @@ Primary sources:
 | `docs/design/tower/slice4_rollout_clarifications.md` | rollout ambiguity answers |
 | `docs/design/tower/training_protocol.md` | training ownership and freeze rules |
 | `docs/design/tower/artifact_checkpoint_dependencies.md` | lineage and artifact intent |
+| `assets/rules/tc21m_rules.md` | existing TC21M reward-rule summary for future reward expansion |
+
+Owner-answer source:
+
+| Source | Role |
+| --- | --- |
+| `docs/design/tower/post_slice_8_questions.md` | project-owner answers to post-Slice-8 planning questions |
 
 Continuity source:
 
@@ -316,7 +323,11 @@ been implemented.
 Success predicates and reward terms prove rank-local ownership and terminal
 plumbing.
 
-The full musical reward vocabulary remains future work.
+The full musical reward vocabulary remains future work, but it should not be
+invented from scratch. Future reward expansion should draw from
+`assets/rules/tc21m_rules.md`, which already contains candidate reward/pruning
+ideas for motion, cadence, dissonance treatment, harmonic templates, and related
+voice-leading behavior.
 
 ### Artifact Support Is Local And Minimal
 
@@ -358,52 +369,133 @@ The following are not final system capabilities:
 
 ## Open Questions Before Future Work
 
-### Product Direction
+The questions in `post_slice_8_questions.md` have owner answers. The planning
+state should now be treated as mostly resolved, with a small number of deferred
+questions.
 
-| Question | Why it matters |
+### Resolved Product Decisions
+
+| Question | Decision |
 | --- | --- |
-| Is the next priority learnable policy architecture or broader graph generality? | Determines whether to build transformers next or rank-k graph machinery. |
-| Should the next milestone produce audible MIDI examples? | Determines whether MIDI export and evaluation become near-term. |
-| Should reward richness precede long training runs? | Weak rewards can make training results hard to interpret. |
+| next priority | learnable real policy architecture |
+| audible MIDI milestone | training should end with a final no-train inference episode converted to MIDI and saved as an artifact |
+| reward richness before long training | do not block first real-policy/training work on large reward expansion |
+| weak rewards | acceptable for infrastructure only, but the near-term target is to see training working, not merely to run weak smoke tests |
 
-### Model Architecture
+### Resolved Model Decisions
 
-| Question | Why it matters |
+| Question | Decision |
 | --- | --- |
-| Should each rank use the same transformer-family architecture? | Shapes shared modules, config, and checkpoints. |
-| What is the observation sequence for the first real policy? | Determines tokenization/window-to-tensor work. |
-| Should parent diagnostics be inputs to child policy, or only rollout constraints? | Affects policy API and mathematical purity. |
+| shared architecture | use the same transformer-family architecture across ranks, with rank-specific tensor shape/config differences |
+| rank-specific differences | make them config-driven |
+| observation format | use the same conceptual schema across ranks, not identical raw tensor dimensions |
+| source of observation contract | derive from old `rl_counterpoint` timed-window transformer policy and tower design docs |
+| parent diagnostics as child inputs | do not feed parent logprobs, top-m candidates, or distributions into the child policy |
+| child awareness of parent action | child is constrained through the lift fiber over the sampled parent action |
 
-### Training Protocol
+The first real tower policy observation should adapt the old timed-window model
+pattern:
 
-| Question | Why it matters |
+| Old project pattern | Tower adaptation |
 | --- | --- |
-| What makes a rank-1 checkpoint accepted in real training? | Current tests use manifest status directly. |
-| Should rank-2 train only from one accepted parent or sample among accepted parents? | Affects lineage and experiment design. |
-| What is the first success metric that gates promotion to the next rank? | Needed for automated or semi-automated advancement. |
+| fixed-length timed chord window | fixed-length rank-local `TowerWindow` |
+| left padding | tower window padding and valid mask |
+| tonic/meter/target context | explicit model context features |
+| symbolic event encoding | rank-local state/event encoding |
+| transformer over sequence | shared transformer-family rank policy |
+| final valid event hidden state to logits | active-choice logits, masked externally by legality/lift-fiber constraints |
 
-### Music Semantics
+### Resolved Training Decisions
 
-| Question | Why it matters |
+| Question | Decision |
 | --- | --- |
-| Which TC21M rules enter the next reward slice? | Avoids overbuilding the grammar too early. |
-| Are cadence predicates enough for first audible training? | Determines whether reward expansion is blocking. |
-| How should voice-leading style constraints scale beyond rank 2? | Affects legality versus reward division. |
+| rank-1 promotion gate for now | episode count |
+| smarter promotion metrics | deferred until after basic training works |
+| musical acceptance target | final no-train episode should realize the rank-local perfect cadence goal in correct octave/key/meter placement |
+| parent checkpoint selection | one rank-2 run is tied to one accepted rank-1 checkpoint |
+| parent action sampling | sample actions from the frozen rank-1 policy during rank-2 rollout |
+| parent randomness | `parent_top_m` is a training/config hyperparameter |
+| preferred real-training `parent_top_m` | 3 |
+| multiple accepted parent checkpoint mixture | not needed now |
+| lineage | record the single parent checkpoint dependency, not multiple possible parent passages |
+
+### Resolved Music-Semantics Decisions
+
+| Question | Decision |
+| --- | --- |
+| cadence rules | include |
+| motion rules | include |
+| dissonance treatment | include |
+| voice-leading constraints | include |
+| harmonic template rules | include |
+| six-four logic | defer |
+| suspension handling | defer to a later project update such as `beta.1`; treat as a style expansion, not a near-term core requirement |
+| cadence-only reward sparsity | likely sparse; use TC21M-derived shaping carefully |
+
+### Deferred Questions
+
+| Question | Deferred reason |
+| --- | --- |
+| exact rank-k voice-leading ownership beyond rank 2 | project owner wants to revisit after more thought |
+| exact promotion metrics beyond episode count | should wait until real training evidence exists |
+| exact TC21M reward subset for the first reward-expansion slice | should be planned after real policy/runner path is settled |
 
 ## Recommended Future Game Plan
 
 The next plan should be accepted before implementation resumes.
 
-Recommended order:
+Owner-selected order:
 
 | Proposed slice | Name | Purpose |
 | --- | --- | --- |
-| Post-8 Slice A | Tower Training Runner | Add a small CLI or script that runs artifact-backed rank-1/rank-2 episodes without changing theory. |
-| Post-8 Slice B | Real Policy Observation Contract | Convert tower windows/states into model-ready tensors while preserving tuple graph contracts. |
-| Post-8 Slice C | Transformer Rank Policy | Implement the first real rank-local policy architecture behind the existing policy protocol. |
-| Post-8 Slice D | Example MIDI Artifact | Write generated tower episodes to inspectable MIDI artifacts. |
-| Post-8 Slice E | Reward Expansion Pass | Add the next small set of musically meaningful reward terms. |
-| Post-8 Slice F | Rank-k Generalization Assessment | Decide whether to generalize graph/rollout/training before or after real rank-2 experiments. |
+| Post-8 Slice A | Tower Training Runner | Add a runner plan for artifact-backed rank training, including the final no-train inference episode and MIDI artifact requirement. |
+| Post-8 Slice B | Real Policy Observation Contract | Convert tower windows/states into model-ready tensors while preserving tuple graph contracts and following the old timed-window transformer pattern. |
+| Post-8 Slice C | Transformer Rank Policy | Implement the first real rank-local transformer-family policy behind the existing policy protocol, with rank-specific config-driven differences. |
+| Post-8 Slice D | Example MIDI Artifact | Mimic the previous `rl_counterpoint` MIDI-export path for tower trajectories; this may be implemented as part of Slice A if the runner needs the final artifact immediately. |
+| Post-8 Slice E | Reward Expansion Pass | Add the next small set of musically meaningful reward/shaping terms, drawing from `assets/rules/tc21m_rules.md`. |
+| Post-8 Slice F | Rank-k Generalization Assessment | Decide whether to generalize graph/rollout/training after rank-2 real-policy experiments provide evidence. |
+
+Although the selected first planning target is the training runner, the product
+priority is learnable real policy architecture. Therefore the next detailed plan
+should be careful about dependencies: the runner can be planned first, but it
+must either include or explicitly sequence the observation contract and
+transformer policy work required to make training real.
+
+## Near-Term Acceptance Policy
+
+For the next training-capable milestone:
+
+| Item | Decision |
+| --- | --- |
+| training stop condition | episode count |
+| final evaluation | one no-train inference episode after training |
+| final artifact | write final inference episode to MIDI |
+| success evidence | record whether the final episode satisfies the rank-local cadence success predicate |
+| checkpoint acceptance | may remain episode-budget based initially, but should record cadence/MIDI evidence for later smarter acceptance |
+| rank-2 parent dependency | one accepted rank-1 checkpoint |
+| rank-2 parent sampling | frozen parent policy, top-m action sampling |
+| default real-training `parent_top_m` | 3 |
+
+## Reward Expansion Direction
+
+Reward expansion is not the immediate blocker for the first real-policy runner,
+but it should not be treated as empty design space.
+
+`assets/rules/tc21m_rules.md` already points toward:
+
+| Area | Near-term status |
+| --- | --- |
+| cadence rules | near-term candidate |
+| motion rewards | near-term candidate |
+| dissonance treatment | near-term candidate, likely shaping/reward before pruning |
+| voice-leading constraints | near-term candidate, with graph/reward boundary decisions |
+| harmonic templates | near-term candidate after observation/policy work |
+| suspensions | defer to later style update such as `beta.1` |
+| six-four logic | defer |
+
+The next reward pass should be narrow. It should add enough shaping to make
+training interpretable without replacing the main cadence objective or turning
+style refinements into core blockers.
 
 ## Recommended Immediate Next Action
 
@@ -411,16 +503,17 @@ The recommended immediate next action is:
 
 ```text
 Post-Slice-8 Planning / Action 1:
-Review this assessment and choose the first post-Slice-8 planning target.
+Accept or revise this updated assessment, then produce the detailed build plan
+for Post-8 Slice A: Tower Training Runner.
 ```
 
 Suggested owner decision:
 
 | Option | Meaning |
 | --- | --- |
-| accept as-is | this document becomes the post-Slice-8 assessment baseline |
+| accept as baseline | this document becomes the post-Slice-8 assessment baseline |
 | revise | update the assessment before any future implementation |
-| choose next plan target | create a detailed build plan for one proposed post-8 slice |
+| authorize next planning doc | create a detailed build plan for Post-8 Slice A |
 
 ## Non-Approval Statement
 
