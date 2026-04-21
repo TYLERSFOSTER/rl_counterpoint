@@ -9,6 +9,7 @@ import torch
 
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import PolicyOutput
+from tower.reward.factory import build_rank1_reward_fn
 from tower.reward.result import TowerRewardResult
 from tower.train.checkpoint import (
     DEFAULT_TOWER_ARTIFACT_ROOT,
@@ -18,6 +19,7 @@ from tower.train.checkpoint import (
     read_lineage_manifest,
     read_rank_config,
     read_rank_metrics,
+    read_reward_diagnostics,
     record_rank_manifest_entry,
     save_latest_checkpoint,
 )
@@ -426,6 +428,7 @@ def test_run_rank1_training_writes_artifacts_and_final_midi(tmp_path: Path) -> N
     assert result.final_midi_path == result.paths.example_episode_path
     assert result.paths.example_episode_path.exists()
     assert result.paths.example_episode_path.read_bytes().startswith(b"MThd")
+    assert result.paths.reward_diagnostics_path.exists()
 
     metrics = read_rank_metrics(result.paths)
     assert len(metrics) == 3
@@ -435,6 +438,12 @@ def test_run_rank1_training_writes_artifacts_and_final_midi(tmp_path: Path) -> N
     assert metrics[2]["midi_path"] == "rank_1/example_episode.mid"
     assert metrics[2]["final_inference"] is True
 
+    diagnostics = read_reward_diagnostics(result.paths)
+    assert len(diagnostics) == 3
+    assert [row["episode_index"] for row in diagnostics] == [0, 1, 2]
+    assert diagnostics[-1]["episode_kind"] == "final_inference"
+    assert diagnostics[-1]["reward"] == 1.0
+
     checkpoint = load_latest_checkpoint(result.paths)
     assert checkpoint["rank"] == 1
     assert checkpoint["lineage_id"] == "lineage-a"
@@ -443,6 +452,10 @@ def test_run_rank1_training_writes_artifacts_and_final_midi(tmp_path: Path) -> N
 
     manifest = read_lineage_manifest(result.paths)
     assert manifest["ranks"]["1"]["status"] == "accepted"
+    assert (
+        manifest["ranks"]["1"]["reward_diagnostics"]
+        == "rank_1/reward_diagnostics.jsonl"
+    )
 
 
 def test_run_rank1_training_optimizer_changes_policy(tmp_path: Path) -> None:
@@ -522,6 +535,32 @@ def test_run_rank1_training_can_skip_final_midi(tmp_path: Path) -> None:
     assert result.final_midi_path is None
     assert not result.paths.example_episode_path.exists()
     assert metrics[-1]["midi_path"] is None
+    assert result.paths.reward_diagnostics_path.exists()
+
+
+def test_run_rank1_training_accepts_rank1_reward_factory(tmp_path: Path) -> None:
+    result = run_rank1_training(
+        config=TowerRunnerConfig(
+            lineage_id="lineage-a",
+            rank=1,
+            episode_count=1,
+            seed=123,
+            artifact_root=tmp_path,
+            max_step_size=1,
+            final_midi_enabled=False,
+            training_config={"max_steps": 1},
+        ),
+        policy=TinyRank1Policy(),
+        initial_state=(60,),
+        reward_fn=build_rank1_reward_fn(),
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+    )
+
+    assert len(result.episode_results) == 1
+    reward_diagnostics = result.episode_results[0].trajectory.steps[0].reward.diagnostics
+    assert reward_diagnostics["kind"] == "rank1_reward"
+    artifact_diagnostics = read_reward_diagnostics(result.paths)
+    assert artifact_diagnostics[0]["reward_diagnostics"]["kind"] == "rank1_reward"
 
 
 def test_run_rank1_training_rejects_non_rank_1_config(tmp_path: Path) -> None:
@@ -577,6 +616,7 @@ def test_run_rank2_training_writes_parent_linked_artifacts_and_final_midi(
     assert result.final_midi_path == result.paths.example_episode_path
     assert result.paths.example_episode_path.exists()
     assert result.paths.example_episode_path.read_bytes().startswith(b"MThd")
+    assert result.paths.reward_diagnostics_path.exists()
 
     metrics = read_rank_metrics(result.paths)
     assert len(metrics) == 3
@@ -586,6 +626,13 @@ def test_run_rank2_training_writes_parent_linked_artifacts_and_final_midi(
     assert metrics[2]["midi_path"] == "rank_2/example_episode.mid"
     assert metrics[2]["final_inference"] is True
     assert metrics[2]["rank"] == 2
+
+    diagnostics = read_reward_diagnostics(result.paths)
+    assert len(diagnostics) == 3
+    assert diagnostics[0]["rank"] == 2
+    assert diagnostics[0]["parent_state"] == [60]
+    assert diagnostics[0]["parent_action"] == [1]
+    assert diagnostics[-1]["episode_kind"] == "final_inference"
 
     checkpoint = load_latest_checkpoint(result.paths)
     assert checkpoint["rank"] == 2
@@ -601,6 +648,10 @@ def test_run_rank2_training_writes_parent_linked_artifacts_and_final_midi(
     assert rank_2_entry["status"] == "accepted"
     assert rank_2_entry["parent_rank"] == 1
     assert rank_2_entry["parent_checkpoint"] == "rank_1/checkpoint_latest.pt"
+    assert (
+        rank_2_entry["reward_diagnostics"]
+        == "rank_2/reward_diagnostics.jsonl"
+    )
 
 
 def test_run_rank2_training_child_optimizer_changes_child_policy(

@@ -19,6 +19,7 @@ from tower.train.config import (
 DEFAULT_TOWER_ARTIFACT_ROOT = Path("artifacts") / "tower"
 CONFIG_FILENAME = "config.json"
 METRICS_FILENAME = "metrics.jsonl"
+REWARD_DIAGNOSTICS_FILENAME = "reward_diagnostics.jsonl"
 CHECKPOINT_LATEST_FILENAME = "checkpoint_latest.pt"
 EXAMPLE_EPISODE_FILENAME = "example_episode.mid"
 MANIFEST_FILENAME = "manifest.json"
@@ -76,6 +77,11 @@ class TowerArtifactPaths:
         return self.rank_dir / METRICS_FILENAME
 
     @property
+    def reward_diagnostics_path(self) -> Path:
+        """Return the rank reward diagnostics JSONL path."""
+        return self.rank_dir / REWARD_DIAGNOSTICS_FILENAME
+
+    @property
     def checkpoint_latest_path(self) -> Path:
         """Return the rolling latest checkpoint path."""
         return self.rank_dir / CHECKPOINT_LATEST_FILENAME
@@ -94,6 +100,11 @@ class TowerArtifactPaths:
     def relative_metrics_path(self) -> Path:
         """Return the metrics path relative to the lineage directory."""
         return Path(f"rank_{self.rank}") / METRICS_FILENAME
+
+    @property
+    def relative_reward_diagnostics_path(self) -> Path:
+        """Return the reward diagnostics path relative to the lineage directory."""
+        return Path(f"rank_{self.rank}") / REWARD_DIAGNOSTICS_FILENAME
 
     @property
     def relative_checkpoint_latest_path(self) -> Path:
@@ -171,6 +182,49 @@ def read_rank_metrics(
     return tuple(rows)
 
 
+def append_reward_diagnostics(
+    *,
+    paths: TowerArtifactPaths,
+    rows: tuple[Mapping[str, object], ...],
+) -> Path:
+    """Append JSON reward diagnostics rows for one rank."""
+    if not isinstance(rows, tuple):
+        raise TypeError("rows must be a tuple")
+    paths.rank_dir.mkdir(parents=True, exist_ok=True)
+    with paths.reward_diagnostics_path.open(
+        "a",
+        encoding="utf-8",
+    ) as diagnostics_file:
+        for row in rows:
+            _validate_reward_diagnostics(row=row, paths=paths)
+            diagnostics_file.write(json.dumps(dict(row), sort_keys=True) + "\n")
+    return paths.reward_diagnostics_path
+
+
+def read_reward_diagnostics(
+    path_or_paths: Path | TowerArtifactPaths,
+) -> tuple[dict[str, object], ...]:
+    """Read reward diagnostics JSONL rows in append order."""
+    path = (
+        path_or_paths.reward_diagnostics_path
+        if isinstance(path_or_paths, TowerArtifactPaths)
+        else path_or_paths
+    )
+    if not path.exists():
+        return ()
+
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, dict):
+            raise TypeError("reward diagnostics JSONL rows must contain objects")
+        _validate_json_mapping(payload, field_name="reward_diagnostics")
+        rows.append(payload)
+    return tuple(rows)
+
+
 def read_lineage_manifest(
     path_or_paths: Path | TowerArtifactPaths,
 ) -> dict[str, object]:
@@ -232,6 +286,7 @@ def record_rank_manifest_entry(
         "checkpoint": paths.relative_checkpoint_latest_path.as_posix(),
         "config": paths.relative_config_path.as_posix(),
         "metrics": paths.relative_metrics_path.as_posix(),
+        "reward_diagnostics": paths.relative_reward_diagnostics_path.as_posix(),
     }
 
     if paths.rank > 1:
@@ -375,6 +430,24 @@ def _validate_metrics(
         raise ValueError("metrics rank must match artifact paths rank")
     if "episode_index" in metrics and not isinstance(metrics["episode_index"], int):
         raise TypeError("metrics episode_index must be an int")
+
+
+def _validate_reward_diagnostics(
+    *,
+    row: Mapping[str, object],
+    paths: TowerArtifactPaths,
+) -> None:
+    _validate_json_mapping(row, field_name="reward_diagnostics")
+    if row.get("rank") != paths.rank:
+        raise ValueError("reward diagnostics rank must match artifact paths rank")
+    if row.get("lineage_id") != paths.lineage_id:
+        raise ValueError(
+            "reward diagnostics lineage_id must match artifact paths lineage_id"
+        )
+    if not isinstance(row.get("episode_index"), int):
+        raise TypeError("reward diagnostics episode_index must be an int")
+    if not isinstance(row.get("step_index"), int):
+        raise TypeError("reward diagnostics step_index must be an int")
 
 
 def _validate_checkpoint_payload_matches_paths(

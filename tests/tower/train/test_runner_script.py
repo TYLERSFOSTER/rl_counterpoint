@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,9 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.episodes == 1
     assert args.lineage_id == "local-tower"
     assert args.max_steps == 1
+    assert args.key_pitch_class == 0
+    assert args.terminal_cadence_reward == 10.0
+    assert args.range_penalty == -1.0
 
 
 def test_tower_train_main_runs_tiny_rank_1_job(
@@ -47,12 +51,19 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     run_dir = tmp_path / "lineage-a" / "rank_1"
     assert exit_code == 0
     assert f"run_dir: {run_dir}" in output
+    assert "reward: rank1_slice_a" in output
     assert "final midi:" in output
     assert "latest checkpoint:" in output
     assert (run_dir / "config.json").exists()
     assert (run_dir / "metrics.jsonl").exists()
+    assert (run_dir / "reward_diagnostics.jsonl").exists()
     assert (run_dir / "checkpoint_latest.pt").exists()
     assert (run_dir / "example_episode.mid").exists()
+    config = json.loads((run_dir / "config.json").read_text())
+    assert config["reward_config"]["kind"] == "rank1_slice_a"
+    assert config["reward_config"]["key_pitch_class"] == 0
+    diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
+    assert len(diagnostics_rows) == 2
 
 
 def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:
@@ -85,8 +96,10 @@ def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:
 
     run_dir = tmp_path / "lineage-a" / "rank_1"
     assert f"run_dir: {run_dir}" in result.stdout
+    assert "reward: rank1_slice_a" in result.stdout
     assert "final midi:" in result.stdout
     assert (run_dir / "example_episode.mid").exists()
+    assert (run_dir / "reward_diagnostics.jsonl").exists()
 
 
 def test_tower_train_script_rejects_rank_2_until_parent_loading_exists(

@@ -15,7 +15,9 @@ from tower.train.checkpoint import (
     MANIFEST_FILENAME,
     MANIFEST_STATUSES,
     METRICS_FILENAME,
+    REWARD_DIAGNOSTICS_FILENAME,
     TowerArtifactPaths,
+    append_reward_diagnostics,
     append_rank_metrics,
     build_checkpoint_payload,
     find_accepted_parent_checkpoint,
@@ -24,6 +26,7 @@ from tower.train.checkpoint import (
     read_lineage_manifest,
     read_rank_config,
     read_rank_metrics,
+    read_reward_diagnostics,
     record_rank_manifest_entry,
     save_latest_checkpoint,
     write_lineage_manifest,
@@ -46,6 +49,7 @@ def test_standard_rank_file_paths_are_deterministic() -> None:
     assert paths.manifest_path == paths.lineage_dir / MANIFEST_FILENAME
     assert paths.config_path == paths.rank_dir / CONFIG_FILENAME
     assert paths.metrics_path == paths.rank_dir / METRICS_FILENAME
+    assert paths.reward_diagnostics_path == paths.rank_dir / REWARD_DIAGNOSTICS_FILENAME
     assert paths.checkpoint_latest_path == paths.rank_dir / CHECKPOINT_LATEST_FILENAME
     assert paths.example_episode_path == paths.rank_dir / EXAMPLE_EPISODE_FILENAME
 
@@ -55,6 +59,10 @@ def test_relative_manifest_paths_are_deterministic() -> None:
 
     assert paths.relative_config_path == Path("rank_3") / "config.json"
     assert paths.relative_metrics_path == Path("rank_3") / "metrics.jsonl"
+    assert (
+        paths.relative_reward_diagnostics_path
+        == Path("rank_3") / "reward_diagnostics.jsonl"
+    )
     assert (
         paths.relative_checkpoint_latest_path
         == Path("rank_3") / "checkpoint_latest.pt"
@@ -317,6 +325,129 @@ def test_append_rank_metrics_accepts_core_slice_6_fields(tmp_path: Path) -> None
     assert read_rank_metrics(paths) == (metrics,)
 
 
+def test_append_reward_diagnostics_writes_jsonl_rows_in_order(
+    tmp_path: Path,
+) -> None:
+    paths = TowerArtifactPaths(
+        lineage_id="lineage-a",
+        rank=1,
+        artifact_root=tmp_path,
+    )
+    rows = (
+        {
+            "artifact_schema_version": 1,
+            "lineage_id": "lineage-a",
+            "rank": 1,
+            "episode_index": 0,
+            "episode_kind": "training",
+            "step_index": 0,
+            "reward": 0.5,
+            "reward_diagnostics": {"terms": [{"reward": 0.5}]},
+        },
+        {
+            "artifact_schema_version": 1,
+            "lineage_id": "lineage-a",
+            "rank": 1,
+            "episode_index": 1,
+            "episode_kind": "final_inference",
+            "step_index": 0,
+            "reward": 0.0,
+            "reward_diagnostics": {},
+        },
+    )
+
+    written_path = append_reward_diagnostics(paths=paths, rows=rows)
+
+    assert written_path == paths.reward_diagnostics_path
+    assert read_reward_diagnostics(paths) == rows
+    assert read_reward_diagnostics(paths.reward_diagnostics_path) == rows
+
+
+def test_read_reward_diagnostics_missing_file_returns_empty(
+    tmp_path: Path,
+) -> None:
+    paths = TowerArtifactPaths(
+        lineage_id="lineage-a",
+        rank=1,
+        artifact_root=tmp_path,
+    )
+
+    assert read_reward_diagnostics(paths) == ()
+    assert read_reward_diagnostics(paths.reward_diagnostics_path) == ()
+
+
+def test_append_reward_diagnostics_rejects_rank_mismatch(tmp_path: Path) -> None:
+    paths = TowerArtifactPaths(
+        lineage_id="lineage-a",
+        rank=1,
+        artifact_root=tmp_path,
+    )
+
+    with pytest.raises(ValueError, match="reward diagnostics rank must match"):
+        append_reward_diagnostics(
+            paths=paths,
+            rows=(
+                {
+                    "lineage_id": "lineage-a",
+                    "rank": 2,
+                    "episode_index": 0,
+                    "step_index": 0,
+                },
+            ),
+        )
+
+
+def test_append_reward_diagnostics_rejects_lineage_mismatch(tmp_path: Path) -> None:
+    paths = TowerArtifactPaths(
+        lineage_id="lineage-a",
+        rank=1,
+        artifact_root=tmp_path,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="reward diagnostics lineage_id must match",
+    ):
+        append_reward_diagnostics(
+            paths=paths,
+            rows=(
+                {
+                    "lineage_id": "lineage-b",
+                    "rank": 1,
+                    "episode_index": 0,
+                    "step_index": 0,
+                },
+            ),
+        )
+
+
+def test_append_reward_diagnostics_rejects_non_json_value(
+    tmp_path: Path,
+) -> None:
+    paths = TowerArtifactPaths(
+        lineage_id="lineage-a",
+        rank=1,
+        artifact_root=tmp_path,
+    )
+
+    with pytest.raises(
+        TypeError,
+        match="reward_diagnostics.bad must be JSON-compatible",
+    ):
+        append_reward_diagnostics(
+            paths=paths,
+            rows=(
+                {
+                    "lineage_id": "lineage-a",
+                    "rank": 1,
+                    "episode_index": 0,
+                    "step_index": 0,
+                    "bad": object(),
+                },
+            ),
+        )
+
+
 def test_read_lineage_manifest_missing_file_returns_empty_manifest(
     tmp_path: Path,
 ) -> None:
@@ -367,6 +498,7 @@ def test_record_rank_manifest_entry_records_rank_1_artifacts(tmp_path: Path) -> 
         "checkpoint": "rank_1/checkpoint_latest.pt",
         "config": "rank_1/config.json",
         "metrics": "rank_1/metrics.jsonl",
+        "reward_diagnostics": "rank_1/reward_diagnostics.jsonl",
     }
     assert read_lineage_manifest(paths) == manifest
 
@@ -389,6 +521,7 @@ def test_record_rank_manifest_entry_records_rank_2_parent(tmp_path: Path) -> Non
         "checkpoint": "rank_2/checkpoint_latest.pt",
         "config": "rank_2/config.json",
         "metrics": "rank_2/metrics.jsonl",
+        "reward_diagnostics": "rank_2/reward_diagnostics.jsonl",
         "parent_rank": 1,
         "parent_checkpoint": "rank_1/checkpoint_latest.pt",
     }

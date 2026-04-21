@@ -25,9 +25,11 @@ from tower.music.render import write_trajectory_to_midi
 from tower.train.checkpoint import (
     DEFAULT_TOWER_ARTIFACT_ROOT,
     TowerArtifactPaths,
+    append_reward_diagnostics,
     append_rank_metrics,
 )
 from tower.train.config import TowerRankConfig, _validate_json_mapping
+from tower.train.diagnostics import reward_diagnostics_rows
 from tower.train.protocol import (
     TrainEpisodeResult,
     train_rank1_episode_with_artifacts,
@@ -198,18 +200,26 @@ def run_rank1_training(
     generator = torch.Generator().manual_seed(config.seed)
     episode_results = []
     for episode_index in range(config.episode_count):
-        episode_results.append(
-            train_rank1_episode_with_artifacts(
-                policy=active_policy,  # type: ignore[arg-type]
-                optimizer=active_optimizer,
-                config=rank_config,
-                paths=paths,
-                initial_state=initial_state,
-                reward_fn=reward_fn,
+        episode_result = train_rank1_episode_with_artifacts(
+            policy=active_policy,  # type: ignore[arg-type]
+            optimizer=active_optimizer,
+            config=rank_config,
+            paths=paths,
+            initial_state=initial_state,
+            reward_fn=reward_fn,
+            episode_index=episode_index,
+            graph_spec=spec,
+            generator=generator,
+        )
+        episode_results.append(episode_result)
+        append_reward_diagnostics(
+            paths=paths,
+            rows=reward_diagnostics_rows(
+                trajectory=episode_result.trajectory,
+                lineage_id=config.lineage_id,
                 episode_index=episode_index,
-                graph_spec=spec,
-                generator=generator,
-            )
+                episode_kind="training",
+            ),
         )
 
     max_steps = _training_int(config, "max_steps", default=1)
@@ -240,6 +250,15 @@ def run_rank1_training(
             if final_midi_path is None
             else final_midi_path.relative_to(paths.lineage_dir).as_posix(),
         },
+    )
+    append_reward_diagnostics(
+        paths=paths,
+        rows=reward_diagnostics_rows(
+            trajectory=final_inference.trajectory,
+            lineage_id=config.lineage_id,
+            episode_index=config.episode_count,
+            episode_kind="final_inference",
+        ),
     )
 
     return Rank1TrainingRunResult(
@@ -289,19 +308,27 @@ def run_rank2_training(
     generator = torch.Generator().manual_seed(config.seed)
     episode_results = []
     for episode_index in range(config.episode_count):
-        episode_results.append(
-            train_rank2_episode_with_artifacts(
-                parent_policy=parent_policy,  # type: ignore[arg-type]
-                child_policy=active_child_policy,  # type: ignore[arg-type]
-                child_optimizer=active_child_optimizer,
-                config=rank_config,
-                paths=paths,
-                initial_state=initial_state,
-                reward_fn=reward_fn,
+        episode_result = train_rank2_episode_with_artifacts(
+            parent_policy=parent_policy,  # type: ignore[arg-type]
+            child_policy=active_child_policy,  # type: ignore[arg-type]
+            child_optimizer=active_child_optimizer,
+            config=rank_config,
+            paths=paths,
+            initial_state=initial_state,
+            reward_fn=reward_fn,
+            episode_index=episode_index,
+            graph_spec=spec,
+            generator=generator,
+        )
+        episode_results.append(episode_result)
+        append_reward_diagnostics(
+            paths=paths,
+            rows=reward_diagnostics_rows(
+                trajectory=episode_result.trajectory,
+                lineage_id=config.lineage_id,
                 episode_index=episode_index,
-                graph_spec=spec,
-                generator=generator,
-            )
+                episode_kind="training",
+            ),
         )
 
     max_steps = _training_int(config, "max_steps", default=1)
@@ -334,6 +361,15 @@ def run_rank2_training(
             if final_midi_path is None
             else final_midi_path.relative_to(paths.lineage_dir).as_posix(),
         },
+    )
+    append_reward_diagnostics(
+        paths=paths,
+        rows=reward_diagnostics_rows(
+            trajectory=final_inference.trajectory,
+            lineage_id=config.lineage_id,
+            episode_index=config.episode_count,
+            episode_kind="final_inference",
+        ),
     )
 
     return Rank2TrainingRunResult(
