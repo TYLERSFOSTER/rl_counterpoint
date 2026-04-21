@@ -86,6 +86,9 @@ def sample_active_choice_from_policy(
     active_choices: tuple[int, ...],
     state: TowerState | None = None,
     measure_size: int = 4,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
+    max_step_size: int | None = None,
     generator: torch.Generator | None = None,
 ) -> SamplerResult[int]:
     """Sample an active coordinate choice from rank-local policy logits."""
@@ -102,21 +105,28 @@ def sample_active_choice_from_policy(
         window=window,
         state=current_state,
         measure_size=measure_size,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
+        max_step_size=max_step_size,
     )
     logits = output.logits
     if logits.ndim != 1:
         raise ValueError("policy logits must be a vector")
-    if logits.shape[0] != len(active_choices):
-        raise ValueError("policy logits length must match active_choices")
+    choice_logits = _active_choice_logits(
+        logits=logits,
+        active_choices=active_choices,
+        policy_rank=policy.rank,
+        max_step_size=max_step_size,
+    )
 
-    probabilities = torch.softmax(logits, dim=0)
+    probabilities = torch.softmax(choice_logits, dim=0)
     selected_index_tensor = torch.multinomial(
         probabilities,
         num_samples=1,
         generator=generator,
     )
     selected_index = int(selected_index_tensor.item())
-    logprob = torch.log_softmax(logits, dim=0)[selected_index]
+    logprob = torch.log_softmax(choice_logits, dim=0)[selected_index]
 
     return SamplerResult(
         choice=active_choices[selected_index],
@@ -137,6 +147,9 @@ def sample_parent_top_m_from_policy(
     parent_actions: tuple[TowerAction, ...],
     state: TowerState | None = None,
     measure_size: int = 4,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
+    max_step_size: int | None = None,
     top_m: int = 1,
     generator: torch.Generator | None = None,
 ) -> SamplerResult[TowerAction]:
@@ -156,15 +169,22 @@ def sample_parent_top_m_from_policy(
         window=window,
         state=current_state,
         measure_size=measure_size,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
+        max_step_size=max_step_size,
     )
     logits = output.logits
     if logits.ndim != 1:
         raise ValueError("policy logits must be a vector")
-    if logits.shape[0] != len(parent_actions):
-        raise ValueError("policy logits length must match parent_actions")
+    action_logits = _parent_action_logits(
+        logits=logits,
+        parent_actions=parent_actions,
+        policy_rank=policy.rank,
+        max_step_size=max_step_size,
+    )
 
     effective_top_m = min(top_m, len(parent_actions))
-    top = torch.topk(logits.detach(), k=effective_top_m)
+    top = torch.topk(action_logits.detach(), k=effective_top_m)
     if effective_top_m == 1:
         selected_top_position = 0
     else:
@@ -178,7 +198,7 @@ def sample_parent_top_m_from_policy(
         )
 
     selected_index = int(top.indices[selected_top_position].item())
-    diagnostic_logprobs = torch.log_softmax(logits.detach(), dim=0)
+    diagnostic_logprobs = torch.log_softmax(action_logits.detach(), dim=0)
 
     return SamplerResult(
         choice=parent_actions[selected_index],
@@ -215,6 +235,9 @@ def _policy_output(
     window: TowerWindow,
     state: TowerState,
     measure_size: int,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
+    max_step_size: int | None,
 ) -> PolicyOutput:
     if isinstance(policy, TowerTransformerPolicy):
         return policy(
@@ -222,8 +245,92 @@ def _policy_output(
                 window=window,
                 measure_size=measure_size,
                 rank=policy.rank,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
+                max_step_size=max_step_size,
             )
         )
 
     legacy_policy = cast(LegacyRankPolicyCall, policy)
     return legacy_policy(state=state, window=window)
+
+
+def _active_choice_logits(
+    *,
+    logits: torch.Tensor,
+    active_choices: tuple[int, ...],
+    policy_rank: int,
+    max_step_size: int | None,
+) -> torch.Tensor:
+    if logits.shape[0] == len(active_choices):
+        return logits
+    if max_step_size is None:
+        raise ValueError("policy logits length must match active_choices")
+
+    indices = tuple(
+        _active_choice_index(
+            choice=choice,
+            policy_rank=policy_rank,
+            max_step_size=max_step_size,
+        )
+        for choice in active_choices
+    )
+    if max(indices) >= logits.shape[0]:
+        raise ValueError("policy logits length must cover active_choices")
+    return logits[torch.tensor(indices, dtype=torch.long, device=logits.device)]
+
+
+def _parent_action_logits(
+    *,
+    logits: torch.Tensor,
+    parent_actions: tuple[TowerAction, ...],
+    policy_rank: int,
+    max_step_size: int | None,
+) -> torch.Tensor:
+    if logits.shape[0] == len(parent_actions):
+        return logits
+    if max_step_size is None:
+        raise ValueError("policy logits length must match parent_actions")
+    if policy_rank != 1:
+        raise ValueError("full-lattice parent action logits require rank 1")
+
+    indices = tuple(
+        _rank1_nonzero_action_index(
+            choice=action[0],
+            max_step_size=max_step_size,
+        )
+        for action in parent_actions
+    )
+    if max(indices) >= logits.shape[0]:
+        raise ValueError("policy logits length must cover parent_actions")
+    return logits[torch.tensor(indices, dtype=torch.long, device=logits.device)]
+
+
+def _active_choice_index(
+    *,
+    choice: int,
+    policy_rank: int,
+    max_step_size: int,
+) -> int:
+    if policy_rank == 1:
+        return _rank1_nonzero_action_index(
+            choice=choice,
+            max_step_size=max_step_size,
+        )
+    if choice < -max_step_size or choice > max_step_size:
+        raise ValueError("active choice is outside max_step_size")
+    return choice + max_step_size
+
+
+def _rank1_nonzero_action_index(
+    *,
+    choice: int,
+    max_step_size: int,
+) -> int:
+    if choice == 0:
+        raise ValueError("rank-1 full action lattice does not include zero")
+    if choice < -max_step_size or choice > max_step_size:
+        raise ValueError("action choice is outside max_step_size")
+    if choice < 0:
+        return choice + max_step_size
+    return choice + max_step_size - 1

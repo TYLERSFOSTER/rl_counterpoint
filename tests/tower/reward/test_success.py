@@ -17,6 +17,9 @@ def make_context(
     *,
     rank: int,
     history: tuple[tuple[int, ...], ...] | None = None,
+    source: tuple[int, ...] | None = None,
+    target: tuple[int, ...] | None = None,
+    action: tuple[int, ...] | None = None,
     step_index: int = 0,
     measure_size: int | None = 4,
     key_pitch_class: int | None = 0,
@@ -25,15 +28,15 @@ def make_context(
     if rank == 1:
         if history is None:
             history = ((67,), (60,))
-        source = (60,)
-        target = (62,)
-        action = (2,)
+        source = (67,) if source is None else source
+        target = (60,) if target is None else target
+        action = (-7,) if action is None else action
     elif rank == 2:
         if history is None:
             history = ((60, 64),)
-        source = (60, 64)
-        target = (61, 65)
-        action = (1, 1)
+        source = (67, 71) if source is None else source
+        target = (60, 64) if target is None else target
+        action = (-7, -7) if action is None else action
     else:
         raise ValueError("test helper only supports rank 1 or 2")
 
@@ -59,7 +62,10 @@ def test_rank1_projected_cadence_success_detects_terminal_v_i_root_motion() -> N
     result = rank1_projected_cadence_success(
         make_context(
             rank=1,
-            history=((67,), (60,)),
+            history=((65,), (66,)),
+            source=(67,),
+            target=(60,),
+            action=(-7,),
             step_index=3,
             measure_size=4,
             key_pitch_class=0,
@@ -87,20 +93,28 @@ def test_rank1_success_diagnostics_include_rank_kind_and_pitch_classes() -> None
 
 def test_rank1_success_rejects_wrong_root_motion() -> None:
     result = rank1_projected_cadence_success(
-        make_context(rank=1, history=((65,), (60,)), step_index=3)
+        make_context(rank=1, source=(65,), target=(60,), action=(-5,), step_index=3)
     )
 
     assert result.success is False
     assert result.diagnostics["reason"] == "wrong_root_motion"
 
 
-def test_rank1_success_requires_two_valid_window_states() -> None:
+def test_rank1_success_uses_context_source_and_target_not_window_frontier() -> None:
     result = rank1_projected_cadence_success(
-        make_context(rank=1, history=((60,),), step_index=3)
+        make_context(
+            rank=1,
+            history=((65,), (66,)),
+            source=(67,),
+            target=(60,),
+            action=(-7,),
+            step_index=3,
+        )
     )
 
-    assert result.success is False
-    assert result.diagnostics["reason"] == "insufficient_valid_history"
+    assert result.success is True
+    assert result.diagnostics["previous_pitch_class"] == 7
+    assert result.diagnostics["final_pitch_class"] == 0
 
 
 def test_rank1_success_requires_final_step() -> None:
@@ -151,7 +165,10 @@ def test_rank2_lifted_success_requires_parent_success_and_outer_thirds() -> None
     result = rank2_lifted_cadence_success(
         make_context(
             rank=2,
-            history=((67, 71), (60, 64)),
+            history=((65, 69), (66, 70)),
+            source=(67, 71),
+            target=(60, 64),
+            action=(-7, -7),
             step_index=3,
             measure_size=4,
             key_pitch_class=0,
@@ -172,7 +189,10 @@ def test_rank2_lifted_success_rejects_parent_failure() -> None:
     result = rank2_lifted_cadence_success(
         make_context(
             rank=2,
-            history=((65, 69), (60, 64)),
+            history=((67, 71), (60, 64)),
+            source=(65, 69),
+            target=(60, 64),
+            action=(-5, -5),
             step_index=3,
             measure_size=4,
             key_pitch_class=0,
@@ -190,6 +210,9 @@ def test_rank2_lifted_success_rejects_wrong_dominant_outer_third() -> None:
         make_context(
             rank=2,
             history=((67, 72), (60, 64)),
+            source=(67, 72),
+            target=(60, 64),
+            action=(-7, -8),
             step_index=3,
             measure_size=4,
             key_pitch_class=0,
@@ -206,6 +229,9 @@ def test_rank2_lifted_success_rejects_wrong_tonic_outer_third() -> None:
         make_context(
             rank=2,
             history=((67, 71), (60, 67)),
+            source=(67, 71),
+            target=(60, 67),
+            action=(-7, -4),
             step_index=3,
             measure_size=4,
             key_pitch_class=0,

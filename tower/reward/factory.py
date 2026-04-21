@@ -6,7 +6,11 @@ from dataclasses import dataclass, field, replace
 from numbers import Real
 
 from tower.reward.context import TowerRewardContext
-from tower.reward.melody import LargeLeapRecoveryTerm, RecentMelodicRangePenalty
+from tower.reward.melody import (
+    LargeLeapRecoveryTerm,
+    RecentMelodicRangePenalty,
+    TargetOctaveDistanceReward,
+)
 from tower.reward.result import TowerRewardResult
 from tower.reward.success import rank1_projected_cadence_success
 from tower.reward.terms import CompositeRewardTerm, RewardTerm, SuccessRewardTerm
@@ -19,6 +23,7 @@ class Rank1RewardFactoryConfig:
     key_pitch_class: int = 0
     terminal_cadence_reward: float = 10.0
     cadence_failure_reward: float = 0.0
+    target_root_octave: int = 4
     max_recent_range: int = 12
     range_penalty: float = -1.0
     large_leap_threshold: int = 6
@@ -36,6 +41,7 @@ class Rank1RewardFactoryConfig:
             self.cadence_failure_reward,
             field_name="cadence_failure_reward",
         )
+        _validate_target_octave(self.target_root_octave)
 
 
 @dataclass(frozen=True)
@@ -67,10 +73,12 @@ class Rank1RewardFunction:
                         recovery_reward=float(self.config.recovery_reward),
                         failure_penalty=float(self.config.failure_penalty),
                     ),
+                    TargetOctaveDistanceReward(),
                 ),
                 diagnostics={
                     "kind": "rank1_reward",
                     "key_pitch_class": self.config.key_pitch_class,
+                    "target_root_octave": self.config.target_root_octave,
                 },
             ),
         )
@@ -84,6 +92,7 @@ class Rank1RewardFunction:
         keyed_context = replace(
             context,
             key_pitch_class=self.config.key_pitch_class,
+            target_root_octave=self.config.target_root_octave,
         )
         return self.term(keyed_context)
 
@@ -93,6 +102,7 @@ def build_rank1_reward_fn(
     key_pitch_class: int = 0,
     terminal_cadence_reward: float = 10.0,
     cadence_failure_reward: float = 0.0,
+    target_root_octave: int = 4,
     max_recent_range: int = 12,
     range_penalty: float = -1.0,
     large_leap_threshold: int = 6,
@@ -106,6 +116,7 @@ def build_rank1_reward_fn(
             key_pitch_class=key_pitch_class,
             terminal_cadence_reward=terminal_cadence_reward,
             cadence_failure_reward=cadence_failure_reward,
+            target_root_octave=target_root_octave,
             max_recent_range=max_recent_range,
             range_penalty=range_penalty,
             large_leap_threshold=large_leap_threshold,
@@ -126,3 +137,10 @@ def _validate_pitch_class(value: int) -> None:
 def _validate_number(value: float, *, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, Real):
         raise TypeError(f"{field_name} must be a real number")
+
+
+def _validate_target_octave(value: int) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError("target_root_octave must be an integer")
+    if value < -1 or value > 9:
+        raise ValueError("target_root_octave must be in [-1, 9]")

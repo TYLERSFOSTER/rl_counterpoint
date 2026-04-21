@@ -198,6 +198,8 @@ def run_rank1_training(
         raise ValueError("rank-1 runner requires rank-1 graph spec")
 
     generator = torch.Generator().manual_seed(config.seed)
+    key_pitch_class = _optional_reward_int(config, "key_pitch_class")
+    target_root_octave = _optional_reward_int(config, "target_root_octave")
     episode_results = []
     for episode_index in range(config.episode_count):
         episode_result = train_rank1_episode_with_artifacts(
@@ -209,6 +211,8 @@ def run_rank1_training(
             reward_fn=reward_fn,
             episode_index=episode_index,
             graph_spec=spec,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
             generator=generator,
         )
         episode_results.append(episode_result)
@@ -231,6 +235,8 @@ def run_rank1_training(
         graph_spec=spec,
         measure_size=config.measure_size,
         context_measures=config.context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
         generator=generator,
     )
     final_midi_path = None
@@ -306,6 +312,8 @@ def run_rank2_training(
         raise ValueError("rank-2 runner requires rank-2 graph spec")
 
     generator = torch.Generator().manual_seed(config.seed)
+    key_pitch_class = _optional_reward_int(config, "key_pitch_class")
+    target_root_octave = _optional_reward_int(config, "target_root_octave")
     episode_results = []
     for episode_index in range(config.episode_count):
         episode_result = train_rank2_episode_with_artifacts(
@@ -318,6 +326,8 @@ def run_rank2_training(
             reward_fn=reward_fn,
             episode_index=episode_index,
             graph_spec=spec,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
             generator=generator,
         )
         episode_results.append(episode_result)
@@ -342,6 +352,8 @@ def run_rank2_training(
         measure_size=config.measure_size,
         context_measures=config.context_measures,
         parent_top_m=config.parent_top_m,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
         generator=generator,
     )
     final_midi_path = None
@@ -395,6 +407,8 @@ def run_final_inference_episode(
     context_measures: int = 2,
     parent_policy: RankPolicy | None = None,
     parent_top_m: int = 1,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
     generator: torch.Generator | None = None,
 ) -> FinalInferenceResult:
     """Run one final inference episode without training or gradients."""
@@ -431,6 +445,8 @@ def run_final_inference_episode(
                 graph_spec=spec,
                 measure_size=measure_size,
                 context_measures=context_measures,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
                 generator=generator,
             )
         else:
@@ -448,6 +464,8 @@ def run_final_inference_episode(
                 measure_size=measure_size,
                 context_measures=context_measures,
                 parent_top_m=parent_top_m,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
                 generator=generator,
             )
 
@@ -466,6 +484,8 @@ def _run_rank1_final_inference(
     graph_spec: TowerGraphSpec,
     measure_size: int,
     context_measures: int,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
     generator: torch.Generator | None,
 ) -> TowerTrajectory:
     def active_sampler(**kwargs: object):
@@ -475,6 +495,9 @@ def _run_rank1_final_inference(
             window=kwargs["window"],  # type: ignore[arg-type]
             active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
             measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=graph_spec.max_step_size,
             generator=generator,
         )
 
@@ -486,6 +509,8 @@ def _run_rank1_final_inference(
         graph_spec=graph_spec,
         measure_size=measure_size,
         context_measures=context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
     )
 
 
@@ -500,6 +525,8 @@ def _run_rank2_final_inference(
     measure_size: int,
     context_measures: int,
     parent_top_m: int,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
     generator: torch.Generator | None,
 ) -> TowerTrajectory:
     parent_spec = TowerGraphSpec(
@@ -525,6 +552,9 @@ def _run_rank2_final_inference(
             window=kwargs["window"],  # type: ignore[arg-type]
             parent_actions=parent_actions,
             measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=parent_spec.max_step_size,
             top_m=parent_top_m,
             generator=generator,
         )
@@ -536,6 +566,9 @@ def _run_rank2_final_inference(
             window=kwargs["window"],  # type: ignore[arg-type]
             active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
             measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=graph_spec.max_step_size,
             generator=generator,
         )
 
@@ -548,6 +581,8 @@ def _run_rank2_final_inference(
         graph_spec=graph_spec,
         measure_size=measure_size,
         context_measures=context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
     )
 
 
@@ -594,7 +629,7 @@ def _build_rank1_policy(config: TowerRunnerConfig) -> TowerTransformerPolicy:
     return TowerTransformerPolicy(
         TowerTransformerPolicyConfig(
             rank=1,
-            input_feature_dim=1,
+            input_feature_dim=_policy_input_feature_dim(config, default_rank=1),
             action_dim=_policy_int(
                 policy_config,
                 "action_dim",
@@ -615,7 +650,7 @@ def _build_rank2_policy(config: TowerRunnerConfig) -> TowerTransformerPolicy:
     return TowerTransformerPolicy(
         TowerTransformerPolicyConfig(
             rank=2,
-            input_feature_dim=2,
+            input_feature_dim=_policy_input_feature_dim(config, default_rank=2),
             action_dim=_policy_int(
                 policy_config,
                 "action_dim",
@@ -686,6 +721,33 @@ def _policy_float(
     default: float,
 ) -> float:
     return _mapping_float(config, key, default=default)
+
+
+def _policy_input_feature_dim(
+    config: TowerRunnerConfig,
+    *,
+    default_rank: int,
+) -> int:
+    policy_config = dict(config.policy_config)
+    if "input_feature_dim" in policy_config:
+        return _policy_int(policy_config, "input_feature_dim", default=default_rank)
+    return (
+        default_rank
+        + (1 if _optional_reward_int(config, "key_pitch_class") is not None else 0)
+        + (1 if _optional_reward_int(config, "target_root_octave") is not None else 0)
+    )
+
+
+def _optional_reward_int(
+    config: TowerRunnerConfig,
+    key: str,
+) -> int | None:
+    value = dict(config.reward_config).get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"reward_config.{key} must be an int")
+    return value
 
 
 def _mapping_int(

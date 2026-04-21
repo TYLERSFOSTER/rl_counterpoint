@@ -149,6 +149,7 @@ class TowerTransformerPolicy(nn.Module):
                 "rank": self.rank,
                 "final_index": final_index,
                 "policy": "tower_transformer",
+                "context": dict(encoded_window.context),
             },
         )
 

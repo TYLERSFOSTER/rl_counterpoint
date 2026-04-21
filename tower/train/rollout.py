@@ -37,6 +37,8 @@ def rollout_rank1(
     graph_spec: TowerGraphSpec | None = None,
     measure_size: int = 4,
     context_measures: int = 2,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
 ) -> TowerTrajectory:
     """Roll out a rank-1 trajectory under an active sampler."""
     spec = TowerGraphSpec(rank=1) if graph_spec is None else graph_spec
@@ -68,6 +70,9 @@ def rollout_rank1(
             state=source_state,
             window=window,
             active_choices=choices,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=spec.max_step_size,
         )
         active_choice = active_result.choice
         if active_choice not in choices:
@@ -91,6 +96,8 @@ def rollout_rank1(
                 measure_size=measure_size,
                 max_steps=max_steps,
                 max_step_size=spec.max_step_size,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
                 is_final_step=step_index == max_steps - 1,
                 new_facts=NewFacts(
                     new_voice_index=new_voice_index(rank=1),
@@ -144,6 +151,8 @@ def rollout_rank2(
     graph_spec: TowerGraphSpec | None = None,
     measure_size: int = 4,
     context_measures: int = 2,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
     invalid_extension_reward: TowerRewardResult | None = None,
     empty_lift_fiber_reward: TowerRewardResult | None = None,
     parent_failure_reward: TowerRewardResult | None = None,
@@ -169,20 +178,23 @@ def rollout_rank2(
         )
         parent_state = project_state(source_state)
         parent_window = project_window(window)
-
-        parent_result = parent_sampler(
-            rank=1,
-            step_index=step_index,
-            state=parent_state,
-            window=parent_window,
-        )
-        parent_action = parent_result.choice
         parent_spec = TowerGraphSpec(
             rank=1,
             pitch_min=spec.pitch_min,
             pitch_max=spec.pitch_max,
             max_step_size=spec.max_step_size,
         )
+
+        parent_result = parent_sampler(
+            rank=1,
+            step_index=step_index,
+            state=parent_state,
+            window=parent_window,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=parent_spec.max_step_size,
+        )
+        parent_action = parent_result.choice
         if not is_valid_transition(parent_state, parent_action, parent_spec):
             reward = _default_outcome_reward(
                 provided=parent_failure_reward,
@@ -261,6 +273,9 @@ def rollout_rank2(
             parent_state=parent_state,
             parent_action=parent_action,
             active_choices=choices,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=spec.max_step_size,
         )
         active_choice = active_result.choice
         if active_choice not in choices:
@@ -325,6 +340,8 @@ def rollout_rank2(
                 measure_size=measure_size,
                 max_steps=max_steps,
                 max_step_size=spec.max_step_size,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
                 is_final_step=step_index == max_steps - 1,
                 new_facts=NewFacts(
                     new_voice_index=new_voice_index(rank=2),

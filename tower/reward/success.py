@@ -37,10 +37,6 @@ def rank1_projected_cadence_success(
     if not context.is_final_step:
         return _failure(diagnostics, reason="not_final_step")
 
-    valid_states = _valid_window_states(context)
-    if len(valid_states) < 2:
-        return _failure(diagnostics, reason="insufficient_valid_history")
-
     final_bar_position = context.window.bar_positions[-1]
     if final_bar_position != context.measure_size - 1:
         return _failure(
@@ -52,8 +48,8 @@ def rank1_projected_cadence_success(
 
     dominant_pitch_class = (context.key_pitch_class + 7) % 12
     tonic_pitch_class = context.key_pitch_class % 12
-    previous_pitch = valid_states[-2][0]
-    final_pitch = valid_states[-1][0]
+    previous_pitch = context.source[0]
+    final_pitch = context.target[0]
     previous_pitch_class = previous_pitch % 12
     final_pitch_class = final_pitch % 12
 
@@ -99,16 +95,12 @@ def rank2_lifted_cadence_success(
     if not parent_result.success:
         return _failure(diagnostics, reason="parent_success_failed")
 
-    valid_states = _valid_window_states(context)
-    if len(valid_states) < 2:
-        return _failure(diagnostics, reason="insufficient_valid_history")
-
     key_pitch_class = context.key_pitch_class
     if key_pitch_class is None:
         return _failure(diagnostics, reason="missing_key_pitch_class")
 
-    previous_state = valid_states[-2]
-    final_state = valid_states[-1]
+    previous_state = context.source
+    final_state = context.target
     dominant_third_pitch_class = (key_pitch_class + 7 + 4) % 12
     tonic_third_pitch_class = (key_pitch_class + 4) % 12
     previous_outer_pitch_class = previous_state[1] % 12

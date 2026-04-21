@@ -34,6 +34,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
     parser.add_argument("--key-pitch-class", type=int, default=0)
+    parser.add_argument("--target-root-octave", type=int, default=4)
     parser.add_argument("--terminal-cadence-reward", type=float, default=10.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
     parser.add_argument("--max-recent-range", type=int, default=12)
@@ -54,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     reward_config = {
         "kind": "rank1_slice_a",
         "key_pitch_class": args.key_pitch_class,
+        "target_root_octave": args.target_root_octave,
         "terminal_cadence_reward": args.terminal_cadence_reward,
         "cadence_failure_reward": args.cadence_failure_reward,
         "max_recent_range": args.max_recent_range,
@@ -91,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         initial_state=(args.initial_pitch,),
         reward_fn=build_rank1_reward_fn(
             key_pitch_class=args.key_pitch_class,
+            target_root_octave=args.target_root_octave,
             terminal_cadence_reward=args.terminal_cadence_reward,
             cadence_failure_reward=args.cadence_failure_reward,
             max_recent_range=args.max_recent_range,

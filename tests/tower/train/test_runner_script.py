@@ -20,6 +20,7 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.lineage_id == "local-tower"
     assert args.max_steps == 1
     assert args.key_pitch_class == 0
+    assert args.target_root_octave == 4
     assert args.terminal_cadence_reward == 10.0
     assert args.range_penalty == -1.0
 
@@ -62,6 +63,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     config = json.loads((run_dir / "config.json").read_text())
     assert config["reward_config"]["kind"] == "rank1_slice_a"
     assert config["reward_config"]["key_pitch_class"] == 0
+    assert config["reward_config"]["target_root_octave"] == 4
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 2
 

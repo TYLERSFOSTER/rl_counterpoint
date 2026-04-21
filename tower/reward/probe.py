@@ -77,8 +77,8 @@ def slice_a_reward_probe_cases() -> tuple[RewardProbeCase, ...]:
     return (
         RewardProbeCase(
             name="terminal_cadence_success",
-            history=((67,), (60,)),
-            action=(-1,),
+            history=((60,), (67,)),
+            action=(-7,),
             step_index=3,
             context_measures=1,
             is_final_step=True,

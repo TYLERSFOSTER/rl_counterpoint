@@ -51,6 +51,8 @@ def train_rank1_episode(
     graph_spec: TowerGraphSpec | None = None,
     measure_size: int = 4,
     context_measures: int = 2,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
     gamma: float = 1.0,
     normalize_returns: bool = False,
     generator: torch.Generator | None = None,
@@ -70,6 +72,9 @@ def train_rank1_episode(
             window=kwargs["window"],  # type: ignore[arg-type]
             active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
             measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=spec.max_step_size,
             generator=generator,
         )
 
@@ -81,6 +86,8 @@ def train_rank1_episode(
         graph_spec=spec,
         measure_size=measure_size,
         context_measures=context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
     )
     loss = policy_gradient_loss(
         trajectory,
@@ -114,6 +121,8 @@ def train_rank1_episode_with_artifacts(
     graph_spec: TowerGraphSpec | None = None,
     gamma: float | None = None,
     normalize_returns: bool | None = None,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
     generator: torch.Generator | None = None,
 ) -> TrainEpisodeResult:
     """Run one rank-1 episode and persist rank artifacts."""
@@ -141,6 +150,8 @@ def train_rank1_episode_with_artifacts(
         ),
         measure_size=config.measure_size,
         context_measures=config.context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
         gamma=gamma
         if gamma is not None
         else _float_config_value(training_config, "gamma", default=1.0),
@@ -195,6 +206,8 @@ def train_rank2_episode(
     measure_size: int = 4,
     context_measures: int = 2,
     parent_top_m: int = 1,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
     gamma: float = 1.0,
     normalize_returns: bool = False,
     generator: torch.Generator | None = None,
@@ -233,6 +246,9 @@ def train_rank2_episode(
             window=kwargs["window"],  # type: ignore[arg-type]
             parent_actions=parent_actions,
             measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=parent_spec.max_step_size,
             top_m=parent_top_m,
             generator=generator,
         )
@@ -244,6 +260,9 @@ def train_rank2_episode(
             window=kwargs["window"],  # type: ignore[arg-type]
             active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
             measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=spec.max_step_size,
             generator=generator,
         )
 
@@ -256,6 +275,8 @@ def train_rank2_episode(
         graph_spec=spec,
         measure_size=measure_size,
         context_measures=context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
     )
     loss = policy_gradient_loss(
         trajectory,
@@ -291,6 +312,8 @@ def train_rank2_episode_with_artifacts(
     graph_spec: TowerGraphSpec | None = None,
     gamma: float | None = None,
     normalize_returns: bool | None = None,
+    key_pitch_class: int | None = None,
+    target_root_octave: int | None = None,
     generator: torch.Generator | None = None,
 ) -> TrainEpisodeResult:
     """Run one rank-2 episode and persist parent-linked rank artifacts."""
@@ -334,6 +357,8 @@ def train_rank2_episode_with_artifacts(
         measure_size=config.measure_size,
         context_measures=config.context_measures,
         parent_top_m=_int_config_value(parent_sampler_config, "top_m", default=1),
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
         gamma=gamma
         if gamma is not None
         else _float_config_value(training_config, "gamma", default=1.0),

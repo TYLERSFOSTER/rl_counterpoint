@@ -207,5 +207,6 @@ marimo/_lsp/
 __marimo__/
 .DS_Store
 
-# Project-generated training artifacts
+# Project-generated local artifacts
 artifacts/
+*.mid

@@ -40,56 +40,64 @@ def test_terminal_cadence_success_probe_row_records_composed_terms() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[0]
 
     assert row["case_name"] == "terminal_cadence_success"
-    assert row["reward"] == 9.5
+    assert row["reward"] == 10.5
     assert row["is_terminal_success"] is True
     assert row["terminated"] is True
-    assert row["assembled_action"] == [-1]
+    assert row["assembled_action"] == [-7]
     cadence = term_diagnostics(row, 0)["cadence"]
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
+    target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     assert cadence["reason"] == "success"
     assert recovery["reason"] == "failed_recovery"
-    assert recovery["current_action"] == -1
+    assert recovery["current_action"] == -7
+    assert target_octave["octave_distance"] == 0
 
 
 def test_recent_range_penalty_probe_row_records_penalty() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[1]
 
     assert row["case_name"] == "recent_range_penalty"
-    assert row["reward"] == -1.5
+    assert row["reward"] == -1.0
     cadence = term_diagnostics(row, 0)["cadence"]
     range_diagnostics = term_diagnostics(row, 1)["recent_melodic_range"]
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
+    target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     assert cadence["reason"] == "not_final_step"
     assert range_diagnostics["observed_range"] == 13
     assert range_diagnostics["penalty_applied"] is True
     assert range_diagnostics["reason"] == "range_exceeded"
     assert recovery["reason"] == "failed_recovery"
+    assert target_octave["octave_distance"] == 1
 
 
 def test_large_leap_recovery_success_probe_row_records_reward() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[2]
 
     assert row["case_name"] == "large_leap_recovery_success"
-    assert row["reward"] == 0.5
+    assert row["reward"] == 1.5
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
+    target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     assert recovery["previous_interval"] == 7
     assert recovery["current_action"] == -2
     assert recovery["opposite_direction"] is True
     assert recovery["success"] is True
     assert recovery["reason"] == "recovered"
+    assert target_octave["octave_distance"] == 0
 
 
 def test_large_leap_recovery_failure_probe_row_records_penalty() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[3]
 
     assert row["case_name"] == "large_leap_recovery_failure"
-    assert row["reward"] == -0.5
+    assert row["reward"] == 0.5
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
+    target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     assert recovery["previous_interval"] == 7
     assert recovery["current_action"] == 2
     assert recovery["opposite_direction"] is False
     assert recovery["success"] is False
     assert recovery["reason"] == "failed_recovery"
+    assert target_octave["octave_distance"] == 0
 
 
 def test_reward_probe_path_is_deterministic(tmp_path: Path) -> None:

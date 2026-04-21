@@ -51,12 +51,15 @@ def make_transformer_policy(
     *,
     rank: int,
     action_dim: int,
+    input_feature_dim: int | None = None,
     max_window_len: int = 4,
 ) -> TowerTransformerPolicy:
     return TowerTransformerPolicy(
         TowerTransformerPolicyConfig(
             rank=rank,
-            input_feature_dim=rank,
+            input_feature_dim=rank
+            if input_feature_dim is None
+            else input_feature_dim,
             action_dim=action_dim,
             max_window_len=max_window_len,
             d_model=8,
@@ -230,6 +233,23 @@ def test_sample_active_choice_from_policy_supports_transformer_policy() -> None:
     assert result.diagnostics["policy"]["policy"] == "tower_transformer"
 
 
+def test_sample_active_choice_from_policy_conditions_transformer_on_key_and_target() -> None:
+    policy = make_transformer_policy(rank=1, input_feature_dim=3, action_dim=3)
+
+    result = sample_active_choice_from_policy(
+        policy=policy,  # type: ignore[arg-type]
+        window=make_rank_1_window(),
+        active_choices=(-1, 0, 1),
+        key_pitch_class=2,
+        target_root_octave=5,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.choice in {-1, 0, 1}
+    assert result.diagnostics["policy"]["context"]["key_pitch_class"] == 2
+    assert result.diagnostics["policy"]["context"]["target_root_octave"] == 5
+
+
 def test_sample_active_choice_from_policy_is_reproducible_with_generator() -> None:
     policy = DummyPolicy(rank=1, logits=torch.tensor([0.0, 0.0, 0.0]))
 
@@ -270,6 +290,29 @@ def test_sample_active_choice_from_policy_logprob_backpropagates_to_logits() -> 
     assert torch.count_nonzero(logits.grad).item() > 0
 
 
+def test_sample_active_choice_from_policy_masks_full_rank1_action_lattice() -> None:
+    logits = torch.tensor([0.0, 8.0, -8.0, 0.0], requires_grad=True)
+    policy = DummyPolicy(rank=1, logits=logits)
+
+    result = sample_active_choice_from_policy(
+        policy=policy,
+        state=(60,),
+        window=make_rank_1_window(),
+        active_choices=(-1, 1),
+        max_step_size=2,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.choice == -1
+    assert isinstance(result.logprob, torch.Tensor)
+    (-result.logprob).backward()
+
+    assert logits.grad is not None
+    assert logits.grad[0].item() == 0.0
+    assert torch.count_nonzero(logits.grad[1:3]).item() > 0
+    assert logits.grad[3].item() == 0.0
+
+
 def test_sample_active_choice_from_policy_rejects_empty_choices() -> None:
     policy = DummyPolicy(rank=1, logits=torch.tensor([]))
 
@@ -303,6 +346,19 @@ def test_sample_active_choice_from_policy_rejects_logits_choice_mismatch() -> No
             state=(60,),
             window=make_rank_1_window(),
             active_choices=(-1, 0, 1),
+        )
+
+
+def test_sample_active_choice_from_policy_rejects_uncovered_active_choice() -> None:
+    policy = DummyPolicy(rank=1, logits=torch.tensor([0.0, 1.0]))
+
+    with pytest.raises(ValueError, match="policy logits length must cover"):
+        sample_active_choice_from_policy(
+            policy=policy,
+            state=(60,),
+            window=make_rank_1_window(),
+            active_choices=(-2, -1, 1),
+            max_step_size=2,
         )
 
 

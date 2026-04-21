@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 
 from tower.reward.context import TowerRewardContext
-from tower.reward.melody import LargeLeapRecoveryTerm, RecentMelodicRangePenalty
+from tower.reward.melody import (
+    LargeLeapRecoveryTerm,
+    RecentMelodicRangePenalty,
+    TargetOctaveDistanceReward,
+    midi_to_octave,
+)
 from tower.state_action import TowerAction, TowerState
 from tower.window import build_window
 
@@ -15,6 +20,7 @@ def make_context(
     history: tuple[TowerState, ...],
     action: TowerAction,
     rank: int = 1,
+    target_root_octave: int | None = None,
 ) -> TowerRewardContext:
     source = history[-1]
     target = tuple(pitch + delta for pitch, delta in zip(source, action, strict=True))
@@ -31,7 +37,57 @@ def make_context(
             measure_size=4,
             context_measures=2,
         ),
+        target_root_octave=target_root_octave,
     )
+
+
+def test_midi_to_octave_uses_scientific_pitch_octaves() -> None:
+    assert midi_to_octave(0) == -1
+    assert midi_to_octave(12) == 0
+    assert midi_to_octave(60) == 4
+    assert midi_to_octave(72) == 5
+    assert midi_to_octave(127) == 9
+
+
+def test_target_octave_distance_reward_uses_inverse_distance() -> None:
+    term = TargetOctaveDistanceReward()
+    context = make_context(
+        history=((60,),),
+        action=(12,),
+        target_root_octave=4,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["target_octave_distance"]
+    assert result.reward == 0.5
+    assert diagnostics["target_pitch"] == 72
+    assert diagnostics["root_octave"] == 5
+    assert diagnostics["target_root_octave"] == 4
+    assert diagnostics["octave_distance"] == 1
+    assert diagnostics["reward_formula"] == "1/(1+d)"
+
+
+def test_target_octave_distance_reward_is_one_at_goal_octave() -> None:
+    term = TargetOctaveDistanceReward()
+    context = make_context(
+        history=((60,),),
+        action=(1,),
+        target_root_octave=4,
+    )
+
+    result = term(context)
+
+    assert result.reward == 1.0
+    assert result.diagnostics["target_octave_distance"]["octave_distance"] == 0
+
+
+def test_target_octave_distance_reward_requires_target_octave() -> None:
+    term = TargetOctaveDistanceReward()
+    context = make_context(history=((60,),), action=(1,))
+
+    with pytest.raises(ValueError, match="target_root_octave is required"):
+        term(context)
 
 
 def test_recent_melodic_range_penalty_fires_above_threshold() -> None:

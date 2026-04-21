@@ -10,6 +10,39 @@ from tower.reward.result import TowerRewardResult
 
 
 @dataclass(frozen=True)
+class TargetOctaveDistanceReward:
+    """Reward rank-1 states by inverse distance from the target octave."""
+
+    diagnostics_key: str = "target_octave_distance"
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_1_context(context)
+        if context.target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required for TargetOctaveDistanceReward"
+            )
+
+        target_pitch = context.target[0]
+        root_octave = midi_to_octave(target_pitch)
+        octave_distance = abs(root_octave - context.target_root_octave)
+        reward = 1.0 / (1.0 + octave_distance)
+
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "target_octave_distance",
+                    "target_pitch": target_pitch,
+                    "root_octave": root_octave,
+                    "target_root_octave": context.target_root_octave,
+                    "octave_distance": octave_distance,
+                    "reward_formula": "1/(1+d)",
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
 class RecentMelodicRangePenalty:
     """Penalize rank-1 melodies whose recent valid window spans too widely."""
 
@@ -181,6 +214,15 @@ def _validate_positive_int(value: int, *, field_name: str) -> None:
 def _validate_number(value: float, *, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, Real):
         raise TypeError(f"{field_name} must be a real number")
+
+
+def midi_to_octave(pitch: int) -> int:
+    """Return scientific pitch octave for a MIDI pitch number."""
+    if isinstance(pitch, bool) or not isinstance(pitch, int):
+        raise TypeError("pitch must be an integer")
+    if pitch < 0 or pitch > 127:
+        raise ValueError("pitch must be in [0, 127]")
+    return pitch // 12 - 1
 
 
 def _sign(value: int) -> int:
