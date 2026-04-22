@@ -425,22 +425,31 @@ def test_run_rank1_training_writes_artifacts_and_final_midi(tmp_path: Path) -> N
     assert result.paths.rank_dir == tmp_path / "lineage-a" / "rank_1"
     assert result.rank_config == read_rank_config(result.paths)
     assert len(result.episode_results) == 2
+    assert len(result.final_inferences) == 4
+    assert len(result.final_midi_paths) == 4
     assert result.final_midi_path == result.paths.example_episode_path
     assert result.paths.example_episode_path.exists()
     assert result.paths.example_episode_path.read_bytes().startswith(b"MThd")
+    for index in range(1, 4):
+        midi_path = result.paths.rank_dir / f"example_episode_{index}.mid"
+        assert midi_path.exists()
+        assert midi_path.read_bytes().startswith(b"MThd")
     assert result.paths.reward_diagnostics_path.exists()
 
     metrics = read_rank_metrics(result.paths)
-    assert len(metrics) == 3
+    assert len(metrics) == 6
     assert metrics[0]["episode_index"] == 0
     assert metrics[1]["episode_index"] == 1
-    assert metrics[2]["kind"] == "final_inference"
+    assert [row["kind"] for row in metrics[2:]] == ["final_inference"] * 4
+    assert [row["final_inference_index"] for row in metrics[2:]] == [0, 1, 2, 3]
     assert metrics[2]["midi_path"] == "rank_1/example_episode.mid"
+    assert metrics[3]["midi_path"] == "rank_1/example_episode_1.mid"
+    assert metrics[5]["midi_path"] == "rank_1/example_episode_3.mid"
     assert metrics[2]["final_inference"] is True
 
     diagnostics = read_reward_diagnostics(result.paths)
-    assert len(diagnostics) == 3
-    assert [row["episode_index"] for row in diagnostics] == [0, 1, 2]
+    assert len(diagnostics) == 6
+    assert [row["episode_index"] for row in diagnostics] == [0, 1, 2, 3, 4, 5]
     assert diagnostics[-1]["episode_kind"] == "final_inference"
     assert diagnostics[-1]["reward"] == 1.0
 
@@ -509,6 +518,7 @@ def test_run_rank1_training_can_build_default_transformer_policy(
 
     assert result.policy.rank == 1
     assert len(result.episode_results) == 1
+    assert len(result.final_inferences) == 4
     assert result.final_midi_path == result.paths.example_episode_path
     assert result.paths.example_episode_path.exists()
 
@@ -533,8 +543,9 @@ def test_run_rank1_training_can_skip_final_midi(tmp_path: Path) -> None:
 
     metrics = read_rank_metrics(result.paths)
     assert result.final_midi_path is None
+    assert result.final_midi_paths == (None, None, None, None)
     assert not result.paths.example_episode_path.exists()
-    assert metrics[-1]["midi_path"] is None
+    assert all(row["midi_path"] is None for row in metrics[-4:])
     assert result.paths.reward_diagnostics_path.exists()
 
 
@@ -613,22 +624,30 @@ def test_run_rank2_training_writes_parent_linked_artifacts_and_final_midi(
     assert result.paths.rank_dir == tmp_path / "lineage-a" / "rank_2"
     assert result.rank_config == read_rank_config(result.paths)
     assert len(result.episode_results) == 2
+    assert len(result.final_inferences) == 4
+    assert len(result.final_midi_paths) == 4
     assert result.final_midi_path == result.paths.example_episode_path
     assert result.paths.example_episode_path.exists()
     assert result.paths.example_episode_path.read_bytes().startswith(b"MThd")
+    for index in range(1, 4):
+        midi_path = result.paths.rank_dir / f"example_episode_{index}.mid"
+        assert midi_path.exists()
+        assert midi_path.read_bytes().startswith(b"MThd")
     assert result.paths.reward_diagnostics_path.exists()
 
     metrics = read_rank_metrics(result.paths)
-    assert len(metrics) == 3
+    assert len(metrics) == 6
     assert metrics[0]["episode_index"] == 0
     assert metrics[1]["episode_index"] == 1
-    assert metrics[2]["kind"] == "final_inference"
+    assert [row["kind"] for row in metrics[2:]] == ["final_inference"] * 4
+    assert [row["final_inference_index"] for row in metrics[2:]] == [0, 1, 2, 3]
     assert metrics[2]["midi_path"] == "rank_2/example_episode.mid"
+    assert metrics[3]["midi_path"] == "rank_2/example_episode_1.mid"
     assert metrics[2]["final_inference"] is True
     assert metrics[2]["rank"] == 2
 
     diagnostics = read_reward_diagnostics(result.paths)
-    assert len(diagnostics) == 3
+    assert len(diagnostics) == 6
     assert diagnostics[0]["rank"] == 2
     assert diagnostics[0]["parent_state"] == [60]
     assert diagnostics[0]["parent_action"] == [1]
@@ -752,6 +771,7 @@ def test_run_rank2_training_can_build_default_child_transformer_policy(
 
     assert result.child_policy.rank == 2
     assert len(result.episode_results) == 1
+    assert len(result.final_inferences) == 4
     assert result.final_midi_path == result.paths.example_episode_path
     assert result.paths.example_episode_path.exists()
 

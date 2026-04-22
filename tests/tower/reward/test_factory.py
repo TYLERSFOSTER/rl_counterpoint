@@ -63,13 +63,14 @@ def test_rank1_reward_factory_combines_cadence_and_melody_terms() -> None:
 
     result = reward_fn(make_context(history=((60,), (67,)), action=(-7,)))
 
-    assert result.reward == 10.5
+    assert result.reward == 11.0
     assert result.is_terminal_success is True
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
     assert child_results[1]["reward"] == 0.0
     assert child_results[2]["reward"] == -0.5
     assert child_results[3]["reward"] == 1.0
+    assert child_results[4]["reward"] == 0.5
 
 
 def test_rank1_reward_factory_injects_configured_key() -> None:
@@ -125,7 +126,7 @@ def test_rank1_reward_factory_exposes_top_level_diagnostics() -> None:
     assert result.diagnostics["kind"] == "rank1_reward"
     assert result.diagnostics["key_pitch_class"] == 3
     assert result.diagnostics["target_root_octave"] == 4
-    assert len(result.diagnostics["terms"]) == 4
+    assert len(result.diagnostics["terms"]) == 5
 
 
 def test_rank1_reward_factory_injects_configured_target_octave() -> None:
@@ -136,10 +137,36 @@ def test_rank1_reward_factory_injects_configured_target_octave() -> None:
     target_octave = result.diagnostics["terms"][3]["diagnostics"][
         "target_octave_distance"
     ]
-    assert result.reward == 1.0
+    assert result.reward == 1.5
     assert target_octave["root_octave"] == 5
     assert target_octave["target_root_octave"] == 5
     assert target_octave["octave_distance"] == 0
+
+
+def test_rank1_reward_factory_adds_beat_class_pitch_term() -> None:
+    reward_fn = build_rank1_reward_fn(
+        measure_start_tonic_reward=1.25,
+        onbeat_scale_degree_reward=0.75,
+        offbeat_consonance_weight=2.0,
+    )
+
+    result = reward_fn(
+        make_context(
+            history=((59,),),
+            action=(1,),
+            step_index=0,
+            key_pitch_class=None,
+            is_final_step=False,
+        )
+    )
+
+    beat_class_result = result.diagnostics["terms"][4]
+    diagnostics = beat_class_result["diagnostics"]["beat_class_pitch"]
+    assert beat_class_result["reward"] == 2.0
+    assert diagnostics["is_measure_start"] is True
+    assert diagnostics["is_tonic"] is True
+    assert diagnostics["measure_start_tonic_reward"] == 1.25
+    assert diagnostics["onbeat_scale_degree_reward"] == 0.75
 
 
 def test_rank1_reward_factory_rejects_non_rank_1_context() -> None:

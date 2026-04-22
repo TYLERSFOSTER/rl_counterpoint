@@ -7,6 +7,7 @@ from numbers import Real
 
 from tower.reward.context import TowerRewardContext
 from tower.reward.melody import (
+    BeatClassPitchReward,
     LargeLeapRecoveryTerm,
     RecentMelodicRangePenalty,
     TargetOctaveDistanceReward,
@@ -30,6 +31,9 @@ class Rank1RewardFactoryConfig:
     recovery_step_threshold: int = 3
     recovery_reward: float = 0.5
     failure_penalty: float = -0.5
+    measure_start_tonic_reward: float = 1.0
+    onbeat_scale_degree_reward: float = 1.0
+    offbeat_consonance_weight: float = 1.0
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
@@ -42,6 +46,18 @@ class Rank1RewardFactoryConfig:
             field_name="cadence_failure_reward",
         )
         _validate_target_octave(self.target_root_octave)
+        _validate_number(
+            self.measure_start_tonic_reward,
+            field_name="measure_start_tonic_reward",
+        )
+        _validate_number(
+            self.onbeat_scale_degree_reward,
+            field_name="onbeat_scale_degree_reward",
+        )
+        _validate_number(
+            self.offbeat_consonance_weight,
+            field_name="offbeat_consonance_weight",
+        )
 
 
 @dataclass(frozen=True)
@@ -74,6 +90,17 @@ class Rank1RewardFunction:
                         failure_penalty=float(self.config.failure_penalty),
                     ),
                     TargetOctaveDistanceReward(),
+                    BeatClassPitchReward(
+                        measure_start_tonic_reward=(
+                            self.config.measure_start_tonic_reward
+                        ),
+                        onbeat_scale_degree_reward=(
+                            self.config.onbeat_scale_degree_reward
+                        ),
+                        offbeat_consonance_weight=(
+                            self.config.offbeat_consonance_weight
+                        ),
+                    ),
                 ),
                 diagnostics={
                     "kind": "rank1_reward",
@@ -109,6 +136,9 @@ def build_rank1_reward_fn(
     recovery_step_threshold: int = 3,
     recovery_reward: float = 0.5,
     failure_penalty: float = -0.5,
+    measure_start_tonic_reward: float = 1.0,
+    onbeat_scale_degree_reward: float = 1.0,
+    offbeat_consonance_weight: float = 1.0,
 ) -> Rank1RewardFunction:
     """Build the first rank-1 cadence and melodic-shape reward function."""
     return Rank1RewardFunction(
@@ -123,6 +153,9 @@ def build_rank1_reward_fn(
             recovery_step_threshold=recovery_step_threshold,
             recovery_reward=recovery_reward,
             failure_penalty=failure_penalty,
+            measure_start_tonic_reward=measure_start_tonic_reward,
+            onbeat_scale_degree_reward=onbeat_scale_degree_reward,
+            offbeat_consonance_weight=offbeat_consonance_weight,
         )
     )
 

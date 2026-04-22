@@ -154,6 +154,8 @@ class Rank1TrainingRunResult:
     episode_results: tuple[TrainEpisodeResult, ...]
     final_inference: FinalInferenceResult
     final_midi_path: Path | None
+    final_inferences: tuple[FinalInferenceResult, ...]
+    final_midi_paths: tuple[Path | None, ...]
 
 
 @dataclass(frozen=True)
@@ -168,6 +170,8 @@ class Rank2TrainingRunResult:
     episode_results: tuple[TrainEpisodeResult, ...]
     final_inference: FinalInferenceResult
     final_midi_path: Path | None
+    final_inferences: tuple[FinalInferenceResult, ...]
+    final_midi_paths: tuple[Path | None, ...]
 
 
 def run_rank1_training(
@@ -226,46 +230,41 @@ def run_rank1_training(
             ),
         )
 
+    final_inferences: list[FinalInferenceResult] = []
+    final_midi_paths: list[Path | None] = []
     max_steps = _training_int(config, "max_steps", default=1)
-    final_inference = run_final_inference_episode(
-        policy=active_policy,  # type: ignore[arg-type]
-        initial_state=initial_state,
-        reward_fn=reward_fn,
-        max_steps=max_steps,
-        graph_spec=spec,
-        measure_size=config.measure_size,
-        context_measures=config.context_measures,
-        key_pitch_class=key_pitch_class,
-        target_root_octave=target_root_octave,
-        generator=generator,
-    )
-    final_midi_path = None
-    if config.final_midi_enabled:
-        final_midi_path = write_trajectory_to_midi(
-            trajectory=final_inference.trajectory,
-            path=paths.example_episode_path,
+    for final_inference_index in range(4):
+        final_inference = run_final_inference_episode(
+            policy=active_policy,  # type: ignore[arg-type]
+            initial_state=initial_state,
+            reward_fn=reward_fn,
+            max_steps=max_steps,
+            graph_spec=spec,
+            measure_size=config.measure_size,
+            context_measures=config.context_measures,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            generator=generator,
         )
-
-    append_rank_metrics(
-        paths=paths,
-        metrics={
-            **dict(final_inference.metrics),
-            "episode_index": config.episode_count,
-            "kind": "final_inference",
-            "midi_path": None
-            if final_midi_path is None
-            else final_midi_path.relative_to(paths.lineage_dir).as_posix(),
-        },
-    )
-    append_reward_diagnostics(
-        paths=paths,
-        rows=reward_diagnostics_rows(
-            trajectory=final_inference.trajectory,
+        final_midi_path = _write_final_midi(
+            config=config,
+            paths=paths,
+            final_inference=final_inference,
+            final_inference_index=final_inference_index,
+        )
+        _append_final_inference_artifacts(
+            paths=paths,
+            final_inference=final_inference,
             lineage_id=config.lineage_id,
-            episode_index=config.episode_count,
-            episode_kind="final_inference",
-        ),
-    )
+            episode_index=config.episode_count + final_inference_index,
+            final_inference_index=final_inference_index,
+            final_midi_path=final_midi_path,
+        )
+        final_inferences.append(final_inference)
+        final_midi_paths.append(final_midi_path)
+
+    final_inference = final_inferences[0]
+    final_midi_path = final_midi_paths[0]
 
     return Rank1TrainingRunResult(
         config=config,
@@ -275,6 +274,8 @@ def run_rank1_training(
         episode_results=tuple(episode_results),
         final_inference=final_inference,
         final_midi_path=final_midi_path,
+        final_inferences=tuple(final_inferences),
+        final_midi_paths=tuple(final_midi_paths),
     )
 
 
@@ -341,48 +342,43 @@ def run_rank2_training(
             ),
         )
 
+    final_inferences = []
+    final_midi_paths = []
     max_steps = _training_int(config, "max_steps", default=1)
-    final_inference = run_final_inference_episode(
-        policy=active_child_policy,  # type: ignore[arg-type]
-        parent_policy=parent_policy,  # type: ignore[arg-type]
-        initial_state=initial_state,
-        reward_fn=reward_fn,
-        max_steps=max_steps,
-        graph_spec=spec,
-        measure_size=config.measure_size,
-        context_measures=config.context_measures,
-        parent_top_m=config.parent_top_m,
-        key_pitch_class=key_pitch_class,
-        target_root_octave=target_root_octave,
-        generator=generator,
-    )
-    final_midi_path = None
-    if config.final_midi_enabled:
-        final_midi_path = write_trajectory_to_midi(
-            trajectory=final_inference.trajectory,
-            path=paths.example_episode_path,
+    for final_inference_index in range(4):
+        final_inference = run_final_inference_episode(
+            policy=active_child_policy,  # type: ignore[arg-type]
+            parent_policy=parent_policy,  # type: ignore[arg-type]
+            initial_state=initial_state,
+            reward_fn=reward_fn,
+            max_steps=max_steps,
+            graph_spec=spec,
+            measure_size=config.measure_size,
+            context_measures=config.context_measures,
+            parent_top_m=config.parent_top_m,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            generator=generator,
         )
-
-    append_rank_metrics(
-        paths=paths,
-        metrics={
-            **dict(final_inference.metrics),
-            "episode_index": config.episode_count,
-            "kind": "final_inference",
-            "midi_path": None
-            if final_midi_path is None
-            else final_midi_path.relative_to(paths.lineage_dir).as_posix(),
-        },
-    )
-    append_reward_diagnostics(
-        paths=paths,
-        rows=reward_diagnostics_rows(
-            trajectory=final_inference.trajectory,
+        final_midi_path = _write_final_midi(
+            config=config,
+            paths=paths,
+            final_inference=final_inference,
+            final_inference_index=final_inference_index,
+        )
+        _append_final_inference_artifacts(
+            paths=paths,
+            final_inference=final_inference,
             lineage_id=config.lineage_id,
-            episode_index=config.episode_count,
-            episode_kind="final_inference",
-        ),
-    )
+            episode_index=config.episode_count + final_inference_index,
+            final_inference_index=final_inference_index,
+            final_midi_path=final_midi_path,
+        )
+        final_inferences.append(final_inference)
+        final_midi_paths.append(final_midi_path)
+
+    final_inference = final_inferences[0]
+    final_midi_path = final_midi_paths[0]
 
     return Rank2TrainingRunResult(
         config=config,
@@ -393,6 +389,8 @@ def run_rank2_training(
         episode_results=tuple(episode_results),
         final_inference=final_inference,
         final_midi_path=final_midi_path,
+        final_inferences=tuple(final_inferences),
+        final_midi_paths=tuple(final_midi_paths),
     )
 
 
@@ -591,6 +589,63 @@ def _eval_if_module(policy: RankPolicy) -> None:
         policy.eval()
 
 
+def _write_final_midi(
+    *,
+    config: TowerRunnerConfig,
+    paths: TowerArtifactPaths,
+    final_inference: FinalInferenceResult,
+    final_inference_index: int,
+) -> Path | None:
+    if not config.final_midi_enabled:
+        return None
+    return write_trajectory_to_midi(
+        trajectory=final_inference.trajectory,
+        path=_final_midi_path(paths=paths, final_inference_index=final_inference_index),
+    )
+
+
+def _append_final_inference_artifacts(
+    *,
+    paths: TowerArtifactPaths,
+    final_inference: FinalInferenceResult,
+    lineage_id: str,
+    episode_index: int,
+    final_inference_index: int,
+    final_midi_path: Path | None,
+) -> None:
+    append_rank_metrics(
+        paths=paths,
+        metrics={
+            **dict(final_inference.metrics),
+            "episode_index": episode_index,
+            "kind": "final_inference",
+            "final_inference_index": final_inference_index,
+            "midi_path": None
+            if final_midi_path is None
+            else final_midi_path.relative_to(paths.lineage_dir).as_posix(),
+        },
+    )
+    append_reward_diagnostics(
+        paths=paths,
+        rows=reward_diagnostics_rows(
+            trajectory=final_inference.trajectory,
+            lineage_id=lineage_id,
+            episode_index=episode_index,
+            episode_kind="final_inference",
+        ),
+    )
+
+
+def _final_midi_path(
+    *,
+    paths: TowerArtifactPaths,
+    final_inference_index: int,
+) -> Path:
+    if final_inference_index == 0:
+        return paths.example_episode_path
+    return paths.rank_dir / f"example_episode_{final_inference_index}.mid"
+
+
 def _final_inference_metrics(
     *,
     trajectory: TowerTrajectory,
@@ -733,6 +788,7 @@ def _policy_input_feature_dim(
         return _policy_int(policy_config, "input_feature_dim", default=default_rank)
     return (
         default_rank
+        + 4
         + (1 if _optional_reward_int(config, "key_pitch_class") is not None else 0)
         + (1 if _optional_reward_int(config, "target_root_octave") is not None else 0)
     )

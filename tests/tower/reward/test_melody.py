@@ -6,9 +6,11 @@ import pytest
 
 from tower.reward.context import TowerRewardContext
 from tower.reward.melody import (
+    BeatClassPitchReward,
     LargeLeapRecoveryTerm,
     RecentMelodicRangePenalty,
     TargetOctaveDistanceReward,
+    consonance_from_pitch_class,
     midi_to_octave,
 )
 from tower.state_action import TowerAction, TowerState
@@ -21,6 +23,8 @@ def make_context(
     action: TowerAction,
     rank: int = 1,
     target_root_octave: int | None = None,
+    key_pitch_class: int | None = None,
+    measure_size: int = 4,
 ) -> TowerRewardContext:
     source = history[-1]
     target = tuple(pitch + delta for pitch, delta in zip(source, action, strict=True))
@@ -34,9 +38,11 @@ def make_context(
         window=build_window(
             history=history,
             step_index=step_index,
-            measure_size=4,
+            measure_size=measure_size,
             context_measures=2,
         ),
+        measure_size=measure_size,
+        key_pitch_class=key_pitch_class,
         target_root_octave=target_root_octave,
     )
 
@@ -87,6 +93,111 @@ def test_target_octave_distance_reward_requires_target_octave() -> None:
     context = make_context(history=((60,),), action=(1,))
 
     with pytest.raises(ValueError, match="target_root_octave is required"):
+        term(context)
+
+
+def test_beat_class_pitch_reward_rewards_tonic_on_measure_start() -> None:
+    term = BeatClassPitchReward(
+        measure_start_tonic_reward=1.25,
+        onbeat_scale_degree_reward=0.75,
+    )
+    context = make_context(
+        history=((59,),),
+        action=(1,),
+        key_pitch_class=0,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["beat_class_pitch"]
+    assert result.reward == 2.0
+    assert diagnostics["bar_position"] == 0
+    assert diagnostics["is_measure_start"] is True
+    assert diagnostics["is_onbeat"] is True
+    assert diagnostics["is_tonic"] is True
+    assert diagnostics["is_scale_degree"] is True
+    assert diagnostics["measure_start_tonic_reward"] == 1.25
+    assert diagnostics["onbeat_scale_degree_reward"] == 0.75
+    assert diagnostics["offbeat_consonance_reward"] == 0.0
+
+
+def test_beat_class_pitch_reward_rewards_major_scale_degree_on_onbeat() -> None:
+    term = BeatClassPitchReward(onbeat_scale_degree_reward=0.75)
+    context = make_context(
+        history=((60,), (61,), (61,)),
+        action=(1,),
+        key_pitch_class=0,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["beat_class_pitch"]
+    assert result.reward == 0.75
+    assert diagnostics["bar_position"] == 2
+    assert diagnostics["is_measure_start"] is False
+    assert diagnostics["is_onbeat"] is True
+    assert diagnostics["relative_pitch_class"] == 2
+    assert diagnostics["is_scale_degree"] is True
+
+
+def test_beat_class_pitch_reward_noops_for_non_scale_onbeat() -> None:
+    term = BeatClassPitchReward()
+    context = make_context(
+        history=((60,), (61,), (60,)),
+        action=(1,),
+        key_pitch_class=0,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["beat_class_pitch"]
+    assert result.reward == 0.0
+    assert diagnostics["bar_position"] == 2
+    assert diagnostics["relative_pitch_class"] == 1
+    assert diagnostics["is_scale_degree"] is False
+
+
+def test_beat_class_pitch_reward_rewards_just_consonance_on_offbeat() -> None:
+    term = BeatClassPitchReward(offbeat_consonance_weight=2.0)
+    context = make_context(
+        history=((66,), (66,)),
+        action=(1,),
+        key_pitch_class=0,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["beat_class_pitch"]
+    assert result.reward == pytest.approx(2.0 * consonance_from_pitch_class(7))
+    assert diagnostics["bar_position"] == 1
+    assert diagnostics["is_offbeat"] is True
+    assert diagnostics["relative_pitch_class"] == 7
+    assert diagnostics["just_consonance"] == pytest.approx(consonance_from_pitch_class(7))
+    assert diagnostics["offbeat_consonance_reward"] == pytest.approx(
+        2.0 * consonance_from_pitch_class(7)
+    )
+
+
+def test_beat_class_pitch_reward_requires_key_and_measure_size() -> None:
+    term = BeatClassPitchReward()
+    context = make_context(history=((60,),), action=(1,), key_pitch_class=None)
+
+    with pytest.raises(ValueError, match="key_pitch_class is required"):
+        term(context)
+
+    context = make_context(history=((60,),), action=(1,), key_pitch_class=0)
+    context = TowerRewardContext(
+        rank=context.rank,
+        step_index=context.step_index,
+        source=context.source,
+        target=context.target,
+        action=context.action,
+        window=context.window,
+        measure_size=None,
+        key_pitch_class=context.key_pitch_class,
+    )
+
+    with pytest.raises(ValueError, match="measure_size is required"):
         term(context)
 
 

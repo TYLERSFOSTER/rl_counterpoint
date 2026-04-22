@@ -23,6 +23,9 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.target_root_octave == 4
     assert args.terminal_cadence_reward == 10.0
     assert args.range_penalty == -1.0
+    assert args.measure_start_tonic_reward == 1.0
+    assert args.onbeat_scale_degree_reward == 1.0
+    assert args.offbeat_consonance_weight == 1.0
 
 
 def test_tower_train_main_runs_tiny_rank_1_job(
@@ -60,12 +63,18 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert (run_dir / "reward_diagnostics.jsonl").exists()
     assert (run_dir / "checkpoint_latest.pt").exists()
     assert (run_dir / "example_episode.mid").exists()
+    assert (run_dir / "example_episode_1.mid").exists()
+    assert (run_dir / "example_episode_2.mid").exists()
+    assert (run_dir / "example_episode_3.mid").exists()
     config = json.loads((run_dir / "config.json").read_text())
     assert config["reward_config"]["kind"] == "rank1_slice_a"
     assert config["reward_config"]["key_pitch_class"] == 0
     assert config["reward_config"]["target_root_octave"] == 4
+    assert config["reward_config"]["measure_start_tonic_reward"] == 1.0
+    assert config["reward_config"]["onbeat_scale_degree_reward"] == 1.0
+    assert config["reward_config"]["offbeat_consonance_weight"] == 1.0
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
-    assert len(diagnostics_rows) == 2
+    assert len(diagnostics_rows) == 5
 
 
 def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:
@@ -101,6 +110,9 @@ def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:
     assert "reward: rank1_slice_a" in result.stdout
     assert "final midi:" in result.stdout
     assert (run_dir / "example_episode.mid").exists()
+    assert (run_dir / "example_episode_1.mid").exists()
+    assert (run_dir / "example_episode_2.mid").exists()
+    assert (run_dir / "example_episode_3.mid").exists()
     assert (run_dir / "reward_diagnostics.jsonl").exists()
 
 

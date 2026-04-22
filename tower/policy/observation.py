@@ -77,6 +77,11 @@ def encode_tower_window(
     }
 
     event_features = torch.tensor(window.states, dtype=torch.float32)
+    metrical_features = _metrical_features(
+        bar_positions=window.bar_positions,
+        measure_size=measure_size,
+    )
+    event_features = torch.cat((event_features, metrical_features), dim=1)
     if key_pitch_class is not None:
         key_feature = torch.full(
             (len(window.states), 1),
@@ -115,6 +120,32 @@ def _infer_window_rank(window: TowerWindow) -> int:
         if is_valid:
             return rank_of_state(state)
     raise ValueError("window must contain at least one valid state")
+
+
+def _metrical_features(
+    *,
+    bar_positions: tuple[int, ...],
+    measure_size: int,
+) -> torch.Tensor:
+    rows: list[tuple[float, float, float, float]] = []
+    denominator = float(max(1, measure_size - 1))
+    for position in bar_positions:
+        if position < 0:
+            rows.append((0.0, 0.0, 0.0, 0.0))
+            continue
+
+        is_measure_start = position == 0
+        is_onbeat = position % 2 == 0
+        is_offbeat = position % 2 == 1
+        rows.append(
+            (
+                float(position) / denominator,
+                1.0 if is_measure_start else 0.0,
+                1.0 if is_onbeat else 0.0,
+                1.0 if is_offbeat else 0.0,
+            )
+        )
+    return torch.tensor(rows, dtype=torch.float32)
 
 
 def _validate_padded_state_shape(state: tuple[int, ...], *, rank: int) -> None:

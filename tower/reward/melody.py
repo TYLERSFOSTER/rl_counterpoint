@@ -8,6 +8,23 @@ from numbers import Real
 from tower.reward.context import TowerRewardContext
 from tower.reward.result import TowerRewardResult
 
+JUST_INTERVAL_RATIOS_BY_PITCH_CLASS: dict[int, tuple[int, int]] = {
+    0: (1, 1),
+    1: (16, 15),
+    2: (9, 8),
+    3: (6, 5),
+    4: (5, 4),
+    5: (4, 3),
+    6: (45, 32),
+    7: (3, 2),
+    8: (8, 5),
+    9: (5, 3),
+    10: (9, 5),
+    11: (15, 8),
+}
+
+MAJOR_SCALE_INTERVALS_MOD_12 = frozenset({0, 2, 4, 5, 7, 9, 11})
+
 
 @dataclass(frozen=True)
 class TargetOctaveDistanceReward:
@@ -37,6 +54,89 @@ class TargetOctaveDistanceReward:
                     "target_root_octave": context.target_root_octave,
                     "octave_distance": octave_distance,
                     "reward_formula": "1/(1+d)",
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
+class BeatClassPitchReward:
+    """Reward rank-1 pitches according to metrical role and key relation."""
+
+    measure_start_tonic_reward: float = 1.0
+    onbeat_scale_degree_reward: float = 1.0
+    offbeat_consonance_weight: float = 1.0
+    diagnostics_key: str = "beat_class_pitch"
+
+    def __post_init__(self) -> None:
+        _validate_number(
+            self.measure_start_tonic_reward,
+            field_name="measure_start_tonic_reward",
+        )
+        _validate_number(
+            self.onbeat_scale_degree_reward,
+            field_name="onbeat_scale_degree_reward",
+        )
+        _validate_number(
+            self.offbeat_consonance_weight,
+            field_name="offbeat_consonance_weight",
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_1_context(context)
+        if context.key_pitch_class is None:
+            raise ValueError("key_pitch_class is required for BeatClassPitchReward")
+        if context.measure_size is None:
+            raise ValueError("measure_size is required for BeatClassPitchReward")
+
+        target_pitch = context.target[0]
+        pitch_class = target_pitch % 12
+        relative_pitch_class = (pitch_class - context.key_pitch_class) % 12
+        bar_position = context.step_index % context.measure_size
+        measure_index = context.step_index // context.measure_size
+        is_measure_start = bar_position == 0
+        is_onbeat = bar_position % 2 == 0
+        is_offbeat = bar_position % 2 == 1
+        is_tonic = relative_pitch_class == 0
+        is_scale_degree = relative_pitch_class in MAJOR_SCALE_INTERVALS_MOD_12
+        consonance = consonance_from_pitch_class(relative_pitch_class)
+
+        measure_start_reward = (
+            float(self.measure_start_tonic_reward)
+            if is_measure_start and is_tonic
+            else 0.0
+        )
+        onbeat_reward = (
+            float(self.onbeat_scale_degree_reward)
+            if is_onbeat and is_scale_degree
+            else 0.0
+        )
+        offbeat_reward = (
+            float(self.offbeat_consonance_weight) * consonance if is_offbeat else 0.0
+        )
+
+        return TowerRewardResult(
+            reward=measure_start_reward + onbeat_reward + offbeat_reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "beat_class_pitch",
+                    "target_pitch": target_pitch,
+                    "pitch_class": pitch_class,
+                    "key_pitch_class": context.key_pitch_class,
+                    "relative_pitch_class": relative_pitch_class,
+                    "measure_size": context.measure_size,
+                    "measure_index": measure_index,
+                    "bar_position": bar_position,
+                    "is_measure_start": is_measure_start,
+                    "is_onbeat": is_onbeat,
+                    "is_offbeat": is_offbeat,
+                    "is_tonic": is_tonic,
+                    "is_scale_degree": is_scale_degree,
+                    "scale_intervals_mod_12": tuple(sorted(MAJOR_SCALE_INTERVALS_MOD_12)),
+                    "just_consonance": consonance,
+                    "measure_start_tonic_reward": measure_start_reward,
+                    "onbeat_scale_degree_reward": onbeat_reward,
+                    "offbeat_consonance_reward": offbeat_reward,
                 }
             },
         )
@@ -223,6 +323,17 @@ def midi_to_octave(pitch: int) -> int:
     if pitch < 0 or pitch > 127:
         raise ValueError("pitch must be in [0, 127]")
     return pitch // 12 - 1
+
+
+def consonance_from_pitch_class(interval_pitch_class: int) -> float:
+    """Return the just-ratio consonance score for one pitch class."""
+    if isinstance(interval_pitch_class, bool) or not isinstance(interval_pitch_class, int):
+        raise TypeError("interval_pitch_class must be an integer")
+    if interval_pitch_class < 0 or interval_pitch_class > 11:
+        raise ValueError("interval_pitch_class must be in [0, 11]")
+
+    numerator, denominator = JUST_INTERVAL_RATIOS_BY_PITCH_CLASS[interval_pitch_class]
+    return 1.0 / (numerator + denominator)
 
 
 def _sign(value: int) -> int:

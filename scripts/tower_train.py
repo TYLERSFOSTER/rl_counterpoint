@@ -43,6 +43,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--recovery-step-threshold", type=int, default=3)
     parser.add_argument("--recovery-reward", type=float, default=0.5)
     parser.add_argument("--failure-penalty", type=float, default=-0.5)
+    parser.add_argument("--measure-start-tonic-reward", type=float, default=1.0)
+    parser.add_argument("--onbeat-scale-degree-reward", type=float, default=1.0)
+    parser.add_argument("--offbeat-consonance-weight", type=float, default=1.0)
     return parser.parse_args(argv)
 
 
@@ -64,6 +67,9 @@ def main(argv: list[str] | None = None) -> int:
         "recovery_step_threshold": args.recovery_step_threshold,
         "recovery_reward": args.recovery_reward,
         "failure_penalty": args.failure_penalty,
+        "measure_start_tonic_reward": args.measure_start_tonic_reward,
+        "onbeat_scale_degree_reward": args.onbeat_scale_degree_reward,
+        "offbeat_consonance_weight": args.offbeat_consonance_weight,
     }
 
     config = TowerRunnerConfig(
@@ -102,6 +108,9 @@ def main(argv: list[str] | None = None) -> int:
             recovery_step_threshold=args.recovery_step_threshold,
             recovery_reward=args.recovery_reward,
             failure_penalty=args.failure_penalty,
+            measure_start_tonic_reward=args.measure_start_tonic_reward,
+            onbeat_scale_degree_reward=args.onbeat_scale_degree_reward,
+            offbeat_consonance_weight=args.offbeat_consonance_weight,
         ),
         graph_spec=TowerGraphSpec(
             rank=1,
