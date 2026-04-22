@@ -19,13 +19,22 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.episodes == 1
     assert args.lineage_id == "local-tower"
     assert args.max_steps == 1
+    assert args.sample_initial_pitch is True
+    assert args.initial_pitch_min == 36
+    assert args.initial_pitch_max == 84
     assert args.key_pitch_class == 0
     assert args.target_root_octave == 4
+    assert args.sample_target_root_octave is True
     assert args.terminal_cadence_reward == 10.0
     assert args.range_penalty == -1.0
     assert args.measure_start_tonic_reward == 1.0
     assert args.onbeat_scale_degree_reward == 1.0
     assert args.offbeat_consonance_weight == 1.0
+    assert args.onbeat_non_scale_penalty == -2.0
+    assert args.offbeat_non_consonance_penalty == -2.0
+    assert args.step_size_balance_threshold == 3
+    assert args.step_size_balance_target_small_rate == 0.3
+    assert args.step_size_balance_weight == 1.0
 
 
 def test_tower_train_main_runs_tiny_rank_1_job(
@@ -70,9 +79,22 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["reward_config"]["kind"] == "rank1_slice_a"
     assert config["reward_config"]["key_pitch_class"] == 0
     assert config["reward_config"]["target_root_octave"] == 4
+    assert config["reward_config"]["use_context_target_root_octave"] is True
     assert config["reward_config"]["measure_start_tonic_reward"] == 1.0
     assert config["reward_config"]["onbeat_scale_degree_reward"] == 1.0
     assert config["reward_config"]["offbeat_consonance_weight"] == 1.0
+    assert config["reward_config"]["onbeat_non_scale_penalty"] == -2.0
+    assert config["reward_config"]["offbeat_non_consonance_penalty"] == -2.0
+    assert config["reward_config"]["step_size_balance_threshold"] == 3
+    assert config["reward_config"]["step_size_balance_target_small_rate"] == 0.3
+    assert config["reward_config"]["step_size_balance_weight"] == 1.0
+    assert config["policy_config"]["d_model"] == 32
+    assert config["policy_config"]["num_heads"] == 4
+    assert config["policy_config"]["ff_dim"] == 64
+    assert config["training_config"]["sample_initial_pitch"] is True
+    assert config["training_config"]["initial_pitch_min"] == 36
+    assert config["training_config"]["initial_pitch_max"] == 84
+    assert config["training_config"]["sample_target_root_octave"] is True
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 5
 

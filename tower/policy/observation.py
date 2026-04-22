@@ -76,7 +76,7 @@ def encode_tower_window(
         **({} if context is None else dict(context)),
     }
 
-    event_features = torch.tensor(window.states, dtype=torch.float32)
+    event_features = torch.tensor(window.states, dtype=torch.float32) / 127.0
     metrical_features = _metrical_features(
         bar_positions=window.bar_positions,
         measure_size=measure_size,
@@ -85,17 +85,23 @@ def encode_tower_window(
     if key_pitch_class is not None:
         key_feature = torch.full(
             (len(window.states), 1),
-            float(key_pitch_class),
+            float(key_pitch_class) / 11.0,
             dtype=torch.float32,
         )
         event_features = torch.cat((event_features, key_feature), dim=1)
     if target_root_octave is not None:
         target_feature = torch.full(
             (len(window.states), 1),
-            float(target_root_octave),
+            float(target_root_octave + 1) / 10.0,
             dtype=torch.float32,
         )
         event_features = torch.cat((event_features, target_feature), dim=1)
+    measure_size_feature = torch.full(
+        (len(window.states), 1),
+        float(measure_size) / 16.0,
+        dtype=torch.float32,
+    )
+    event_features = torch.cat((event_features, measure_size_feature), dim=1)
 
     return EncodedTowerWindow(
         event_features=event_features,

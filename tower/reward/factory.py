@@ -10,6 +10,7 @@ from tower.reward.melody import (
     BeatClassPitchReward,
     LargeLeapRecoveryTerm,
     RecentMelodicRangePenalty,
+    StepSizeBinBalanceReward,
     TargetOctaveDistanceReward,
 )
 from tower.reward.result import TowerRewardResult
@@ -25,6 +26,7 @@ class Rank1RewardFactoryConfig:
     terminal_cadence_reward: float = 10.0
     cadence_failure_reward: float = 0.0
     target_root_octave: int = 4
+    use_context_target_root_octave: bool = False
     max_recent_range: int = 12
     range_penalty: float = -1.0
     large_leap_threshold: int = 6
@@ -34,6 +36,11 @@ class Rank1RewardFactoryConfig:
     measure_start_tonic_reward: float = 1.0
     onbeat_scale_degree_reward: float = 1.0
     offbeat_consonance_weight: float = 1.0
+    onbeat_non_scale_penalty: float = -2.0
+    offbeat_non_consonance_penalty: float = -2.0
+    step_size_balance_threshold: int = 3
+    step_size_balance_target_small_rate: float = 0.3
+    step_size_balance_weight: float = 1.0
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
@@ -46,6 +53,8 @@ class Rank1RewardFactoryConfig:
             field_name="cadence_failure_reward",
         )
         _validate_target_octave(self.target_root_octave)
+        if not isinstance(self.use_context_target_root_octave, bool):
+            raise TypeError("use_context_target_root_octave must be a bool")
         _validate_number(
             self.measure_start_tonic_reward,
             field_name="measure_start_tonic_reward",
@@ -57,6 +66,26 @@ class Rank1RewardFactoryConfig:
         _validate_number(
             self.offbeat_consonance_weight,
             field_name="offbeat_consonance_weight",
+        )
+        _validate_number(
+            self.onbeat_non_scale_penalty,
+            field_name="onbeat_non_scale_penalty",
+        )
+        _validate_number(
+            self.offbeat_non_consonance_penalty,
+            field_name="offbeat_non_consonance_penalty",
+        )
+        _validate_positive_int(
+            self.step_size_balance_threshold,
+            field_name="step_size_balance_threshold",
+        )
+        _validate_rate(
+            self.step_size_balance_target_small_rate,
+            field_name="step_size_balance_target_small_rate",
+        )
+        _validate_number(
+            self.step_size_balance_weight,
+            field_name="step_size_balance_weight",
         )
 
 
@@ -100,6 +129,19 @@ class Rank1RewardFunction:
                         offbeat_consonance_weight=(
                             self.config.offbeat_consonance_weight
                         ),
+                        onbeat_non_scale_penalty=(
+                            self.config.onbeat_non_scale_penalty
+                        ),
+                        offbeat_non_consonance_penalty=(
+                            self.config.offbeat_non_consonance_penalty
+                        ),
+                    ),
+                    StepSizeBinBalanceReward(
+                        small_step_threshold=self.config.step_size_balance_threshold,
+                        target_small_rate=(
+                            self.config.step_size_balance_target_small_rate
+                        ),
+                        weight=float(self.config.step_size_balance_weight),
                     ),
                 ),
                 diagnostics={
@@ -116,10 +158,18 @@ class Rank1RewardFunction:
         if context.rank != 1:
             raise ValueError("rank-1 reward function requires rank 1 context")
 
+        target_root_octave = (
+            context.target_root_octave
+            if self.config.use_context_target_root_octave
+            else self.config.target_root_octave
+        )
+        if target_root_octave is None:
+            raise ValueError("target_root_octave is required for rank-1 reward")
+
         keyed_context = replace(
             context,
             key_pitch_class=self.config.key_pitch_class,
-            target_root_octave=self.config.target_root_octave,
+            target_root_octave=target_root_octave,
         )
         return self.term(keyed_context)
 
@@ -130,6 +180,7 @@ def build_rank1_reward_fn(
     terminal_cadence_reward: float = 10.0,
     cadence_failure_reward: float = 0.0,
     target_root_octave: int = 4,
+    use_context_target_root_octave: bool = False,
     max_recent_range: int = 12,
     range_penalty: float = -1.0,
     large_leap_threshold: int = 6,
@@ -139,6 +190,11 @@ def build_rank1_reward_fn(
     measure_start_tonic_reward: float = 1.0,
     onbeat_scale_degree_reward: float = 1.0,
     offbeat_consonance_weight: float = 1.0,
+    onbeat_non_scale_penalty: float = -2.0,
+    offbeat_non_consonance_penalty: float = -2.0,
+    step_size_balance_threshold: int = 3,
+    step_size_balance_target_small_rate: float = 0.3,
+    step_size_balance_weight: float = 1.0,
 ) -> Rank1RewardFunction:
     """Build the first rank-1 cadence and melodic-shape reward function."""
     return Rank1RewardFunction(
@@ -147,6 +203,7 @@ def build_rank1_reward_fn(
             terminal_cadence_reward=terminal_cadence_reward,
             cadence_failure_reward=cadence_failure_reward,
             target_root_octave=target_root_octave,
+            use_context_target_root_octave=use_context_target_root_octave,
             max_recent_range=max_recent_range,
             range_penalty=range_penalty,
             large_leap_threshold=large_leap_threshold,
@@ -156,6 +213,11 @@ def build_rank1_reward_fn(
             measure_start_tonic_reward=measure_start_tonic_reward,
             onbeat_scale_degree_reward=onbeat_scale_degree_reward,
             offbeat_consonance_weight=offbeat_consonance_weight,
+            onbeat_non_scale_penalty=onbeat_non_scale_penalty,
+            offbeat_non_consonance_penalty=offbeat_non_consonance_penalty,
+            step_size_balance_threshold=step_size_balance_threshold,
+            step_size_balance_target_small_rate=step_size_balance_target_small_rate,
+            step_size_balance_weight=step_size_balance_weight,
         )
     )
 
@@ -170,6 +232,19 @@ def _validate_pitch_class(value: int) -> None:
 def _validate_number(value: float, *, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, Real):
         raise TypeError(f"{field_name} must be a real number")
+
+
+def _validate_rate(value: float, *, field_name: str) -> None:
+    _validate_number(value, field_name=field_name)
+    if value <= 0.0 or value >= 1.0:
+        raise ValueError(f"{field_name} must be between 0 and 1")
+
+
+def _validate_positive_int(value: int, *, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an integer")
+    if value < 1:
+        raise ValueError(f"{field_name} must be at least 1")
 
 
 def _validate_target_octave(value: int) -> None:

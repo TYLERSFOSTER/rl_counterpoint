@@ -92,6 +92,73 @@ def test_rollout_rank1_reward_terminal_success_stops_early() -> None:
     assert not trajectory.steps[0].truncated
 
 
+def test_rollout_rank1_goal_octave_window_allows_early_cadence_success() -> None:
+    contexts = []
+
+    def reward_fn(context: TowerRewardContext) -> TowerRewardResult:
+        contexts.append(context)
+        return TowerRewardResult(
+            reward=10.0 if context.is_final_step else 0.0,
+            is_terminal_success=context.is_final_step,
+        )
+
+    trajectory = rollout_rank1(
+        initial_state=(48,),
+        max_steps=8,
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=7),
+        active_sampler=ScriptedSampler(script=(7, 5, -7)),
+        reward_fn=reward_fn,
+        measure_size=2,
+        context_measures=1,
+        target_root_octave=4,
+    )
+
+    assert len(trajectory.steps) == 2
+    assert contexts[0].is_final_step is False
+    assert contexts[1].diagnostics["entered_goal_octave"] is True
+    assert contexts[1].is_final_step is True
+    assert contexts[1].diagnostics["goal_octave_entry_step_index"] == 1
+    assert contexts[1].diagnostics["goal_octave_deadline_step_index"] == 4
+    assert contexts[1].diagnostics["cadence_check_step"] is True
+    assert trajectory.steps[-1].terminated
+    assert not trajectory.steps[-1].truncated
+
+
+def test_rollout_rank1_goal_octave_window_truncates_after_two_measures() -> None:
+    contexts = []
+
+    def reward_fn(context: TowerRewardContext) -> TowerRewardResult:
+        contexts.append(context)
+        return TowerRewardResult(reward=0.0)
+
+    trajectory = rollout_rank1(
+        initial_state=(48,),
+        max_steps=8,
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=6),
+        active_sampler=ScriptedSampler(script=(6, 6, -1, 1, -1, 1, -1, 1)),
+        reward_fn=reward_fn,
+        measure_size=2,
+        context_measures=1,
+        target_root_octave=4,
+    )
+
+    assert len(trajectory.steps) == 5
+    assert [context.is_final_step for context in contexts] == [
+        False,
+        True,
+        False,
+        True,
+        True,
+    ]
+    assert trajectory.steps[-1].step_index == 4
+    assert trajectory.steps[1].diagnostics["entered_goal_octave"] is True
+    assert trajectory.steps[-1].diagnostics["goal_octave_entry_step_index"] == 1
+    assert trajectory.steps[-1].diagnostics["goal_octave_deadline_step_index"] == 4
+    assert trajectory.steps[-1].diagnostics["goal_octave_window_expired"] is True
+    assert not trajectory.steps[-1].terminated
+    assert trajectory.steps[-1].truncated
+
+
 def test_rollout_rank1_rejects_invalid_active_choice() -> None:
     with pytest.raises(ValueError, match="active choice must be legal for rank 1"):
         rollout_rank1(

@@ -33,8 +33,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-step-size", type=int, default=1)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
+    parser.add_argument("--initial-pitch-min", type=int, default=36)
+    parser.add_argument("--initial-pitch-max", type=int, default=84)
+    parser.add_argument(
+        "--sample-initial-pitch",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--key-pitch-class", type=int, default=0)
     parser.add_argument("--target-root-octave", type=int, default=4)
+    parser.add_argument(
+        "--sample-target-root-octave",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--terminal-cadence-reward", type=float, default=10.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
     parser.add_argument("--max-recent-range", type=int, default=12)
@@ -46,6 +58,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--measure-start-tonic-reward", type=float, default=1.0)
     parser.add_argument("--onbeat-scale-degree-reward", type=float, default=1.0)
     parser.add_argument("--offbeat-consonance-weight", type=float, default=1.0)
+    parser.add_argument("--onbeat-non-scale-penalty", type=float, default=-2.0)
+    parser.add_argument("--offbeat-non-consonance-penalty", type=float, default=-2.0)
+    parser.add_argument("--step-size-balance-threshold", type=int, default=3)
+    parser.add_argument("--step-size-balance-target-small-rate", type=float, default=0.3)
+    parser.add_argument("--step-size-balance-weight", type=float, default=1.0)
     return parser.parse_args(argv)
 
 
@@ -59,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         "kind": "rank1_slice_a",
         "key_pitch_class": args.key_pitch_class,
         "target_root_octave": args.target_root_octave,
+        "use_context_target_root_octave": args.sample_target_root_octave,
         "terminal_cadence_reward": args.terminal_cadence_reward,
         "cadence_failure_reward": args.cadence_failure_reward,
         "max_recent_range": args.max_recent_range,
@@ -70,6 +88,13 @@ def main(argv: list[str] | None = None) -> int:
         "measure_start_tonic_reward": args.measure_start_tonic_reward,
         "onbeat_scale_degree_reward": args.onbeat_scale_degree_reward,
         "offbeat_consonance_weight": args.offbeat_consonance_weight,
+        "onbeat_non_scale_penalty": args.onbeat_non_scale_penalty,
+        "offbeat_non_consonance_penalty": args.offbeat_non_consonance_penalty,
+        "step_size_balance_threshold": args.step_size_balance_threshold,
+        "step_size_balance_target_small_rate": (
+            args.step_size_balance_target_small_rate
+        ),
+        "step_size_balance_weight": args.step_size_balance_weight,
     }
 
     config = TowerRunnerConfig(
@@ -83,15 +108,19 @@ def main(argv: list[str] | None = None) -> int:
         max_step_size=args.max_step_size,
         reward_config=reward_config,
         policy_config={
-            "d_model": 8,
+            "d_model": 32,
             "num_layers": 1,
-            "num_heads": 2,
-            "ff_dim": 16,
+            "num_heads": 4,
+            "ff_dim": 64,
             "dropout": 0.0,
         },
         training_config={
             "max_steps": args.max_steps,
             "learning_rate": args.learning_rate,
+            "sample_initial_pitch": args.sample_initial_pitch,
+            "initial_pitch_min": args.initial_pitch_min,
+            "initial_pitch_max": args.initial_pitch_max,
+            "sample_target_root_octave": args.sample_target_root_octave,
         },
     )
     result = run_rank1_training(
@@ -100,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         reward_fn=build_rank1_reward_fn(
             key_pitch_class=args.key_pitch_class,
             target_root_octave=args.target_root_octave,
+            use_context_target_root_octave=args.sample_target_root_octave,
             terminal_cadence_reward=args.terminal_cadence_reward,
             cadence_failure_reward=args.cadence_failure_reward,
             max_recent_range=args.max_recent_range,
@@ -111,6 +141,13 @@ def main(argv: list[str] | None = None) -> int:
             measure_start_tonic_reward=args.measure_start_tonic_reward,
             onbeat_scale_degree_reward=args.onbeat_scale_degree_reward,
             offbeat_consonance_weight=args.offbeat_consonance_weight,
+            onbeat_non_scale_penalty=args.onbeat_non_scale_penalty,
+            offbeat_non_consonance_penalty=args.offbeat_non_consonance_penalty,
+            step_size_balance_threshold=args.step_size_balance_threshold,
+            step_size_balance_target_small_rate=(
+                args.step_size_balance_target_small_rate
+            ),
+            step_size_balance_weight=args.step_size_balance_weight,
         ),
         graph_spec=TowerGraphSpec(
             rank=1,

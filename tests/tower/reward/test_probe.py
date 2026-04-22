@@ -48,24 +48,27 @@ def test_terminal_cadence_success_probe_row_records_composed_terms() -> None:
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
     assert cadence["reason"] == "success"
     assert recovery["reason"] == "failed_recovery"
     assert recovery["current_action"] == -7
     assert target_octave["octave_distance"] == 0
     assert beat_class["is_offbeat"] is True
     assert beat_class["offbeat_consonance_reward"] == 0.5
+    assert step_balance["balance_score"] == 0.0
 
 
 def test_recent_range_penalty_probe_row_records_penalty() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[1]
 
     assert row["case_name"] == "recent_range_penalty"
-    assert row["reward"] == pytest.approx(-0.9411764705882353)
+    assert row["reward"] == pytest.approx(-2.226890756302521)
     cadence = term_diagnostics(row, 0)["cadence"]
     range_diagnostics = term_diagnostics(row, 1)["recent_melodic_range"]
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
     assert cadence["reason"] == "not_final_step"
     assert range_diagnostics["observed_range"] == 13
     assert range_diagnostics["penalty_applied"] is True
@@ -74,16 +77,22 @@ def test_recent_range_penalty_probe_row_records_penalty() -> None:
     assert target_octave["octave_distance"] == 1
     assert beat_class["is_offbeat"] is True
     assert beat_class["relative_pitch_class"] == 2
+    assert beat_class["offbeat_non_consonance_penalty"] == -2.0
+    assert step_balance["small_count"] == 1
+    assert step_balance["large_count"] == 1
+    assert step_balance["target_small_rate"] == 0.3
+    assert step_balance["balance_score"] == pytest.approx(0.5 / 0.7)
 
 
 def test_large_leap_recovery_success_probe_row_records_reward() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[2]
 
     assert row["case_name"] == "large_leap_recovery_success"
-    assert row["reward"] == pytest.approx(1.6428571428571428)
+    assert row["reward"] == pytest.approx(2.357142857142857)
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
     assert recovery["previous_interval"] == 7
     assert recovery["current_action"] == -2
     assert recovery["opposite_direction"] is True
@@ -92,16 +101,21 @@ def test_large_leap_recovery_success_probe_row_records_reward() -> None:
     assert target_octave["octave_distance"] == 0
     assert beat_class["is_offbeat"] is True
     assert beat_class["relative_pitch_class"] == 5
+    assert step_balance["small_count"] == 1
+    assert step_balance["large_count"] == 1
+    assert step_balance["target_small_rate"] == 0.3
+    assert step_balance["balance_score"] == pytest.approx(0.5 / 0.7)
 
 
 def test_large_leap_recovery_failure_probe_row_records_penalty() -> None:
     row = slice_a_reward_probe_rows(lineage_id="probe")[3]
 
     assert row["case_name"] == "large_leap_recovery_failure"
-    assert row["reward"] == pytest.approx(0.625)
+    assert row["reward"] == pytest.approx(1.3392857142857144)
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
     beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
     assert recovery["previous_interval"] == 7
     assert recovery["current_action"] == 2
     assert recovery["opposite_direction"] is False
@@ -110,6 +124,10 @@ def test_large_leap_recovery_failure_probe_row_records_penalty() -> None:
     assert target_octave["octave_distance"] == 0
     assert beat_class["is_offbeat"] is True
     assert beat_class["relative_pitch_class"] == 9
+    assert step_balance["small_count"] == 1
+    assert step_balance["large_count"] == 1
+    assert step_balance["target_small_rate"] == 0.3
+    assert step_balance["balance_score"] == pytest.approx(0.5 / 0.7)
 
 
 def test_reward_probe_path_is_deterministic(tmp_path: Path) -> None:

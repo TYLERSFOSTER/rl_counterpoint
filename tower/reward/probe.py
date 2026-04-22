@@ -32,6 +32,7 @@ class RewardProbeCase:
     action: TowerAction
     step_index: int
     measure_size: int = 4
+    max_step_size: int = 7
     context_measures: int = 2
     is_final_step: bool = False
 
@@ -68,6 +69,7 @@ class RewardProbeCase:
                 context_measures=self.context_measures,
             ),
             measure_size=self.measure_size,
+            max_step_size=self.max_step_size,
             is_final_step=self.is_final_step,
         )
 

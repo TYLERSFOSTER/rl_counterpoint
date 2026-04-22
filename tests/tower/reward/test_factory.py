@@ -71,6 +71,7 @@ def test_rank1_reward_factory_combines_cadence_and_melody_terms() -> None:
     assert child_results[2]["reward"] == -0.5
     assert child_results[3]["reward"] == 1.0
     assert child_results[4]["reward"] == 0.5
+    assert child_results[5]["reward"] == 0.0
 
 
 def test_rank1_reward_factory_injects_configured_key() -> None:
@@ -126,7 +127,7 @@ def test_rank1_reward_factory_exposes_top_level_diagnostics() -> None:
     assert result.diagnostics["kind"] == "rank1_reward"
     assert result.diagnostics["key_pitch_class"] == 3
     assert result.diagnostics["target_root_octave"] == 4
-    assert len(result.diagnostics["terms"]) == 5
+    assert len(result.diagnostics["terms"]) == 6
 
 
 def test_rank1_reward_factory_injects_configured_target_octave() -> None:
@@ -141,6 +142,28 @@ def test_rank1_reward_factory_injects_configured_target_octave() -> None:
     assert target_octave["root_octave"] == 5
     assert target_octave["target_root_octave"] == 5
     assert target_octave["octave_distance"] == 0
+
+
+def test_rank1_reward_factory_can_preserve_context_target_octave() -> None:
+    reward_fn = build_rank1_reward_fn(
+        target_root_octave=5,
+        use_context_target_root_octave=True,
+    )
+
+    result = reward_fn(
+        make_context(
+            history=((60,),),
+            action=(12,),
+            target_root_octave=4,
+        )
+    )
+
+    target_octave = result.diagnostics["terms"][3]["diagnostics"][
+        "target_octave_distance"
+    ]
+    assert target_octave["root_octave"] == 5
+    assert target_octave["target_root_octave"] == 4
+    assert target_octave["octave_distance"] == 1
 
 
 def test_rank1_reward_factory_adds_beat_class_pitch_term() -> None:
@@ -169,6 +192,32 @@ def test_rank1_reward_factory_adds_beat_class_pitch_term() -> None:
     assert diagnostics["onbeat_scale_degree_reward"] == 0.75
 
 
+def test_rank1_reward_factory_adds_step_size_bin_balance_term() -> None:
+    reward_fn = build_rank1_reward_fn(
+        step_size_balance_threshold=3,
+        step_size_balance_target_small_rate=0.5,
+        step_size_balance_weight=2.0,
+    )
+
+    result = reward_fn(
+        make_context(
+            history=((60,), (62,)),
+            action=(5,),
+            step_index=1,
+            is_final_step=False,
+        )
+    )
+
+    step_balance_result = result.diagnostics["terms"][5]
+    diagnostics = step_balance_result["diagnostics"]["step_size_bin_balance"]
+    assert step_balance_result["reward"] == 2.0
+    assert diagnostics["small_step_threshold"] == 3
+    assert diagnostics["target_small_rate"] == 0.5
+    assert diagnostics["small_count"] == 1
+    assert diagnostics["large_count"] == 1
+    assert diagnostics["balance_score"] == 1.0
+
+
 def test_rank1_reward_factory_rejects_non_rank_1_context() -> None:
     reward_fn = build_rank1_reward_fn()
     context = make_context(
@@ -191,8 +240,20 @@ def test_rank1_reward_factory_validates_config_values() -> None:
     with pytest.raises(ValueError, match="target_root_octave must be in"):
         Rank1RewardFactoryConfig(target_root_octave=10)
 
+    with pytest.raises(TypeError, match="use_context_target_root_octave must be"):
+        Rank1RewardFactoryConfig(use_context_target_root_octave=1)  # type: ignore[arg-type]
+
     with pytest.raises(ValueError, match="max_recent_range must be non-negative"):
         build_rank1_reward_fn(max_recent_range=-1)
 
     with pytest.raises(ValueError, match="large_leap_threshold must be at least 1"):
         build_rank1_reward_fn(large_leap_threshold=0)
+
+    with pytest.raises(ValueError, match="step_size_balance_threshold must be at least 1"):
+        Rank1RewardFactoryConfig(step_size_balance_threshold=0)
+
+    with pytest.raises(
+        ValueError,
+        match="step_size_balance_target_small_rate must be between 0 and 1",
+    ):
+        Rank1RewardFactoryConfig(step_size_balance_target_small_rate=0.0)

@@ -467,6 +467,49 @@ def test_run_rank1_training_writes_artifacts_and_final_midi(tmp_path: Path) -> N
     )
 
 
+def test_run_rank1_training_can_sample_episode_initial_pitch_and_target(
+    tmp_path: Path,
+) -> None:
+    policy = TinyRank1Policy()
+    result = run_rank1_training(
+        config=TowerRunnerConfig(
+            lineage_id="lineage-a",
+            rank=1,
+            episode_count=8,
+            seed=123,
+            artifact_root=tmp_path,
+            max_step_size=1,
+            final_midi_enabled=False,
+            reward_config={
+                "target_root_octave": 4,
+                "use_context_target_root_octave": True,
+            },
+            training_config={
+                "max_steps": 1,
+                "sample_initial_pitch": True,
+                "initial_pitch_min": 50,
+                "initial_pitch_max": 52,
+                "sample_target_root_octave": True,
+                "target_root_octave_choices": [2, 3],
+            },
+        ),
+        policy=policy,
+        optimizer=torch.optim.SGD(policy.parameters(), lr=0.1),
+        initial_state=(60,),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+    )
+
+    metrics = read_rank_metrics(result.paths)
+    training_rows = [row for row in metrics if not row.get("final_inference")]
+    initial_pitches = {row["initial_state"][0] for row in training_rows}
+    target_octaves = {row["target_root_octave"] for row in training_rows}
+    assert initial_pitches <= {50, 51, 52}
+    assert target_octaves <= {2, 3}
+    assert len(initial_pitches) > 1
+    assert len(target_octaves) > 1
+
+
 def test_run_rank1_training_optimizer_changes_policy(tmp_path: Path) -> None:
     policy = TinyRank1Policy()
     before = policy.logits.detach().clone()

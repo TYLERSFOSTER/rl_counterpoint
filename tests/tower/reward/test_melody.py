@@ -9,6 +9,7 @@ from tower.reward.melody import (
     BeatClassPitchReward,
     LargeLeapRecoveryTerm,
     RecentMelodicRangePenalty,
+    StepSizeBinBalanceReward,
     TargetOctaveDistanceReward,
     consonance_from_pitch_class,
     midi_to_octave,
@@ -25,6 +26,7 @@ def make_context(
     target_root_octave: int | None = None,
     key_pitch_class: int | None = None,
     measure_size: int = 4,
+    context_measures: int = 2,
 ) -> TowerRewardContext:
     source = history[-1]
     target = tuple(pitch + delta for pitch, delta in zip(source, action, strict=True))
@@ -39,7 +41,7 @@ def make_context(
             history=history,
             step_index=step_index,
             measure_size=measure_size,
-            context_measures=2,
+            context_measures=context_measures,
         ),
         measure_size=measure_size,
         key_pitch_class=key_pitch_class,
@@ -116,9 +118,13 @@ def test_beat_class_pitch_reward_rewards_tonic_on_measure_start() -> None:
     assert diagnostics["is_onbeat"] is True
     assert diagnostics["is_tonic"] is True
     assert diagnostics["is_scale_degree"] is True
+    assert diagnostics["is_consonant"] is True
     assert diagnostics["measure_start_tonic_reward"] == 1.25
     assert diagnostics["onbeat_scale_degree_reward"] == 0.75
+    assert diagnostics["onbeat_non_scale_penalty"] == 0.0
     assert diagnostics["offbeat_consonance_reward"] == 0.0
+    assert diagnostics["offbeat_non_consonance_penalty"] == 0.0
+    assert diagnostics["beat_class_timing"] == "source_window_step_index"
 
 
 def test_beat_class_pitch_reward_rewards_major_scale_degree_on_onbeat() -> None:
@@ -140,7 +146,7 @@ def test_beat_class_pitch_reward_rewards_major_scale_degree_on_onbeat() -> None:
     assert diagnostics["is_scale_degree"] is True
 
 
-def test_beat_class_pitch_reward_noops_for_non_scale_onbeat() -> None:
+def test_beat_class_pitch_reward_penalizes_non_scale_onbeat() -> None:
     term = BeatClassPitchReward()
     context = make_context(
         history=((60,), (61,), (60,)),
@@ -151,10 +157,11 @@ def test_beat_class_pitch_reward_noops_for_non_scale_onbeat() -> None:
     result = term(context)
 
     diagnostics = result.diagnostics["beat_class_pitch"]
-    assert result.reward == 0.0
+    assert result.reward == -2.0
     assert diagnostics["bar_position"] == 2
     assert diagnostics["relative_pitch_class"] == 1
     assert diagnostics["is_scale_degree"] is False
+    assert diagnostics["onbeat_non_scale_penalty"] == -2.0
 
 
 def test_beat_class_pitch_reward_rewards_just_consonance_on_offbeat() -> None:
@@ -172,10 +179,31 @@ def test_beat_class_pitch_reward_rewards_just_consonance_on_offbeat() -> None:
     assert diagnostics["bar_position"] == 1
     assert diagnostics["is_offbeat"] is True
     assert diagnostics["relative_pitch_class"] == 7
+    assert diagnostics["is_consonant"] is True
     assert diagnostics["just_consonance"] == pytest.approx(consonance_from_pitch_class(7))
     assert diagnostics["offbeat_consonance_reward"] == pytest.approx(
         2.0 * consonance_from_pitch_class(7)
     )
+    assert diagnostics["offbeat_non_consonance_penalty"] == 0.0
+
+
+def test_beat_class_pitch_reward_penalizes_non_consonant_offbeat() -> None:
+    term = BeatClassPitchReward(offbeat_non_consonance_penalty=-3.0)
+    context = make_context(
+        history=((60,), (60,)),
+        action=(1,),
+        key_pitch_class=0,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["beat_class_pitch"]
+    assert result.reward == pytest.approx(consonance_from_pitch_class(1) - 3.0)
+    assert diagnostics["bar_position"] == 1
+    assert diagnostics["is_offbeat"] is True
+    assert diagnostics["relative_pitch_class"] == 1
+    assert diagnostics["is_consonant"] is False
+    assert diagnostics["offbeat_non_consonance_penalty"] == -3.0
 
 
 def test_beat_class_pitch_reward_requires_key_and_measure_size() -> None:
@@ -347,3 +375,106 @@ def test_large_leap_recovery_validates_configuration() -> None:
 
     with pytest.raises(ValueError, match="recovery_step_threshold must be at least 1"):
         LargeLeapRecoveryTerm(recovery_step_threshold=0)
+
+
+def test_step_size_bin_balance_rewards_default_thirty_seventy_target() -> None:
+    term = StepSizeBinBalanceReward(small_step_threshold=3, weight=2.0)
+    context = make_context(
+        history=((60,), (61,), (62,), (66,), (70,), (74,), (78,), (82,), (86,), (90,)),
+        action=(1,),
+        context_measures=3,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["step_size_bin_balance"]
+    assert result.reward == 2.0
+    assert diagnostics["small_count"] == 3
+    assert diagnostics["large_count"] == 7
+    assert diagnostics["target_small_rate"] == 0.3
+    assert diagnostics["target_large_rate"] == 0.7
+    assert diagnostics["observed_small_rate"] == 0.3
+    assert diagnostics["observed_large_rate"] == 0.7
+    assert diagnostics["balance_score"] == 1.0
+    assert diagnostics["reason"] == "target_matched"
+
+
+def test_step_size_bin_balance_can_target_equal_bins() -> None:
+    term = StepSizeBinBalanceReward(
+        small_step_threshold=3,
+        target_small_rate=0.5,
+        weight=2.0,
+    )
+    context = make_context(history=((60,), (62,)), action=(5,))
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["step_size_bin_balance"]
+    assert result.reward == 2.0
+    assert diagnostics["small_count"] == 1
+    assert diagnostics["large_count"] == 1
+    assert diagnostics["balance_score"] == 1.0
+    assert diagnostics["reason"] == "target_matched"
+
+
+def test_step_size_bin_balance_partially_rewards_off_target_mix() -> None:
+    term = StepSizeBinBalanceReward(small_step_threshold=3, weight=2.0)
+    context = make_context(history=((60,), (62,)), action=(5,))
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["step_size_bin_balance"]
+    assert result.reward == pytest.approx(2.0 * (0.5 / 0.7))
+    assert diagnostics["observed_small_rate"] == 0.5
+    assert diagnostics["observed_large_rate"] == 0.5
+    assert diagnostics["balance_score"] == pytest.approx(0.5 / 0.7)
+    assert diagnostics["reason"] == "off_target"
+
+
+def test_step_size_bin_balance_reward_is_zero_for_one_bin_only() -> None:
+    term = StepSizeBinBalanceReward(small_step_threshold=3, weight=2.0)
+    context = make_context(history=((60,), (62,), (64,)), action=(3,))
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["step_size_bin_balance"]
+    assert result.reward == 0.0
+    assert diagnostics["small_count"] == 3
+    assert diagnostics["large_count"] == 0
+    assert diagnostics["balance_score"] == 0.0
+    assert diagnostics["reason"] == "off_target"
+
+
+def test_step_size_bin_balance_reward_noops_with_too_few_intervals() -> None:
+    term = StepSizeBinBalanceReward()
+    context = make_context(history=((60,),), action=(7,))
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["step_size_bin_balance"]
+    assert result.reward == 0.0
+    assert diagnostics["small_count"] == 0
+    assert diagnostics["large_count"] == 1
+    assert diagnostics["observed_small_rate"] is None
+    assert diagnostics["observed_large_rate"] is None
+    assert diagnostics["balance_score"] == 0.0
+    assert diagnostics["reason"] == "insufficient_intervals"
+
+
+def test_step_size_bin_balance_rejects_non_rank_1_context() -> None:
+    term = StepSizeBinBalanceReward()
+    context = make_context(history=((60, 64), (62, 65)), action=(1, 1), rank=2)
+
+    with pytest.raises(ValueError, match="require rank 1 context"):
+        term(context)
+
+
+def test_step_size_bin_balance_validates_configuration() -> None:
+    with pytest.raises(ValueError, match="small_step_threshold must be at least 1"):
+        StepSizeBinBalanceReward(small_step_threshold=0)
+
+    with pytest.raises(TypeError, match="weight must be a real number"):
+        StepSizeBinBalanceReward(weight=True)
+
+    with pytest.raises(ValueError, match="target_small_rate must be between 0 and 1"):
+        StepSizeBinBalanceReward(target_small_rate=1.0)

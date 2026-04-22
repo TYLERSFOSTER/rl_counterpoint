@@ -24,6 +24,7 @@ JUST_INTERVAL_RATIOS_BY_PITCH_CLASS: dict[int, tuple[int, int]] = {
 }
 
 MAJOR_SCALE_INTERVALS_MOD_12 = frozenset({0, 2, 4, 5, 7, 9, 11})
+CONSONANT_INTERVALS_MOD_12 = frozenset({0, 3, 4, 5, 7, 8, 9})
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,8 @@ class BeatClassPitchReward:
     measure_start_tonic_reward: float = 1.0
     onbeat_scale_degree_reward: float = 1.0
     offbeat_consonance_weight: float = 1.0
+    onbeat_non_scale_penalty: float = -2.0
+    offbeat_non_consonance_penalty: float = -2.0
     diagnostics_key: str = "beat_class_pitch"
 
     def __post_init__(self) -> None:
@@ -80,6 +83,14 @@ class BeatClassPitchReward:
         _validate_number(
             self.offbeat_consonance_weight,
             field_name="offbeat_consonance_weight",
+        )
+        _validate_number(
+            self.onbeat_non_scale_penalty,
+            field_name="onbeat_non_scale_penalty",
+        )
+        _validate_number(
+            self.offbeat_non_consonance_penalty,
+            field_name="offbeat_non_consonance_penalty",
         )
 
     def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
@@ -99,6 +110,7 @@ class BeatClassPitchReward:
         is_offbeat = bar_position % 2 == 1
         is_tonic = relative_pitch_class == 0
         is_scale_degree = relative_pitch_class in MAJOR_SCALE_INTERVALS_MOD_12
+        is_consonant = relative_pitch_class in CONSONANT_INTERVALS_MOD_12
         consonance = consonance_from_pitch_class(relative_pitch_class)
 
         measure_start_reward = (
@@ -111,12 +123,28 @@ class BeatClassPitchReward:
             if is_onbeat and is_scale_degree
             else 0.0
         )
+        onbeat_penalty = (
+            float(self.onbeat_non_scale_penalty)
+            if is_onbeat and not is_scale_degree
+            else 0.0
+        )
         offbeat_reward = (
             float(self.offbeat_consonance_weight) * consonance if is_offbeat else 0.0
         )
+        offbeat_penalty = (
+            float(self.offbeat_non_consonance_penalty)
+            if is_offbeat and not is_consonant
+            else 0.0
+        )
 
         return TowerRewardResult(
-            reward=measure_start_reward + onbeat_reward + offbeat_reward,
+            reward=(
+                measure_start_reward
+                + onbeat_reward
+                + onbeat_penalty
+                + offbeat_reward
+                + offbeat_penalty
+            ),
             diagnostics={
                 self.diagnostics_key: {
                     "kind": "beat_class_pitch",
@@ -132,11 +160,18 @@ class BeatClassPitchReward:
                     "is_offbeat": is_offbeat,
                     "is_tonic": is_tonic,
                     "is_scale_degree": is_scale_degree,
+                    "is_consonant": is_consonant,
                     "scale_intervals_mod_12": tuple(sorted(MAJOR_SCALE_INTERVALS_MOD_12)),
+                    "consonant_intervals_mod_12": tuple(
+                        sorted(CONSONANT_INTERVALS_MOD_12)
+                    ),
                     "just_consonance": consonance,
                     "measure_start_tonic_reward": measure_start_reward,
                     "onbeat_scale_degree_reward": onbeat_reward,
+                    "onbeat_non_scale_penalty": onbeat_penalty,
                     "offbeat_consonance_reward": offbeat_reward,
+                    "offbeat_non_consonance_penalty": offbeat_penalty,
+                    "beat_class_timing": "source_window_step_index",
                 }
             },
         )
@@ -278,6 +313,86 @@ class LargeLeapRecoveryTerm:
         )
 
 
+@dataclass(frozen=True)
+class StepSizeBinBalanceReward:
+    """Reward a targeted recent mix of small and large rank-1 steps."""
+
+    small_step_threshold: int = 3
+    target_small_rate: float = 0.3
+    weight: float = 1.0
+    min_interval_count: int = 2
+    diagnostics_key: str = "step_size_bin_balance"
+
+    def __post_init__(self) -> None:
+        _validate_positive_int(
+            self.small_step_threshold,
+            field_name="small_step_threshold",
+        )
+        _validate_rate(self.target_small_rate, field_name="target_small_rate")
+        _validate_number(self.weight, field_name="weight")
+        _validate_positive_int(
+            self.min_interval_count,
+            field_name="min_interval_count",
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_1_context(context)
+        intervals = _recent_rank_1_intervals_including_action(context)
+        absolute_step_sizes = tuple(abs(interval) for interval in intervals)
+        small_count = sum(
+            1 for step_size in absolute_step_sizes if step_size <= self.small_step_threshold
+        )
+        large_count = len(absolute_step_sizes) - small_count
+        total_count = len(absolute_step_sizes)
+        diagnostics: dict[str, object] = {
+            "kind": "step_size_bin_balance",
+            "small_step_threshold": self.small_step_threshold,
+            "target_small_rate": self.target_small_rate,
+            "target_large_rate": 1.0 - self.target_small_rate,
+            "weight": self.weight,
+            "min_interval_count": self.min_interval_count,
+            "intervals": intervals,
+            "absolute_step_sizes": absolute_step_sizes,
+            "small_count": small_count,
+            "large_count": large_count,
+            "total_count": total_count,
+            "max_step_size": context.max_step_size,
+        }
+
+        if total_count < self.min_interval_count:
+            diagnostics.update(
+                {
+                    "observed_small_rate": None,
+                    "observed_large_rate": None,
+                    "balance_score": 0.0,
+                    "reason": "insufficient_intervals",
+                }
+            )
+            return TowerRewardResult(
+                reward=0.0,
+                diagnostics={self.diagnostics_key: diagnostics},
+            )
+
+        observed_small_rate = small_count / total_count
+        observed_large_rate = large_count / total_count
+        if observed_small_rate <= self.target_small_rate:
+            balance_score = observed_small_rate / self.target_small_rate
+        else:
+            balance_score = observed_large_rate / (1.0 - self.target_small_rate)
+        diagnostics.update(
+            {
+                "observed_small_rate": observed_small_rate,
+                "observed_large_rate": observed_large_rate,
+                "balance_score": balance_score,
+                "reason": "target_matched" if balance_score == 1.0 else "off_target",
+            }
+        )
+        return TowerRewardResult(
+            reward=float(self.weight) * balance_score,
+            diagnostics={self.diagnostics_key: diagnostics},
+        )
+
+
 def _validate_rank_1_context(context: TowerRewardContext) -> None:
     if not isinstance(context, TowerRewardContext):
         raise TypeError("context must be a TowerRewardContext")
@@ -297,6 +412,16 @@ def _valid_rank_1_pitches(context: TowerRewardContext) -> tuple[int, ...]:
     )
 
 
+def _recent_rank_1_intervals_including_action(
+    context: TowerRewardContext,
+) -> tuple[int, ...]:
+    pitches = _valid_rank_1_pitches(context)
+    historical_intervals = tuple(
+        current - previous for previous, current in zip(pitches, pitches[1:])
+    )
+    return historical_intervals + (context.action[0],)
+
+
 def _validate_non_negative_int(value: int, *, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError(f"{field_name} must be an integer")
@@ -314,6 +439,12 @@ def _validate_positive_int(value: int, *, field_name: str) -> None:
 def _validate_number(value: float, *, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, Real):
         raise TypeError(f"{field_name} must be a real number")
+
+
+def _validate_rate(value: float, *, field_name: str) -> None:
+    _validate_number(value, field_name=field_name)
+    if value <= 0.0 or value >= 1.0:
+        raise ValueError(f"{field_name} must be between 0 and 1")
 
 
 def midi_to_octave(pitch: int) -> int:

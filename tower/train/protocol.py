@@ -168,6 +168,8 @@ def train_rank1_episode_with_artifacts(
     metrics = {
         **result.metrics,
         "episode_index": episode_index,
+        "initial_state": list(initial_state),
+        "target_root_octave": target_root_octave,
     }
     checkpoint_payload = build_checkpoint_payload(
         config=config,

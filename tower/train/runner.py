@@ -38,6 +38,8 @@ from tower.train.protocol import (
 from tower.train.rollout import RewardFunction, rollout_rank1, rollout_rank2
 from tower.train.trajectory import TowerTrajectory
 
+TARGET_ROOT_OCTAVE_CHOICES = tuple(range(10))
+
 
 @dataclass(frozen=True)
 class TowerRunnerConfig:
@@ -206,17 +208,28 @@ def run_rank1_training(
     target_root_octave = _optional_reward_int(config, "target_root_octave")
     episode_results = []
     for episode_index in range(config.episode_count):
+        episode_initial_state = _rank1_episode_initial_state(
+            initial_state=initial_state,
+            spec=spec,
+            config=config,
+            generator=generator,
+        )
+        episode_target_root_octave = _rank1_episode_target_root_octave(
+            target_root_octave=target_root_octave,
+            config=config,
+            generator=generator,
+        )
         episode_result = train_rank1_episode_with_artifacts(
             policy=active_policy,  # type: ignore[arg-type]
             optimizer=active_optimizer,
             config=rank_config,
             paths=paths,
-            initial_state=initial_state,
+            initial_state=episode_initial_state,
             reward_fn=reward_fn,
             episode_index=episode_index,
             graph_spec=spec,
             key_pitch_class=key_pitch_class,
-            target_root_octave=target_root_octave,
+            target_root_octave=episode_target_root_octave,
             generator=generator,
         )
         episode_results.append(episode_result)
@@ -234,16 +247,27 @@ def run_rank1_training(
     final_midi_paths: list[Path | None] = []
     max_steps = _training_int(config, "max_steps", default=1)
     for final_inference_index in range(4):
+        final_initial_state = _rank1_episode_initial_state(
+            initial_state=initial_state,
+            spec=spec,
+            config=config,
+            generator=generator,
+        )
+        final_target_root_octave = _rank1_episode_target_root_octave(
+            target_root_octave=target_root_octave,
+            config=config,
+            generator=generator,
+        )
         final_inference = run_final_inference_episode(
             policy=active_policy,  # type: ignore[arg-type]
-            initial_state=initial_state,
+            initial_state=final_initial_state,
             reward_fn=reward_fn,
             max_steps=max_steps,
             graph_spec=spec,
             measure_size=config.measure_size,
             context_measures=config.context_measures,
             key_pitch_class=key_pitch_class,
-            target_root_octave=target_root_octave,
+            target_root_octave=final_target_root_octave,
             generator=generator,
         )
         final_midi_path = _write_final_midi(
@@ -469,7 +493,11 @@ def run_final_inference_episode(
 
     return FinalInferenceResult(
         trajectory=trajectory,
-        metrics=_final_inference_metrics(trajectory=trajectory, rank=rank),
+        metrics={
+            **_final_inference_metrics(trajectory=trajectory, rank=rank),
+            "initial_state": list(initial_state),
+            "target_root_octave": target_root_octave,
+        },
     )
 
 
@@ -510,6 +538,79 @@ def _run_rank1_final_inference(
         key_pitch_class=key_pitch_class,
         target_root_octave=target_root_octave,
     )
+
+
+def _rank1_episode_initial_state(
+    *,
+    initial_state: tuple[int, ...],
+    spec: TowerGraphSpec,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> tuple[int, ...]:
+    if not _training_bool(config, "sample_initial_pitch", default=False):
+        return initial_state
+
+    pitch_min = _training_int(
+        config,
+        "initial_pitch_min",
+        default=max(spec.pitch_min, 36),
+    )
+    pitch_max = _training_int(
+        config,
+        "initial_pitch_max",
+        default=min(spec.pitch_max, 84),
+    )
+    pitch_min = max(spec.pitch_min, pitch_min)
+    pitch_max = min(spec.pitch_max, pitch_max)
+    if pitch_min > pitch_max:
+        raise ValueError("initial_pitch_min must be <= initial_pitch_max")
+    pitch = int(
+        torch.randint(
+            low=pitch_min,
+            high=pitch_max + 1,
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return (pitch,)
+
+
+def _rank1_episode_target_root_octave(
+    *,
+    target_root_octave: int | None,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> int | None:
+    if not _training_bool(config, "sample_target_root_octave", default=False):
+        return target_root_octave
+
+    choices = _target_root_octave_choices(config)
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(choices),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return choices[choice_index]
+
+
+def _target_root_octave_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
+    raw_choices = config.training_config.get("target_root_octave_choices")
+    if raw_choices is None:
+        return TARGET_ROOT_OCTAVE_CHOICES
+    if not isinstance(raw_choices, (list, tuple)):
+        raise TypeError("target_root_octave_choices must be a list or tuple")
+    choices = tuple(raw_choices)
+    if not choices:
+        raise ValueError("target_root_octave_choices must not be empty")
+    for choice in choices:
+        if isinstance(choice, bool) or not isinstance(choice, int):
+            raise TypeError("target_root_octave_choices must contain integers")
+        if choice < -1 or choice > 9:
+            raise ValueError("target_root_octave_choices must be in [-1, 9]")
+    return choices
 
 
 def _run_rank2_final_inference(
@@ -751,6 +852,18 @@ def _training_int(
     return _mapping_int(dict(config.training_config), key, default=default)
 
 
+def _training_bool(
+    config: TowerRunnerConfig,
+    key: str,
+    *,
+    default: bool,
+) -> bool:
+    value = dict(config.training_config).get(key, default)
+    if not isinstance(value, bool):
+        raise TypeError(f"{key} must be a bool")
+    return value
+
+
 def _training_float(
     config: TowerRunnerConfig,
     key: str,
@@ -791,6 +904,7 @@ def _policy_input_feature_dim(
         + 4
         + (1 if _optional_reward_int(config, "key_pitch_class") is not None else 0)
         + (1 if _optional_reward_int(config, "target_root_octave") is not None else 0)
+        + 1
     )
 
 
