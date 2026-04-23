@@ -8,11 +8,12 @@ from typing import Mapping
 
 import torch
 
-from tower.graph.actions import action_space
+from tower.graph.actions import action_space, active_lift_choices
 from tower.graph.legality import is_valid_transition
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import RankPolicy
 from tower.policy.samplers import (
+    SamplerResult,
     sample_active_choice_from_policy,
     sample_parent_top_m_from_policy,
 )
@@ -697,6 +698,7 @@ def _run_rank2_final_inference(
 
     def parent_sampler(**kwargs: object):
         parent_state = kwargs["state"]  # type: ignore[assignment]
+        full_state = kwargs["full_state"]  # type: ignore[assignment]
         parent_actions = tuple(
             action
             for action in action_space(
@@ -705,11 +707,24 @@ def _run_rank2_final_inference(
             )
             if is_valid_transition(parent_state, action, parent_spec)  # type: ignore[arg-type]
         )
-        return sample_parent_top_m_from_policy(
+        feasible_parent_actions = tuple(
+            action
+            for action in parent_actions
+            if active_lift_choices(
+                state=full_state,  # type: ignore[arg-type]
+                parent_action=action,
+                spec=graph_spec,
+            )
+        )
+        sampled = sample_parent_top_m_from_policy(
             policy=parent_policy,
             state=parent_state,  # type: ignore[arg-type]
             window=kwargs["window"],  # type: ignore[arg-type]
-            parent_actions=parent_actions,
+            parent_actions=(
+                feasible_parent_actions
+                if feasible_parent_actions
+                else parent_actions
+            ),
             measure_size=measure_size,
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
@@ -718,6 +733,18 @@ def _run_rank2_final_inference(
             temperature=sampling_temperature,
             uniform_mix=sampling_uniform_mix,
             generator=generator,
+        )
+        return SamplerResult(
+            choice=sampled.choice,
+            logprob=sampled.logprob,
+            diagnostics={
+                **sampled.diagnostics,
+                "unfiltered_parent_actions": parent_actions,
+                "feasible_parent_actions": feasible_parent_actions,
+                "parent_feasibility_filter_applied": (
+                    feasible_parent_actions != parent_actions
+                ),
+            },
         )
 
     def active_sampler(**kwargs: object):

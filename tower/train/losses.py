@@ -58,22 +58,34 @@ def policy_gradient_loss(
         if torch.ne(std, torch.tensor(0.0)):
             returns = (returns - returns.mean()) / std
 
+    active_step_indices = tuple(
+        index
+        for index, step in enumerate(trajectory.steps)
+        if step.active_logprob is not None
+    )
     active_logprobs = tuple(
-        _logprob_to_tensor(step.active_logprob, step_index=step.step_index)
-        for step in trajectory.steps
+        _logprob_to_tensor(
+            trajectory.steps[index].active_logprob,
+            step_index=trajectory.steps[index].step_index,
+        )
+        for index in active_step_indices
     )
     if not active_logprobs:
         loss = torch.tensor(0.0, dtype=torch.float32)
     else:
         logprob_tensor = torch.stack(active_logprobs)
-        returns = returns.to(dtype=logprob_tensor.dtype, device=logprob_tensor.device)
-        loss = -(logprob_tensor * returns).sum()
+        active_returns = returns[list(active_step_indices)].to(
+            dtype=logprob_tensor.dtype,
+            device=logprob_tensor.device,
+        )
+        loss = -(logprob_tensor * active_returns).sum()
 
     return PolicyGradientLossResult(
         loss=loss,
         returns=returns,
         diagnostics={
             "step_count": len(trajectory.steps),
+            "active_step_count": len(active_logprobs),
             "gamma": gamma,
             "normalize_returns": normalize_returns,
         },
@@ -93,4 +105,3 @@ def _logprob_to_tensor(value: LogProb | None, *, step_index: int) -> torch.Tenso
             raise ValueError(f"step {step_index} active_logprob tensor must be scalar")
         return value
     return torch.tensor(value, dtype=torch.float32)
-

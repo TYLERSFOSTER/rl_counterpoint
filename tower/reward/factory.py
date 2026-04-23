@@ -6,6 +6,11 @@ from dataclasses import dataclass, field, replace
 from numbers import Real
 
 from tower.reward.context import TowerRewardContext
+from tower.reward.harmony import (
+    Rank2SpacingControlReward,
+    Rank2TargetOctaveDistanceReward,
+    Rank2VerticalConsonanceReward,
+)
 from tower.reward.melody import (
     BeatClassPitchReward,
     LargeLeapRecoveryTerm,
@@ -14,7 +19,10 @@ from tower.reward.melody import (
     TargetOctaveDistanceReward,
 )
 from tower.reward.result import TowerRewardResult
-from tower.reward.success import rank1_projected_cadence_success
+from tower.reward.success import (
+    rank1_projected_cadence_success,
+    rank2_lifted_cadence_success,
+)
 from tower.reward.terms import CompositeRewardTerm, RewardTerm, SuccessRewardTerm
 
 
@@ -174,6 +182,136 @@ class Rank1RewardFunction:
         return self.term(keyed_context)
 
 
+@dataclass(frozen=True)
+class Rank2RewardFactoryConfig:
+    """Configuration for the first narrow rank-2 reward bundle."""
+
+    key_pitch_class: int = 0
+    terminal_cadence_reward: float = 10.0
+    cadence_failure_reward: float = 0.0
+    target_root_octave: int = 4
+    use_context_target_root_octave: bool = False
+    vertical_consonance_weight: float = 1.0
+    vertical_non_consonance_penalty: float = -0.5
+    upper_register_soft_ceiling: int = 80
+    upper_register_penalty_weight: float = 0.05
+    min_vertical_gap: int = 3
+    spacing_reward: float = 0.1
+    spacing_penalty: float = -0.1
+
+    def __post_init__(self) -> None:
+        _validate_pitch_class(self.key_pitch_class)
+        _validate_number(
+            self.terminal_cadence_reward,
+            field_name="terminal_cadence_reward",
+        )
+        _validate_number(
+            self.cadence_failure_reward,
+            field_name="cadence_failure_reward",
+        )
+        _validate_target_octave(self.target_root_octave)
+        if not isinstance(self.use_context_target_root_octave, bool):
+            raise TypeError("use_context_target_root_octave must be a bool")
+        _validate_number(
+            self.vertical_consonance_weight,
+            field_name="vertical_consonance_weight",
+        )
+        _validate_number(
+            self.vertical_non_consonance_penalty,
+            field_name="vertical_non_consonance_penalty",
+        )
+        _validate_pitch_bound(
+            self.upper_register_soft_ceiling,
+            field_name="upper_register_soft_ceiling",
+        )
+        _validate_positive_int(
+            self.min_vertical_gap,
+            field_name="min_vertical_gap",
+        )
+        _validate_number(
+            self.upper_register_penalty_weight,
+            field_name="upper_register_penalty_weight",
+        )
+        _validate_number(
+            self.spacing_reward,
+            field_name="spacing_reward",
+        )
+        _validate_number(
+            self.spacing_penalty,
+            field_name="spacing_penalty",
+        )
+
+
+@dataclass(frozen=True)
+class Rank2RewardFunction:
+    """Callable rank-2 reward bundle built from composable reward terms."""
+
+    config: Rank2RewardFactoryConfig
+    term: RewardTerm = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "term",
+            CompositeRewardTerm(
+                terms=(
+                    SuccessRewardTerm(
+                        predicate=rank2_lifted_cadence_success,
+                        success_reward=float(self.config.terminal_cadence_reward),
+                        failure_reward=float(self.config.cadence_failure_reward),
+                        diagnostics_key="cadence",
+                    ),
+                    Rank2TargetOctaveDistanceReward(),
+                    Rank2VerticalConsonanceReward(
+                        consonance_weight=float(
+                            self.config.vertical_consonance_weight
+                        ),
+                        non_consonance_penalty=float(
+                            self.config.vertical_non_consonance_penalty
+                        ),
+                    ),
+                    Rank2SpacingControlReward(
+                        upper_register_soft_ceiling=int(
+                            self.config.upper_register_soft_ceiling
+                        ),
+                        upper_register_penalty_weight=float(
+                            self.config.upper_register_penalty_weight
+                        ),
+                        min_vertical_gap=int(self.config.min_vertical_gap),
+                        spacing_reward=float(self.config.spacing_reward),
+                        spacing_penalty=float(self.config.spacing_penalty),
+                    ),
+                ),
+                diagnostics={
+                    "kind": "rank2_reward",
+                    "key_pitch_class": self.config.key_pitch_class,
+                    "target_root_octave": self.config.target_root_octave,
+                },
+            ),
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        if not isinstance(context, TowerRewardContext):
+            raise TypeError("context must be a TowerRewardContext")
+        if context.rank != 2:
+            raise ValueError("rank-2 reward function requires rank 2 context")
+
+        target_root_octave = (
+            context.target_root_octave
+            if self.config.use_context_target_root_octave
+            else self.config.target_root_octave
+        )
+        if target_root_octave is None:
+            raise ValueError("target_root_octave is required for rank-2 reward")
+
+        keyed_context = replace(
+            context,
+            key_pitch_class=self.config.key_pitch_class,
+            target_root_octave=target_root_octave,
+        )
+        return self.term(keyed_context)
+
+
 def build_rank1_reward_fn(
     *,
     key_pitch_class: int = 0,
@@ -222,6 +360,40 @@ def build_rank1_reward_fn(
     )
 
 
+def build_rank2_reward_fn(
+    *,
+    key_pitch_class: int = 0,
+    terminal_cadence_reward: float = 10.0,
+    cadence_failure_reward: float = 0.0,
+    target_root_octave: int = 4,
+    use_context_target_root_octave: bool = False,
+    vertical_consonance_weight: float = 1.0,
+    vertical_non_consonance_penalty: float = -0.5,
+    upper_register_soft_ceiling: int = 80,
+    upper_register_penalty_weight: float = 0.05,
+    min_vertical_gap: int = 3,
+    spacing_reward: float = 0.1,
+    spacing_penalty: float = -0.1,
+) -> Rank2RewardFunction:
+    """Build the first narrow rank-2 reward function."""
+    return Rank2RewardFunction(
+        config=Rank2RewardFactoryConfig(
+            key_pitch_class=key_pitch_class,
+            terminal_cadence_reward=terminal_cadence_reward,
+            cadence_failure_reward=cadence_failure_reward,
+            target_root_octave=target_root_octave,
+            use_context_target_root_octave=use_context_target_root_octave,
+            vertical_consonance_weight=vertical_consonance_weight,
+            vertical_non_consonance_penalty=vertical_non_consonance_penalty,
+            upper_register_soft_ceiling=upper_register_soft_ceiling,
+            upper_register_penalty_weight=upper_register_penalty_weight,
+            min_vertical_gap=min_vertical_gap,
+            spacing_reward=spacing_reward,
+            spacing_penalty=spacing_penalty,
+        )
+    )
+
+
 def _validate_pitch_class(value: int) -> None:
     if isinstance(value, bool) or not isinstance(value, int):
         raise TypeError("key_pitch_class must be an integer")
@@ -252,3 +424,10 @@ def _validate_target_octave(value: int) -> None:
         raise TypeError("target_root_octave must be an integer")
     if value < -1 or value > 9:
         raise ValueError("target_root_octave must be in [-1, 9]")
+
+
+def _validate_pitch_bound(value: int, *, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an integer")
+    if value < 0 or value > 127:
+        raise ValueError(f"{field_name} must be in [0, 127]")

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from tower.reward.context import TowerRewardContext
+from tower.reward.context import NewFacts, TowerRewardContext
 from tower.reward.factory import (
     Rank1RewardFactoryConfig,
     Rank1RewardFunction,
+    Rank2RewardFactoryConfig,
+    Rank2RewardFunction,
     build_rank1_reward_fn,
+    build_rank2_reward_fn,
 )
 from tower.reward.result import TowerRewardResult
 from tower.window import build_window
@@ -257,3 +260,131 @@ def test_rank1_reward_factory_validates_config_values() -> None:
         match="step_size_balance_target_small_rate must be between 0 and 1",
     ):
         Rank1RewardFactoryConfig(step_size_balance_target_small_rate=0.0)
+
+
+def test_build_rank2_reward_fn_returns_reward_result() -> None:
+    reward_fn = build_rank2_reward_fn()
+
+    result = reward_fn(
+        make_context(
+            history=((67, 71), (60, 64)),
+            action=(-7, -7),
+            rank=2,
+        )
+    )
+
+    assert isinstance(reward_fn, Rank2RewardFunction)
+    assert isinstance(result, TowerRewardResult)
+
+
+def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None:
+    reward_fn = build_rank2_reward_fn(
+        terminal_cadence_reward=10.0,
+        vertical_consonance_weight=2.0,
+        spacing_reward=0.1,
+    )
+
+    result = reward_fn(
+        TowerRewardContext(
+            rank=2,
+            step_index=3,
+            source=(67, 71),
+            target=(60, 64),
+            action=(-7, -7),
+            window=build_window(
+                history=((65, 69), (66, 70)),
+                step_index=3,
+                measure_size=4,
+                context_measures=2,
+            ),
+            measure_size=4,
+            key_pitch_class=0,
+            target_root_octave=4,
+            is_final_step=True,
+            new_facts=NewFacts(new_voice_index=1),
+        )
+    )
+
+    assert result.is_terminal_success is True
+    assert result.reward == pytest.approx(
+        10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1
+    )
+    child_results = result.diagnostics["terms"]
+    assert child_results[0]["reward"] == 10.0
+    assert child_results[1]["reward"] == 1.0
+    assert child_results[2]["reward"] == pytest.approx(2.0 / 9.0)
+    assert child_results[3]["reward"] == 0.1
+
+
+def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:
+    reward_fn = build_rank2_reward_fn(key_pitch_class=3)
+
+    result = reward_fn(
+        make_context(
+            history=((70, 74), (63, 67)),
+            action=(-7, -7),
+            rank=2,
+        )
+    )
+
+    assert result.diagnostics["kind"] == "rank2_reward"
+    assert result.diagnostics["key_pitch_class"] == 3
+    assert result.diagnostics["target_root_octave"] == 4
+    assert len(result.diagnostics["terms"]) == 4
+
+
+def test_rank2_reward_factory_can_preserve_context_target_octave() -> None:
+    reward_fn = build_rank2_reward_fn(
+        target_root_octave=5,
+        use_context_target_root_octave=True,
+    )
+
+    result = reward_fn(
+        TowerRewardContext(
+            rank=2,
+            step_index=0,
+            source=(60, 64),
+            target=(60, 76),
+            action=(0, 12),
+            window=build_window(
+                history=((60, 64),),
+                step_index=0,
+                measure_size=4,
+                context_measures=2,
+            ),
+            measure_size=4,
+            target_root_octave=4,
+            new_facts=NewFacts(new_voice_index=1),
+        )
+    )
+
+    target_octave = result.diagnostics["terms"][1]["diagnostics"][
+        "rank2_target_octave_distance"
+    ]
+    assert target_octave["root_octave"] == 5
+    assert target_octave["target_root_octave"] == 4
+    assert target_octave["octave_distance"] == 1
+
+
+def test_rank2_reward_factory_rejects_non_rank_2_context() -> None:
+    reward_fn = build_rank2_reward_fn()
+
+    with pytest.raises(ValueError, match="requires rank 2 context"):
+        reward_fn(make_context())
+
+
+def test_rank2_reward_factory_validates_config_values() -> None:
+    with pytest.raises(ValueError, match="key_pitch_class must be in"):
+        Rank2RewardFactoryConfig(key_pitch_class=12)
+    with pytest.raises(TypeError, match="terminal_cadence_reward must be"):
+        Rank2RewardFactoryConfig(terminal_cadence_reward=True)
+    with pytest.raises(ValueError, match="target_root_octave must be in"):
+        Rank2RewardFactoryConfig(target_root_octave=10)
+    with pytest.raises(TypeError, match="use_context_target_root_octave must be"):
+        Rank2RewardFactoryConfig(use_context_target_root_octave=1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="vertical_consonance_weight must be"):
+        Rank2RewardFactoryConfig(vertical_consonance_weight=True)
+    with pytest.raises(ValueError, match="upper_register_soft_ceiling must be in"):
+        Rank2RewardFactoryConfig(upper_register_soft_ceiling=128)
+    with pytest.raises(ValueError, match="min_vertical_gap must be at least 1"):
+        Rank2RewardFactoryConfig(min_vertical_gap=0)

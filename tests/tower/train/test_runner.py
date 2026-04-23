@@ -365,6 +365,26 @@ def test_final_inference_runs_rank_2_with_parent_policy_without_gradients() -> N
     assert result.metrics["episode_return"] == 1.0
 
 
+def test_rank2_final_inference_filters_parent_actions_to_nonempty_lifts() -> None:
+    result = run_final_inference_episode(
+        policy=TinyRank2Policy(),
+        parent_policy=TinyRank1Policy(),
+        initial_state=(83, 84),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(rank=2, pitch_min=36, pitch_max=84, max_step_size=1),
+        parent_top_m=1,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    parent_sampler = result.trajectory.steps[0].diagnostics["parent_sampler"]
+    assert parent_sampler["unfiltered_parent_actions"] == ((-1,), (1,))
+    assert parent_sampler["feasible_parent_actions"] == ((-1,),)
+    assert parent_sampler["parent_actions"] == ((-1,),)
+    assert parent_sampler["parent_feasibility_filter_applied"] is True
+    assert result.trajectory.steps[0].parent_action == (-1,)
+
+
 def test_final_inference_rejects_rank_1_parent_policy() -> None:
     with pytest.raises(ValueError, match="rank 1 final inference must not"):
         run_final_inference_episode(

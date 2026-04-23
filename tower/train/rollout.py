@@ -274,6 +274,7 @@ def rollout_rank2(
             rank=1,
             step_index=step_index,
             state=parent_state,
+            full_state=source_state,
             window=parent_window,
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,

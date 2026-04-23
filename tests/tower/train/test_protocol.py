@@ -471,6 +471,34 @@ def test_train_rank2_episode_records_parent_top_m_sampler_diagnostics() -> None:
     assert parent_sampler["top_m"] == 1
     assert parent_sampler["top_indices"] == (1,)
     assert parent_sampler["parent_actions"] == ((-1,), (1,))
+    assert parent_sampler["unfiltered_parent_actions"] == ((-1,), (1,))
+    assert parent_sampler["feasible_parent_actions"] == ((-1,), (1,))
+    assert parent_sampler["parent_feasibility_filter_applied"] is False
+
+
+def test_train_rank2_episode_filters_parent_actions_to_nonempty_lifts() -> None:
+    parent_policy = TinyRank1Policy()
+    child_policy = TinyRank2Policy()
+    child_optimizer = torch.optim.SGD(child_policy.parameters(), lr=0.1)
+
+    result = train_rank2_episode(
+        parent_policy=parent_policy,
+        child_policy=child_policy,
+        child_optimizer=child_optimizer,
+        initial_state=(83, 84),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(rank=2, pitch_min=36, pitch_max=84, max_step_size=1),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        parent_top_m=1,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    parent_sampler = result.trajectory.steps[0].diagnostics["parent_sampler"]
+    assert parent_sampler["unfiltered_parent_actions"] == ((-1,), (1,))
+    assert parent_sampler["feasible_parent_actions"] == ((-1,),)
+    assert parent_sampler["parent_actions"] == ((-1,),)
+    assert parent_sampler["parent_feasibility_filter_applied"] is True
+    assert result.trajectory.steps[0].parent_action == (-1,)
 
 
 def test_train_rank2_episode_loss_ignores_parent_logprob_gradient() -> None:

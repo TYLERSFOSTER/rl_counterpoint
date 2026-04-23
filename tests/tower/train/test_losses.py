@@ -106,11 +106,17 @@ def test_policy_gradient_loss_uses_active_logprobs_only() -> None:
     assert result.diagnostics["step_count"] == 3
 
 
-def test_policy_gradient_loss_rejects_missing_active_logprob() -> None:
+def test_policy_gradient_loss_skips_steps_without_active_logprob() -> None:
     trajectory = make_trajectory(active_logprobs=(-0.1, None, -0.3))
 
-    with pytest.raises(ValueError, match="step 1 missing active_logprob"):
-        policy_gradient_loss(trajectory)
+    result = policy_gradient_loss(trajectory, gamma=1.0)
+
+    expected = -(
+        torch.tensor([-0.1, -0.3])
+        * torch.tensor([6.0, 3.0])
+    ).sum()
+    assert torch.allclose(result.loss, expected)
+    assert result.diagnostics["active_step_count"] == 2
 
 
 def test_policy_gradient_loss_preserves_active_logprob_gradients_only() -> None:
@@ -141,4 +147,3 @@ def test_policy_gradient_loss_can_normalize_returns() -> None:
 
     assert torch.isclose(result.returns.mean(), torch.tensor(0.0), atol=1e-6)
     assert torch.isclose(result.returns.std(unbiased=False), torch.tensor(1.0))
-
