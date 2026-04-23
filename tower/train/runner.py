@@ -208,14 +208,15 @@ def run_rank1_training(
     target_root_octave = _optional_reward_int(config, "target_root_octave")
     episode_results = []
     for episode_index in range(config.episode_count):
-        episode_initial_state = _rank1_episode_initial_state(
-            initial_state=initial_state,
-            spec=spec,
+        episode_target_root_octave = _rank1_episode_target_root_octave(
+            target_root_octave=target_root_octave,
             config=config,
             generator=generator,
         )
-        episode_target_root_octave = _rank1_episode_target_root_octave(
-            target_root_octave=target_root_octave,
+        episode_initial_state = _rank1_episode_initial_state(
+            initial_state=initial_state,
+            target_root_octave=episode_target_root_octave,
+            spec=spec,
             config=config,
             generator=generator,
         )
@@ -247,14 +248,15 @@ def run_rank1_training(
     final_midi_paths: list[Path | None] = []
     max_steps = _training_int(config, "max_steps", default=1)
     for final_inference_index in range(4):
-        final_initial_state = _rank1_episode_initial_state(
-            initial_state=initial_state,
-            spec=spec,
+        final_target_root_octave = _rank1_episode_target_root_octave(
+            target_root_octave=target_root_octave,
             config=config,
             generator=generator,
         )
-        final_target_root_octave = _rank1_episode_target_root_octave(
-            target_root_octave=target_root_octave,
+        final_initial_state = _rank1_episode_initial_state(
+            initial_state=initial_state,
+            target_root_octave=final_target_root_octave,
+            spec=spec,
             config=config,
             generator=generator,
         )
@@ -543,6 +545,7 @@ def _run_rank1_final_inference(
 def _rank1_episode_initial_state(
     *,
     initial_state: tuple[int, ...],
+    target_root_octave: int | None,
     spec: TowerGraphSpec,
     config: TowerRunnerConfig,
     generator: torch.Generator,
@@ -562,8 +565,21 @@ def _rank1_episode_initial_state(
     )
     pitch_min = max(spec.pitch_min, pitch_min)
     pitch_max = min(spec.pitch_max, pitch_max)
+    if _training_bool(
+        config,
+        "sample_initial_pitch_in_target_octave",
+        default=False,
+    ):
+        if target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required to sample initial pitch in target octave"
+            )
+        octave_pitch_min = 12 * (target_root_octave + 1)
+        octave_pitch_max = octave_pitch_min + 11
+        pitch_min = max(pitch_min, octave_pitch_min)
+        pitch_max = min(pitch_max, octave_pitch_max)
     if pitch_min > pitch_max:
-        raise ValueError("initial_pitch_min must be <= initial_pitch_max")
+        raise ValueError("initial pitch sampling range must not be empty")
     pitch = int(
         torch.randint(
             low=pitch_min,

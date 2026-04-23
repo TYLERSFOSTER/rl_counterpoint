@@ -25,6 +25,8 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.key_pitch_class == 0
     assert args.target_root_octave == 4
     assert args.sample_target_root_octave is True
+    assert args.target_root_octave_choices is None
+    assert args.sample_initial_pitch_in_target_octave is False
     assert args.terminal_cadence_reward == 10.0
     assert args.range_penalty == -1.0
     assert args.measure_start_tonic_reward == 1.0
@@ -94,9 +96,44 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["training_config"]["sample_initial_pitch"] is True
     assert config["training_config"]["initial_pitch_min"] == 36
     assert config["training_config"]["initial_pitch_max"] == 84
+    assert config["training_config"]["sample_initial_pitch_in_target_octave"] is False
     assert config["training_config"]["sample_target_root_octave"] is True
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 5
+
+
+def test_tower_train_main_writes_target_octave_choices(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    tower_train.main(
+        [
+            "--rank",
+            "1",
+            "--episodes",
+            "1",
+            "--lineage-id",
+            "lineage-a",
+            "--artifact-root",
+            str(tmp_path),
+            "--seed",
+            "123",
+            "--max-steps",
+            "1",
+            "--max-step-size",
+            "1",
+            "--target-root-octave-choices",
+            "2,3,4",
+            "--sample-initial-pitch-in-target-octave",
+        ]
+    )
+    capsys.readouterr()
+
+    config = json.loads(
+        (tmp_path / "lineage-a" / "rank_1" / "config.json").read_text()
+    )
+    assert config["training_config"]["target_root_octave_choices"] == [2, 3, 4]
+    assert config["training_config"]["sample_initial_pitch_in_target_octave"] is True
 
 
 def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:

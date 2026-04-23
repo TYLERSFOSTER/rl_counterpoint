@@ -47,6 +47,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
     )
+    parser.add_argument(
+        "--target-root-octave-choices",
+        type=_parse_int_choices,
+        default=None,
+    )
+    parser.add_argument(
+        "--sample-initial-pitch-in-target-octave",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
     parser.add_argument("--terminal-cadence-reward", type=float, default=10.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
     parser.add_argument("--max-recent-range", type=int, default=12)
@@ -64,6 +74,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step-size-balance-target-small-rate", type=float, default=0.3)
     parser.add_argument("--step-size-balance-weight", type=float, default=1.0)
     return parser.parse_args(argv)
+
+
+def _parse_int_choices(value: str) -> list[int]:
+    try:
+        choices = [int(part.strip()) for part in value.split(",") if part.strip()]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "target octave choices must be comma-separated integers"
+        ) from exc
+    if not choices:
+        raise argparse.ArgumentTypeError("target octave choices must not be empty")
+    return choices
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -120,7 +142,15 @@ def main(argv: list[str] | None = None) -> int:
             "sample_initial_pitch": args.sample_initial_pitch,
             "initial_pitch_min": args.initial_pitch_min,
             "initial_pitch_max": args.initial_pitch_max,
+            "sample_initial_pitch_in_target_octave": (
+                args.sample_initial_pitch_in_target_octave
+            ),
             "sample_target_root_octave": args.sample_target_root_octave,
+            **(
+                {}
+                if args.target_root_octave_choices is None
+                else {"target_root_octave_choices": args.target_root_octave_choices}
+            ),
         },
     )
     result = run_rank1_training(
