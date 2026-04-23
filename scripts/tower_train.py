@@ -73,6 +73,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step-size-balance-threshold", type=int, default=3)
     parser.add_argument("--step-size-balance-target-small-rate", type=float, default=0.3)
     parser.add_argument("--step-size-balance-weight", type=float, default=1.0)
+    parser.add_argument("--sampling-temperature", type=float, default=1.5)
+    parser.add_argument("--sampling-uniform-mix", type=float, default=0.15)
+    parser.add_argument(
+        "--log-reward-diagnostics",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     return parser.parse_args(argv)
 
 
@@ -146,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
                 args.sample_initial_pitch_in_target_octave
             ),
             "sample_target_root_octave": args.sample_target_root_octave,
+            "sampling_temperature": args.sampling_temperature,
+            "sampling_uniform_mix": args.sampling_uniform_mix,
+            "log_reward_diagnostics": args.log_reward_diagnostics,
             **(
                 {}
                 if args.target_root_octave_choices is None

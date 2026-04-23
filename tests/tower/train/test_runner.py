@@ -467,6 +467,40 @@ def test_run_rank1_training_writes_artifacts_and_final_midi(tmp_path: Path) -> N
     )
 
 
+def test_run_rank1_training_can_skip_training_reward_diagnostics(
+    tmp_path: Path,
+) -> None:
+    policy = TinyRank1Policy()
+    optimizer = torch.optim.SGD(policy.parameters(), lr=0.1)
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=1,
+        episode_count=2,
+        seed=123,
+        artifact_root=tmp_path,
+        max_step_size=1,
+        training_config={
+            "max_steps": 1,
+            "gamma": 1.0,
+            "log_reward_diagnostics": False,
+        },
+    )
+
+    result = run_rank1_training(
+        config=config,
+        policy=policy,
+        optimizer=optimizer,
+        initial_state=(60,),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+    )
+
+    diagnostics = read_reward_diagnostics(result.paths)
+    assert len(diagnostics) == 4
+    assert {row["episode_kind"] for row in diagnostics} == {"final_inference"}
+    assert [row["episode_index"] for row in diagnostics] == [2, 3, 4, 5]
+
+
 def test_run_rank1_training_can_sample_episode_initial_pitch_and_target(
     tmp_path: Path,
 ) -> None:

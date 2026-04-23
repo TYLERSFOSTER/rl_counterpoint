@@ -234,14 +234,20 @@ def run_rank1_training(
             generator=generator,
         )
         episode_results.append(episode_result)
-        append_reward_diagnostics(
-            paths=paths,
-            rows=reward_diagnostics_rows(
-                trajectory=episode_result.trajectory,
-                lineage_id=config.lineage_id,
-                episode_index=episode_index,
-                episode_kind="training",
-            ),
+        if _training_bool(config, "log_reward_diagnostics", default=True):
+            append_reward_diagnostics(
+                paths=paths,
+                rows=reward_diagnostics_rows(
+                    trajectory=episode_result.trajectory,
+                    lineage_id=config.lineage_id,
+                    episode_index=episode_index,
+                    episode_kind="training",
+                ),
+            )
+        _maybe_print_episode_progress(
+            config=config,
+            episode_index=episode_index,
+            metrics=episode_result.metrics,
         )
 
     final_inferences: list[FinalInferenceResult] = []
@@ -270,6 +276,16 @@ def run_rank1_training(
             context_measures=config.context_measures,
             key_pitch_class=key_pitch_class,
             target_root_octave=final_target_root_octave,
+            sampling_temperature=_training_float(
+                config,
+                "sampling_temperature",
+                default=1.0,
+            ),
+            sampling_uniform_mix=_training_float(
+                config,
+                "sampling_uniform_mix",
+                default=0.0,
+            ),
             generator=generator,
         )
         final_midi_path = _write_final_midi(
@@ -358,14 +374,20 @@ def run_rank2_training(
             generator=generator,
         )
         episode_results.append(episode_result)
-        append_reward_diagnostics(
-            paths=paths,
-            rows=reward_diagnostics_rows(
-                trajectory=episode_result.trajectory,
-                lineage_id=config.lineage_id,
-                episode_index=episode_index,
-                episode_kind="training",
-            ),
+        if _training_bool(config, "log_reward_diagnostics", default=True):
+            append_reward_diagnostics(
+                paths=paths,
+                rows=reward_diagnostics_rows(
+                    trajectory=episode_result.trajectory,
+                    lineage_id=config.lineage_id,
+                    episode_index=episode_index,
+                    episode_kind="training",
+                ),
+            )
+        _maybe_print_episode_progress(
+            config=config,
+            episode_index=episode_index,
+            metrics=episode_result.metrics,
         )
 
     final_inferences = []
@@ -384,6 +406,16 @@ def run_rank2_training(
             parent_top_m=config.parent_top_m,
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
+            sampling_temperature=_training_float(
+                config,
+                "sampling_temperature",
+                default=1.0,
+            ),
+            sampling_uniform_mix=_training_float(
+                config,
+                "sampling_uniform_mix",
+                default=0.0,
+            ),
             generator=generator,
         )
         final_midi_path = _write_final_midi(
@@ -433,6 +465,8 @@ def run_final_inference_episode(
     parent_top_m: int = 1,
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
+    sampling_temperature: float = 1.0,
+    sampling_uniform_mix: float = 0.0,
     generator: torch.Generator | None = None,
 ) -> FinalInferenceResult:
     """Run one final inference episode without training or gradients."""
@@ -471,6 +505,8 @@ def run_final_inference_episode(
                 context_measures=context_measures,
                 key_pitch_class=key_pitch_class,
                 target_root_octave=target_root_octave,
+                sampling_temperature=sampling_temperature,
+                sampling_uniform_mix=sampling_uniform_mix,
                 generator=generator,
             )
         else:
@@ -490,6 +526,8 @@ def run_final_inference_episode(
                 parent_top_m=parent_top_m,
                 key_pitch_class=key_pitch_class,
                 target_root_octave=target_root_octave,
+                sampling_temperature=sampling_temperature,
+                sampling_uniform_mix=sampling_uniform_mix,
                 generator=generator,
             )
 
@@ -514,6 +552,8 @@ def _run_rank1_final_inference(
     context_measures: int,
     key_pitch_class: int | None,
     target_root_octave: int | None,
+    sampling_temperature: float,
+    sampling_uniform_mix: float,
     generator: torch.Generator | None,
 ) -> TowerTrajectory:
     def active_sampler(**kwargs: object):
@@ -526,6 +566,8 @@ def _run_rank1_final_inference(
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
             max_step_size=graph_spec.max_step_size,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
             generator=generator,
         )
 
@@ -642,6 +684,8 @@ def _run_rank2_final_inference(
     parent_top_m: int,
     key_pitch_class: int | None,
     target_root_octave: int | None,
+    sampling_temperature: float,
+    sampling_uniform_mix: float,
     generator: torch.Generator | None,
 ) -> TowerTrajectory:
     parent_spec = TowerGraphSpec(
@@ -671,6 +715,8 @@ def _run_rank2_final_inference(
             target_root_octave=target_root_octave,
             max_step_size=parent_spec.max_step_size,
             top_m=parent_top_m,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
             generator=generator,
         )
 
@@ -684,6 +730,8 @@ def _run_rank2_final_inference(
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
             max_step_size=graph_spec.max_step_size,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
             generator=generator,
         )
 
@@ -887,6 +935,34 @@ def _training_float(
     default: float,
 ) -> float:
     return _mapping_float(dict(config.training_config), key, default=default)
+
+
+def _maybe_print_episode_progress(
+    *,
+    config: TowerRunnerConfig,
+    episode_index: int,
+    metrics: Mapping[str, object],
+) -> None:
+    progress_every = _training_int(config, "progress_every", default=0)
+    if progress_every < 0:
+        raise ValueError("progress_every must be non-negative")
+    if progress_every == 0:
+        return
+    completed = episode_index + 1
+    if completed % progress_every != 0 and completed != config.episode_count:
+        return
+    label = dict(config.training_config).get("progress_label", config.lineage_id)
+    if not isinstance(label, str):
+        raise TypeError("progress_label must be a string")
+    episode_return = float(metrics["episode_return"])
+    episode_length = int(metrics["episode_length"])
+    terminal_success = bool(metrics["terminal_success"])
+    print(
+        f"[progress] {label} {completed}/{config.episode_count} "
+        f"return={episode_return:.4f} length={episode_length} "
+        f"terminal_success={terminal_success}",
+        flush=True,
+    )
 
 
 def _policy_int(

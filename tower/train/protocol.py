@@ -53,6 +53,8 @@ def train_rank1_episode(
     context_measures: int = 2,
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
+    sampling_temperature: float = 1.0,
+    sampling_uniform_mix: float = 0.0,
     gamma: float = 1.0,
     normalize_returns: bool = False,
     generator: torch.Generator | None = None,
@@ -75,6 +77,8 @@ def train_rank1_episode(
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
             max_step_size=spec.max_step_size,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
             generator=generator,
         )
 
@@ -152,6 +156,16 @@ def train_rank1_episode_with_artifacts(
         context_measures=config.context_measures,
         key_pitch_class=key_pitch_class,
         target_root_octave=target_root_octave,
+        sampling_temperature=_float_config_value(
+            training_config,
+            "sampling_temperature",
+            default=1.0,
+        ),
+        sampling_uniform_mix=_float_config_value(
+            training_config,
+            "sampling_uniform_mix",
+            default=0.0,
+        ),
         gamma=gamma
         if gamma is not None
         else _float_config_value(training_config, "gamma", default=1.0),
@@ -210,6 +224,8 @@ def train_rank2_episode(
     parent_top_m: int = 1,
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
+    sampling_temperature: float = 1.0,
+    sampling_uniform_mix: float = 0.0,
     gamma: float = 1.0,
     normalize_returns: bool = False,
     generator: torch.Generator | None = None,
@@ -252,6 +268,8 @@ def train_rank2_episode(
             target_root_octave=target_root_octave,
             max_step_size=parent_spec.max_step_size,
             top_m=parent_top_m,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
             generator=generator,
         )
 
@@ -265,6 +283,8 @@ def train_rank2_episode(
             key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
             max_step_size=spec.max_step_size,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
             generator=generator,
         )
 
@@ -361,6 +381,16 @@ def train_rank2_episode_with_artifacts(
         parent_top_m=_int_config_value(parent_sampler_config, "top_m", default=1),
         key_pitch_class=key_pitch_class,
         target_root_octave=target_root_octave,
+        sampling_temperature=_float_config_value(
+            training_config,
+            "sampling_temperature",
+            default=1.0,
+        ),
+        sampling_uniform_mix=_float_config_value(
+            training_config,
+            "sampling_uniform_mix",
+            default=0.0,
+        ),
         gamma=gamma
         if gamma is not None
         else _float_config_value(training_config, "gamma", default=1.0),

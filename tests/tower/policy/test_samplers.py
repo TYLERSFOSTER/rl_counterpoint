@@ -290,6 +290,50 @@ def test_sample_active_choice_from_policy_logprob_backpropagates_to_logits() -> 
     assert torch.count_nonzero(logits.grad).item() > 0
 
 
+def test_sample_active_choice_from_policy_accepts_sampling_temperature_and_uniform_mix() -> None:
+    policy = DummyPolicy(rank=1, logits=torch.tensor([8.0, -8.0]))
+
+    result = sample_active_choice_from_policy(
+        policy=policy,
+        state=(60,),
+        window=make_rank_1_window(),
+        active_choices=(-1, 1),
+        temperature=2.0,
+        uniform_mix=0.25,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.choice in (-1, 1)
+    assert result.diagnostics["temperature"] == 2.0
+    assert result.diagnostics["uniform_mix"] == 0.25
+
+
+@pytest.mark.parametrize(
+    ("temperature", "uniform_mix", "message"),
+    (
+        (0.0, 0.0, "temperature must be positive"),
+        (1.0, -0.1, "uniform_mix must be in \\[0.0, 1.0\\]"),
+        (1.0, 1.1, "uniform_mix must be in \\[0.0, 1.0\\]"),
+    ),
+)
+def test_sample_active_choice_from_policy_rejects_invalid_sampling_controls(
+    temperature: float,
+    uniform_mix: float,
+    message: str,
+) -> None:
+    policy = DummyPolicy(rank=1, logits=torch.tensor([0.0, 1.0]))
+
+    with pytest.raises(ValueError, match=message):
+        sample_active_choice_from_policy(
+            policy=policy,
+            state=(60,),
+            window=make_rank_1_window(),
+            active_choices=(-1, 1),
+            temperature=temperature,
+            uniform_mix=uniform_mix,
+        )
+
+
 def test_sample_active_choice_from_policy_masks_full_rank1_action_lattice() -> None:
     logits = torch.tensor([0.0, 8.0, -8.0, 0.0], requires_grad=True)
     policy = DummyPolicy(rank=1, logits=logits)
@@ -439,6 +483,25 @@ def test_sample_parent_top_m_from_policy_is_reproducible_with_generator() -> Non
 
     assert first.choice == second.choice
     assert first.diagnostics["selected_index"] == second.diagnostics["selected_index"]
+
+
+def test_sample_parent_top_m_from_policy_accepts_sampling_controls() -> None:
+    policy = DummyPolicy(rank=1, logits=torch.tensor([0.0, 3.0, 2.0, 1.0]))
+
+    result = sample_parent_top_m_from_policy(
+        policy=policy,
+        state=(60,),
+        window=make_rank_1_window(),
+        parent_actions=((-2,), (-1,), (1,), (2,)),
+        top_m=3,
+        temperature=1.75,
+        uniform_mix=0.2,
+        generator=torch.Generator().manual_seed(123),
+    )
+
+    assert result.choice in {(-1,), (1,), (2,)}
+    assert result.diagnostics["temperature"] == 1.75
+    assert result.diagnostics["uniform_mix"] == 0.2
 
 
 def test_sample_parent_top_m_from_policy_clamps_top_m_to_available_actions() -> None:

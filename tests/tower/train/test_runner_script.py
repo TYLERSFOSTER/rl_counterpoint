@@ -37,6 +37,9 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.step_size_balance_threshold == 3
     assert args.step_size_balance_target_small_rate == 0.3
     assert args.step_size_balance_weight == 1.0
+    assert args.sampling_temperature == 1.5
+    assert args.sampling_uniform_mix == 0.15
+    assert args.log_reward_diagnostics is True
 
 
 def test_tower_train_main_runs_tiny_rank_1_job(
@@ -98,6 +101,9 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["training_config"]["initial_pitch_max"] == 84
     assert config["training_config"]["sample_initial_pitch_in_target_octave"] is False
     assert config["training_config"]["sample_target_root_octave"] is True
+    assert config["training_config"]["sampling_temperature"] == 1.5
+    assert config["training_config"]["sampling_uniform_mix"] == 0.15
+    assert config["training_config"]["log_reward_diagnostics"] is True
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 5
 
@@ -134,6 +140,38 @@ def test_tower_train_main_writes_target_octave_choices(
     )
     assert config["training_config"]["target_root_octave_choices"] == [2, 3, 4]
     assert config["training_config"]["sample_initial_pitch_in_target_octave"] is True
+
+
+def test_tower_train_main_can_disable_training_reward_diagnostics(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    tower_train.main(
+        [
+            "--rank",
+            "1",
+            "--episodes",
+            "1",
+            "--lineage-id",
+            "lineage-a",
+            "--artifact-root",
+            str(tmp_path),
+            "--seed",
+            "123",
+            "--max-steps",
+            "1",
+            "--max-step-size",
+            "1",
+            "--no-log-reward-diagnostics",
+        ]
+    )
+    capsys.readouterr()
+
+    run_dir = tmp_path / "lineage-a" / "rank_1"
+    config = json.loads((run_dir / "config.json").read_text())
+    assert config["training_config"]["log_reward_diagnostics"] is False
+    diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
+    assert len(diagnostics_rows) == 4
 
 
 def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:

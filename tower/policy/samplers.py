@@ -89,6 +89,8 @@ def sample_active_choice_from_policy(
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
     max_step_size: int | None = None,
+    temperature: float = 1.0,
+    uniform_mix: float = 0.0,
     generator: torch.Generator | None = None,
 ) -> SamplerResult[int]:
     """Sample an active coordinate choice from rank-local policy logits."""
@@ -118,15 +120,18 @@ def sample_active_choice_from_policy(
         policy_rank=policy.rank,
         max_step_size=max_step_size,
     )
-
-    probabilities = torch.softmax(choice_logits, dim=0)
+    probabilities = _sample_probabilities(
+        logits=choice_logits,
+        temperature=temperature,
+        uniform_mix=uniform_mix,
+    )
     selected_index_tensor = torch.multinomial(
         probabilities,
         num_samples=1,
         generator=generator,
     )
     selected_index = int(selected_index_tensor.item())
-    logprob = torch.log_softmax(choice_logits, dim=0)[selected_index]
+    logprob = torch.log(probabilities[selected_index])
 
     return SamplerResult(
         choice=active_choices[selected_index],
@@ -134,6 +139,8 @@ def sample_active_choice_from_policy(
         diagnostics={
             "selected_index": selected_index,
             "active_choices": active_choices,
+            "temperature": temperature,
+            "uniform_mix": uniform_mix,
             "frontier_state": current_state,
             "policy": output.diagnostics,
         },
@@ -151,6 +158,8 @@ def sample_parent_top_m_from_policy(
     target_root_octave: int | None = None,
     max_step_size: int | None = None,
     top_m: int = 1,
+    temperature: float = 1.0,
+    uniform_mix: float = 0.0,
     generator: torch.Generator | None = None,
 ) -> SamplerResult[TowerAction]:
     """Sample a frozen-parent action from the top-m policy logits."""
@@ -185,32 +194,60 @@ def sample_parent_top_m_from_policy(
 
     effective_top_m = min(top_m, len(parent_actions))
     top = torch.topk(action_logits.detach(), k=effective_top_m)
-    if effective_top_m == 1:
-        selected_top_position = 0
-    else:
-        selected_top_position = int(
-            torch.randint(
-                low=0,
-                high=effective_top_m,
-                size=(1,),
-                generator=generator,
-            ).item()
-        )
+    top_logits = action_logits.detach()[top.indices]
+    top_probabilities = _sample_probabilities(
+        logits=top_logits,
+        temperature=temperature,
+        uniform_mix=uniform_mix,
+    )
+    selected_top_position = int(
+        torch.multinomial(
+            top_probabilities,
+            num_samples=1,
+            generator=generator,
+        ).item()
+    )
 
     selected_index = int(top.indices[selected_top_position].item())
-    diagnostic_logprobs = torch.log_softmax(action_logits.detach(), dim=0)
+    logprob = torch.log(top_probabilities[selected_top_position])
 
     return SamplerResult(
         choice=parent_actions[selected_index],
-        logprob=diagnostic_logprobs[selected_index],
+        logprob=logprob,
         diagnostics={
             "selected_index": selected_index,
             "top_indices": tuple(int(index.item()) for index in top.indices),
             "top_m": effective_top_m,
+            "temperature": temperature,
+            "uniform_mix": uniform_mix,
             "parent_actions": parent_actions,
             "frontier_state": current_state,
             "policy": output.diagnostics,
         },
+    )
+
+
+def _sample_probabilities(
+    *,
+    logits: torch.Tensor,
+    temperature: float,
+    uniform_mix: float,
+) -> torch.Tensor:
+    if temperature <= 0.0:
+        raise ValueError("temperature must be positive")
+    if not 0.0 <= uniform_mix <= 1.0:
+        raise ValueError("uniform_mix must be in [0.0, 1.0]")
+    scaled_logits = logits / temperature
+    policy_probabilities = torch.softmax(scaled_logits, dim=0)
+    if uniform_mix == 0.0:
+        return policy_probabilities
+    uniform_probabilities = torch.full_like(
+        policy_probabilities,
+        fill_value=1.0 / float(policy_probabilities.shape[0]),
+    )
+    return (
+        (1.0 - uniform_mix) * policy_probabilities
+        + uniform_mix * uniform_probabilities
     )
 
 
