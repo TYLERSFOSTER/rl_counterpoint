@@ -126,12 +126,12 @@ def test_empty_fiber_gives_empty_active_choices() -> None:
     spec = TowerGraphSpec(
         rank=2,
         pitch_min=60,
-        pitch_max=61,
+        pitch_max=63,
         max_step_size=1,
     )
 
     assert active_lift_choices(
-        state=(60, 61),
+        state=(60, 63),
         parent_action=(1,),
         spec=spec,
     ) == ()
@@ -151,12 +151,12 @@ def test_empty_fiber_diagnostic_true() -> None:
     spec = TowerGraphSpec(
         rank=2,
         pitch_min=60,
-        pitch_max=61,
+        pitch_max=63,
         max_step_size=1,
     )
 
     assert has_empty_lift_fiber(
-        state=(60, 61),
+        state=(60, 63),
         parent_action=(1,),
         spec=spec,
     )

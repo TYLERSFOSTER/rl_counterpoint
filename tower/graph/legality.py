@@ -5,6 +5,24 @@ from __future__ import annotations
 from tower.graph.spec import TowerGraphSpec
 from tower.state_action import TowerAction, TowerState, apply_action, validate_action, validate_state
 
+RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 5, 7, 8, 9})
+RANK2_MAX_VERTICAL_INTERVAL = 10
+
+
+def _rank2_vertical_interval(state: TowerState) -> int:
+    return state[1] - state[0]
+
+
+def _rank2_has_voice_crossing(source: TowerState, target: TowerState) -> bool:
+    return target[0] >= source[1] or source[0] >= target[1]
+
+
+def _rank2_has_parallel_fifth(source: TowerState, target: TowerState) -> bool:
+    return (
+        _rank2_vertical_interval(source) == 7
+        and target[0] - source[0] == target[1] - source[1]
+    )
+
 
 def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
     """Return True iff a state satisfies the minimal rank/range contract."""
@@ -13,7 +31,17 @@ def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
     except (TypeError, ValueError):
         return False
 
-    return all(spec.pitch_min <= pitch <= spec.pitch_max for pitch in state)
+    if not all(spec.pitch_min <= pitch <= spec.pitch_max for pitch in state):
+        return False
+
+    if spec.rank == 2:
+        vertical_interval = _rank2_vertical_interval(state)
+        if vertical_interval > RANK2_MAX_VERTICAL_INTERVAL:
+            return False
+        if vertical_interval % 12 not in RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES:
+            return False
+
+    return True
 
 
 def is_valid_transition(
@@ -33,5 +61,11 @@ def is_valid_transition(
 
     if target == source:
         return False
+
+    if spec.rank == 2:
+        if _rank2_has_voice_crossing(source, target):
+            return False
+        if _rank2_has_parallel_fifth(source, target):
+            return False
 
     return is_valid_state(target, spec)

@@ -446,8 +446,8 @@ def test_train_rank2_episode_uses_lift_fiber_mask_for_child_choices() -> None:
     )
 
     step = result.trajectory.steps[0]
-    assert step.diagnostics["active_choices"] == (-1, 0, 1)
-    assert step.diagnostics["active_sampler"]["active_choices"] == (-1, 0, 1)
+    assert step.diagnostics["active_choices"] == (0, 1)
+    assert step.diagnostics["active_sampler"]["active_choices"] == (0, 1)
 
 
 def test_train_rank2_episode_records_parent_top_m_sampler_diagnostics() -> None:
@@ -485,7 +485,7 @@ def test_train_rank2_episode_filters_parent_actions_to_nonempty_lifts() -> None:
         parent_policy=parent_policy,
         child_policy=child_policy,
         child_optimizer=child_optimizer,
-        initial_state=(83, 84),
+        initial_state=(81, 84),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, pitch_min=36, pitch_max=84, max_step_size=1),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),

@@ -25,3 +25,4 @@ Current documents:
 
 - [migration_map.md](/Users/foster/rl_counterpoint/docs/design/tower/migration_map.md)
 - [system_design.md](/Users/foster/rl_counterpoint/docs/design/tower/system_design.md)
+- [rank1_projection_pruning_correction.md](/Users/foster/rl_counterpoint/docs/design/tower/rank1_projection_pruning_correction.md)

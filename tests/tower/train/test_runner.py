@@ -390,7 +390,7 @@ def test_rank2_final_inference_filters_parent_actions_to_nonempty_lifts() -> Non
     result = run_final_inference_episode(
         policy=TinyRank2Policy(),
         parent_policy=TinyRank1Policy(),
-        initial_state=(83, 84),
+        initial_state=(81, 84),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, pitch_min=36, pitch_max=84, max_step_size=1),

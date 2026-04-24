@@ -258,7 +258,7 @@ def test_rollout_rank2_parent_sampler_called_before_active_sampler() -> None:
 
     assert calls == [
         ("parent", (60,)),
-        ("active", (-2, -1, 0, 1, 2)),
+        ("active", (0, 1, 2)),
     ]
 
 
@@ -268,16 +268,16 @@ def test_rollout_rank2_multi_step_advances_history_and_final_state() -> None:
         max_steps=2,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,), (1,))),
-        active_sampler=ScriptedSampler(script=(1, -1)),
+        active_sampler=ScriptedSampler(script=(2, -1)),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
     )
 
     assert len(trajectory.steps) == 2
     assert trajectory.steps[0].source_state == (60, 64)
-    assert trajectory.steps[0].realized_next_state == (61, 65)
-    assert trajectory.steps[1].source_state == (61, 65)
-    assert trajectory.steps[1].realized_next_state == (62, 64)
-    assert trajectory.final_state == (62, 64)
+    assert trajectory.steps[0].realized_next_state == (61, 66)
+    assert trajectory.steps[1].source_state == (61, 66)
+    assert trajectory.steps[1].realized_next_state == (62, 65)
+    assert trajectory.final_state == (62, 65)
     assert trajectory.total_reward == 2.0
 
 
@@ -297,7 +297,7 @@ def test_rollout_rank2_active_sampler_receives_active_choices_only() -> None:
         reward_fn=lambda context: TowerRewardResult(reward=0.0),
     )
 
-    assert observed[0]["active_choices"] == (-2, -1, 0, 1, 2)
+    assert observed[0]["active_choices"] == (0, 1, 2)
     assert "lift_fiber" not in observed[0]
 
 
@@ -410,9 +410,9 @@ def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None
         return SamplerResult(choice=1)
 
     trajectory = rollout_rank2(
-        initial_state=(63, 64),
+        initial_state=(60, 63),
         max_steps=1,
-        graph_spec=TowerGraphSpec(rank=2, pitch_max=64, max_step_size=2),
+        graph_spec=TowerGraphSpec(rank=2, pitch_max=63, max_step_size=1),
         parent_sampler=ScriptedSampler(script=((1,),)),
         active_sampler=active_sampler,
         reward_fn=lambda context: TowerRewardResult(reward=9.0),
@@ -424,7 +424,7 @@ def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None
     assert step.parent_action == (1,)
     assert step.active_choice is None
     assert step.assembled_action == (0, 0)
-    assert step.attempted_target_state == (63, 64)
+    assert step.attempted_target_state == (60, 63)
     assert step.realized_next_state == step.source_state
     assert step.reward.reward == 0.0
     assert step.reward.diagnostics == {"outcome": TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER}
@@ -434,9 +434,9 @@ def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None
 
 def test_rollout_rank2_empty_lift_fiber_advances_time() -> None:
     trajectory = rollout_rank2(
-        initial_state=(63, 64),
+        initial_state=(60, 63),
         max_steps=2,
-        graph_spec=TowerGraphSpec(rank=2, pitch_max=64, max_step_size=2),
+        graph_spec=TowerGraphSpec(rank=2, pitch_max=63, max_step_size=1),
         parent_sampler=ScriptedSampler(script=((1,), (1,))),
         active_sampler=ScriptedSampler(script=(1,)),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
@@ -450,7 +450,7 @@ def test_rollout_rank2_empty_lift_fiber_advances_time() -> None:
         for step in trajectory.steps
     )
     assert trajectory.steps[1].step_index == 1
-    assert trajectory.steps[1].window.states[-2:] == ((63, 64), (63, 64))
+    assert trajectory.steps[1].window.states[-2:] == ((60, 63), (60, 63))
 
 
 def test_rollout_rank2_records_parent_failure_and_truncates() -> None:
