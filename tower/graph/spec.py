@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import FrozenSet
 
 from tower.state_action import validate_rank
 
@@ -15,6 +16,8 @@ class TowerGraphSpec:
     pitch_min: int = 0
     pitch_max: int = 127
     max_step_size: int = 4
+    induced_node_image: FrozenSet[tuple[int, ...]] | None = None
+    induced_edge_image: FrozenSet[tuple[tuple[int, ...], tuple[int, ...]]] | None = None
 
     def __post_init__(self) -> None:
         validate_rank(self.rank)
@@ -26,3 +29,22 @@ class TowerGraphSpec:
             raise ValueError("pitch_min must be <= pitch_max")
         if self.max_step_size < 1:
             raise ValueError("max_step_size must be at least 1")
+        if self.induced_node_image is not None:
+            if self.rank != 1:
+                raise ValueError("induced_node_image currently requires rank 1")
+            for state in self.induced_node_image:
+                if not isinstance(state, tuple) or len(state) != 1:
+                    raise ValueError("induced_node_image entries must be rank-1 tuples")
+        if self.induced_edge_image is not None:
+            if self.rank != 1:
+                raise ValueError("induced_edge_image currently requires rank 1")
+            for source, target in self.induced_edge_image:
+                if (
+                    not isinstance(source, tuple)
+                    or not isinstance(target, tuple)
+                    or len(source) != 1
+                    or len(target) != 1
+                ):
+                    raise ValueError(
+                        "induced_edge_image entries must be pairs of rank-1 tuples"
+                    )

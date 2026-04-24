@@ -12,7 +12,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from tower.graph.spec import TowerGraphSpec
 from tower.reward.factory import build_rank1_reward_fn
-from tower.train.runner import TowerRunnerConfig, run_rank1_training
+from tower.train.runner import (
+    TowerRunnerConfig,
+    _graph_spec_from_config,
+    run_rank1_training,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -147,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         graph_config={
             "pitch_min": args.pitch_min,
             "pitch_max": args.pitch_max,
+            "use_induced_rank1_graph": True,
             "final_chord_size": args.final_chord_size,
             "reserved_upper_semitones_per_voice": (
                 args.reserved_upper_semitones_per_voice
@@ -205,10 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             step_size_balance_weight=args.step_size_balance_weight,
         ),
-        graph_spec=TowerGraphSpec(
-            rank=1,
-            max_step_size=args.max_step_size,
-        ),
+        graph_spec=_graph_spec_from_config(config),
     )
 
     print(f"run_dir: {result.paths.rank_dir}")
@@ -216,17 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"rank: {config.rank}")
     print(f"episodes: {config.episode_count}")
     print(f"max_steps: {args.max_steps}")
-    graph_spec = TowerGraphSpec(
-        rank=1,
-        pitch_min=config.graph_config["pitch_min"],  # type: ignore[index]
-        pitch_max=min(
-            config.graph_config["pitch_max"],  # type: ignore[index]
-            127
-            - config.graph_config["reserved_upper_semitones_per_voice"]  # type: ignore[index]
-            * config.graph_config["final_chord_size"],  # type: ignore[index]
-        ),
-        max_step_size=args.max_step_size,
-    )
+    graph_spec = _graph_spec_from_config(config)
     print(f"pitch_range: [{graph_spec.pitch_min}, {graph_spec.pitch_max}]")
     print(f"reward: {reward_config['kind']}")
     print(f"latest checkpoint: {result.paths.checkpoint_latest_path}")

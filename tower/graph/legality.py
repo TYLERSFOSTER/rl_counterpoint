@@ -34,6 +34,9 @@ def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
     if not all(spec.pitch_min <= pitch <= spec.pitch_max for pitch in state):
         return False
 
+    if spec.rank == 1 and spec.induced_node_image is not None:
+        return state in spec.induced_node_image
+
     if spec.rank == 2:
         vertical_interval = _rank2_vertical_interval(state)
         if vertical_interval > RANK2_MAX_VERTICAL_INTERVAL:
@@ -61,6 +64,9 @@ def is_valid_transition(
 
     if target == source:
         return False
+
+    if spec.rank == 1 and spec.induced_edge_image is not None:
+        return (source, target) in spec.induced_edge_image
 
     if spec.rank == 2:
         if _rank2_has_voice_crossing(source, target):

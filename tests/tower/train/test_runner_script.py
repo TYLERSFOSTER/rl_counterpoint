@@ -73,7 +73,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     run_dir = tmp_path / "lineage-a" / "rank_1"
     assert exit_code == 0
     assert f"run_dir: {run_dir}" in output
-    assert "pitch_range: [0, 107]" in output
+    assert "pitch_range: [0, 124]" in output
     assert "reward: rank1_slice_a" in output
     assert "final midi:" in output
     assert "latest checkpoint:" in output
@@ -101,6 +101,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["policy_config"]["d_model"] == 32
     assert config["graph_config"]["pitch_min"] == 0
     assert config["graph_config"]["pitch_max"] == 127
+    assert config["graph_config"]["use_induced_rank1_graph"] is True
     assert config["graph_config"]["final_chord_size"] == 4
     assert config["graph_config"]["reserved_upper_semitones_per_voice"] == 5
     assert config["policy_config"]["num_heads"] == 4

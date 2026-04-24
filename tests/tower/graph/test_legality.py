@@ -40,6 +40,22 @@ def test_valid_action_to_valid_target_true() -> None:
     assert is_valid_transition((60,), (2,), TowerGraphSpec(rank=1))
 
 
+def test_rank_1_induced_node_and_edge_images_constrain_legality() -> None:
+    spec = TowerGraphSpec(
+        rank=1,
+        pitch_min=60,
+        pitch_max=61,
+        max_step_size=1,
+        induced_node_image=frozenset({(60,), (61,)}),
+        induced_edge_image=frozenset({((60,), (61,))}),
+    )
+
+    assert is_valid_state((60,), spec)
+    assert is_valid_state((61,), spec)
+    assert not is_valid_transition((61,), (-1,), spec)
+    assert is_valid_transition((60,), (1,), spec)
+
+
 def test_rank_2_voice_crossing_transition_false() -> None:
     assert not is_valid_transition((60, 64), (5, -1), TowerGraphSpec(rank=2))
 

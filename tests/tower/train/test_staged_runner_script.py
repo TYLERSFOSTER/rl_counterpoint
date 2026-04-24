@@ -91,6 +91,7 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
     assert stage2_config["policy_config"]["d_model"] == 64
     assert stage2_config["graph_config"]["pitch_min"] == 0
     assert stage2_config["graph_config"]["pitch_max"] == 127
+    assert stage2_config["graph_config"]["use_induced_rank1_graph"] is True
     assert stage2_config["graph_config"]["final_chord_size"] == 4
     assert stage2_config["graph_config"]["reserved_upper_semitones_per_voice"] == 5
     assert stage2_config["policy_config"]["num_layers"] == 2

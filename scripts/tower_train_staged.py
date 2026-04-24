@@ -11,13 +11,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tower.graph.spec import TowerGraphSpec
 from tower.reward.factory import build_rank1_reward_fn
 from tower.train.checkpoint import load_latest_checkpoint
 from tower.train.runner import (
     TowerRunnerConfig,
     _build_optimizer,
     _build_rank1_policy,
+    _graph_spec_from_config,
     run_rank1_training,
 )
 
@@ -170,6 +170,7 @@ def _graph_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "pitch_min": args.pitch_min,
         "pitch_max": args.pitch_max,
+        "use_induced_rank1_graph": True,
         "final_chord_size": args.final_chord_size,
         "reserved_upper_semitones_per_voice": (
             args.reserved_upper_semitones_per_voice
@@ -253,17 +254,6 @@ def main(argv: list[str] | None = None) -> int:
         graph_config = _graph_config_from_args(args)
         base_training_config = _base_training_config_from_args(args)
         reward_fn = _build_rank1_reward_from_config(reward_config)
-        graph_spec = TowerGraphSpec(
-            rank=1,
-            pitch_min=args.pitch_min,
-            pitch_max=min(
-                args.pitch_max,
-                127
-                - args.reserved_upper_semitones_per_voice
-                * args.final_chord_size,
-            ),
-            max_step_size=args.max_step_size,
-        )
         stage1_lineage_id = f"{args.lineage_id}-stage1"
         stage2_lineage_id = args.lineage_id
 
@@ -287,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         stage1_policy = _build_rank1_policy(stage1_config)
         stage1_optimizer = _build_optimizer(policy=stage1_policy, config=stage1_config)
+        graph_spec = _graph_spec_from_config(stage1_config)
 
         print(f"starting stage1: {stage1_lineage_id}")
         stage1_result = run_rank1_training(

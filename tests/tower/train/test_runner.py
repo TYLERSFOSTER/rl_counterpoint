@@ -171,15 +171,17 @@ def test_runner_config_converts_to_rank_config() -> None:
     assert rank_config.seed_config == {"seed": 123}
 
 
-def test_graph_spec_from_config_applies_rank1_final_chord_headroom() -> None:
+def test_graph_spec_from_config_builds_induced_rank1_graph_from_rank2() -> None:
     config = TowerRunnerConfig(
         lineage_id="lineage-a",
         rank=1,
         episode_count=1,
         seed=123,
+        artifact_root=Path("/tmp/tower-induced-rank1-test"),
         graph_config={
             "pitch_min": 0,
             "pitch_max": 127,
+            "use_induced_rank1_graph": True,
             "final_chord_size": 4,
             "reserved_upper_semitones_per_voice": 5,
         },
@@ -188,7 +190,9 @@ def test_graph_spec_from_config_applies_rank1_final_chord_headroom() -> None:
     spec = _graph_spec_from_config(config)
 
     assert spec.pitch_min == 0
-    assert spec.pitch_max == 107
+    assert spec.pitch_max == 124
+    assert spec.induced_node_image is not None
+    assert spec.induced_edge_image is not None
 
 
 def test_rank_2_runner_config_requires_parent_checkpoint() -> None:

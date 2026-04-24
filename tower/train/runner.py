@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 from typing import Mapping
 
 import torch
 
 from tower.graph.actions import action_space, active_lift_choices
+from tower.graph.induced import (
+    induced_rank1_graph_artifact_path,
+    write_induced_rank1_graph_artifact,
+)
 from tower.graph.legality import is_valid_transition
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import RankPolicy
@@ -928,6 +933,68 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
     graph_config = dict(config.graph_config)
     pitch_min = _mapping_int(graph_config, "pitch_min", default=0)
     requested_pitch_max = _mapping_int(graph_config, "pitch_max", default=127)
+    if (
+        config.rank == 1
+        and _mapping_bool(graph_config, "use_induced_rank1_graph", default=True)
+    ):
+        source_spec = TowerGraphSpec(
+            rank=2,
+            pitch_min=_mapping_int(
+                graph_config,
+                "induced_rank2_pitch_min",
+                default=pitch_min,
+            ),
+            pitch_max=_mapping_int(
+                graph_config,
+                "induced_rank2_pitch_max",
+                default=requested_pitch_max,
+            ),
+            max_step_size=_mapping_int(
+                graph_config,
+                "induced_rank2_max_step_size",
+                default=config.max_step_size,
+            ),
+        )
+        artifact_path = induced_rank1_graph_artifact_path(
+            source_spec=source_spec,
+            artifact_root=config.artifact_root,
+        )
+        if not artifact_path.exists():
+            write_induced_rank1_graph_artifact(
+                source_spec=source_spec,
+                artifact_root=config.artifact_root,
+            )
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise TypeError("induced rank1 graph artifact must contain an object")
+        node_payload = payload.get("node_image")
+        edge_payload = payload.get("edge_image")
+        if not isinstance(node_payload, list):
+            raise TypeError("induced rank1 graph node_image must be a list")
+        if not isinstance(edge_payload, list):
+            raise TypeError("induced rank1 graph edge_image must be a list")
+        induced_node_image = frozenset(
+            tuple(_coerce_rank1_state(node))
+            for node in node_payload
+        )
+        induced_edge_image = frozenset(
+            _coerce_rank1_edge(edge)
+            for edge in edge_payload
+        )
+        if not induced_node_image:
+            raise ValueError("induced rank1 graph node_image must not be empty")
+        if not induced_edge_image:
+            raise ValueError("induced rank1 graph edge_image must not be empty")
+        induced_pitch_min = min(state[0] for state in induced_node_image)
+        induced_pitch_max = max(state[0] for state in induced_node_image)
+        return TowerGraphSpec(
+            rank=1,
+            pitch_min=induced_pitch_min,
+            pitch_max=induced_pitch_max,
+            max_step_size=config.max_step_size,
+            induced_node_image=induced_node_image,
+            induced_edge_image=induced_edge_image,
+        )
     effective_pitch_max = _effective_pitch_max_for_rank(
         rank=config.rank,
         requested_pitch_max=requested_pitch_max,
@@ -938,6 +1005,26 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
         pitch_min=pitch_min,
         pitch_max=effective_pitch_max,
         max_step_size=config.max_step_size,
+    )
+
+
+def _coerce_rank1_state(value: object) -> tuple[int]:
+    if not isinstance(value, list):
+        raise TypeError("induced rank1 graph state entries must be lists")
+    if len(value) != 1:
+        raise ValueError("induced rank1 graph states must have length 1")
+    pitch = value[0]
+    if not isinstance(pitch, int):
+        raise TypeError("induced rank1 graph pitches must be ints")
+    return (pitch,)
+
+
+def _coerce_rank1_edge(value: object) -> tuple[tuple[int], tuple[int]]:
+    if not isinstance(value, dict):
+        raise TypeError("induced rank1 graph edge entries must be objects")
+    return (
+        _coerce_rank1_state(value["source"]),
+        _coerce_rank1_state(value["target"]),
     )
 
 
@@ -1106,6 +1193,18 @@ def _mapping_int(
     value = config.get(key, default)
     if not isinstance(value, int):
         raise TypeError(f"{key} must be an int")
+    return value
+
+
+def _mapping_bool(
+    config: Mapping[str, object],
+    key: str,
+    *,
+    default: bool,
+) -> bool:
+    value = config.get(key, default)
+    if not isinstance(value, bool):
+        raise TypeError(f"{key} must be a bool")
     return value
 
 
