@@ -947,6 +947,27 @@ def _effective_pitch_max_for_rank(
     requested_pitch_max: int,
     graph_config: Mapping[str, object],
 ) -> int:
+    final_chord_size = graph_config.get("final_chord_size")
+    if final_chord_size is not None and rank == 1:
+        if not isinstance(final_chord_size, int):
+            raise TypeError("final_chord_size must be an int")
+        if final_chord_size < 1:
+            raise ValueError("final_chord_size must be at least 1")
+        reserved_upper_semitones_per_voice = graph_config.get(
+            "reserved_upper_semitones_per_voice",
+            5,
+        )
+        if not isinstance(reserved_upper_semitones_per_voice, int):
+            raise TypeError("reserved_upper_semitones_per_voice must be an int")
+        if reserved_upper_semitones_per_voice < 0:
+            raise ValueError(
+                "reserved_upper_semitones_per_voice must be non-negative"
+            )
+        return min(
+            requested_pitch_max,
+            127 - reserved_upper_semitones_per_voice * final_chord_size,
+        )
+
     target_max_rank = graph_config.get("target_max_rank")
     if target_max_rank is None:
         return requested_pitch_max

@@ -33,11 +33,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-step-size", type=int, default=1)
     parser.add_argument("--pitch-min", type=int, default=0)
     parser.add_argument("--pitch-max", type=int, default=127)
-    parser.add_argument("--target-max-rank", type=int, default=4)
+    parser.add_argument("--final-chord-size", type=int, default=4)
     parser.add_argument(
-        "--reserved-semitones-per-future-voice",
+        "--reserved-upper-semitones-per-voice",
         type=int,
-        default=4,
+        default=5,
     )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
@@ -147,9 +147,9 @@ def main(argv: list[str] | None = None) -> int:
         graph_config={
             "pitch_min": args.pitch_min,
             "pitch_max": args.pitch_max,
-            "target_max_rank": args.target_max_rank,
-            "reserved_semitones_per_future_voice": (
-                args.reserved_semitones_per_future_voice
+            "final_chord_size": args.final_chord_size,
+            "reserved_upper_semitones_per_voice": (
+                args.reserved_upper_semitones_per_voice
             ),
         },
         policy_config={
@@ -222,8 +222,8 @@ def main(argv: list[str] | None = None) -> int:
         pitch_max=min(
             config.graph_config["pitch_max"],  # type: ignore[index]
             127
-            - config.graph_config["reserved_semitones_per_future_voice"]  # type: ignore[index]
-            * (config.graph_config["target_max_rank"] - 1),  # type: ignore[index]
+            - config.graph_config["reserved_upper_semitones_per_voice"]  # type: ignore[index]
+            * config.graph_config["final_chord_size"],  # type: ignore[index]
         ),
         max_step_size=args.max_step_size,
     )

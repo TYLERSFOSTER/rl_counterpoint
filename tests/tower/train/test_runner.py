@@ -29,6 +29,7 @@ from tower.train.runner import (
     Rank1TrainingRunResult,
     Rank2TrainingRunResult,
     TowerRunnerConfig,
+    _graph_spec_from_config,
     run_rank1_training,
     run_rank2_training,
     run_final_inference_episode,
@@ -168,6 +169,26 @@ def test_runner_config_converts_to_rank_config() -> None:
     assert rank_config.parent_sampler_config == {}
     assert rank_config.parent_checkpoint is None
     assert rank_config.seed_config == {"seed": 123}
+
+
+def test_graph_spec_from_config_applies_rank1_final_chord_headroom() -> None:
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=1,
+        episode_count=1,
+        seed=123,
+        graph_config={
+            "pitch_min": 0,
+            "pitch_max": 127,
+            "final_chord_size": 4,
+            "reserved_upper_semitones_per_voice": 5,
+        },
+    )
+
+    spec = _graph_spec_from_config(config)
+
+    assert spec.pitch_min == 0
+    assert spec.pitch_max == 107
 
 
 def test_rank_2_runner_config_requires_parent_checkpoint() -> None:

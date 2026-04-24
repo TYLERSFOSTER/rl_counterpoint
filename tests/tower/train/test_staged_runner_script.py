@@ -24,8 +24,8 @@ def test_tower_train_staged_parse_args_defaults() -> None:
     assert args.max_step_size == 7
     assert args.pitch_min == 0
     assert args.pitch_max == 127
-    assert args.target_max_rank == 4
-    assert args.reserved_semitones_per_future_voice == 4
+    assert args.final_chord_size == 4
+    assert args.reserved_upper_semitones_per_voice == 5
     assert args.target_root_octave_choices == [2, 3, 4, 5, 6]
     assert args.terminal_cadence_reward == 100.0
     assert args.d_model == 64
@@ -91,10 +91,8 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
     assert stage2_config["policy_config"]["d_model"] == 64
     assert stage2_config["graph_config"]["pitch_min"] == 0
     assert stage2_config["graph_config"]["pitch_max"] == 127
-    assert stage2_config["graph_config"]["target_max_rank"] == 4
-    assert (
-        stage2_config["graph_config"]["reserved_semitones_per_future_voice"] == 4
-    )
+    assert stage2_config["graph_config"]["final_chord_size"] == 4
+    assert stage2_config["graph_config"]["reserved_upper_semitones_per_voice"] == 5
     assert stage2_config["policy_config"]["num_layers"] == 2
     assert stage2_config["policy_config"]["ff_dim"] == 128
     assert stage2_config["reward_config"]["terminal_cadence_reward"] == 100.0
