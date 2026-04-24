@@ -62,6 +62,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--min-vertical-gap", type=int, default=3)
     parser.add_argument("--spacing-reward", type=float, default=0.1)
     parser.add_argument("--spacing-penalty", type=float, default=-0.1)
+    parser.add_argument("--target-vertical-interval", type=int, default=5)
+    parser.add_argument("--target-vertical-interval-weight", type=float, default=1.0)
     parser.add_argument("--d-model", type=int, default=32)
     parser.add_argument("--num-layers", type=int, default=1)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -91,6 +93,8 @@ def _reward_config_from_args(args: argparse.Namespace) -> dict[str, object]:
         "min_vertical_gap": args.min_vertical_gap,
         "spacing_reward": args.spacing_reward,
         "spacing_penalty": args.spacing_penalty,
+        "target_vertical_interval": args.target_vertical_interval,
+        "target_vertical_interval_weight": args.target_vertical_interval_weight,
     }
 
 
@@ -205,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
             min_vertical_gap=args.min_vertical_gap,
             spacing_reward=args.spacing_reward,
             spacing_penalty=args.spacing_penalty,
+            target_vertical_interval=args.target_vertical_interval,
+            target_vertical_interval_weight=args.target_vertical_interval_weight,
         ),
         graph_spec=TowerGraphSpec(
             rank=2,

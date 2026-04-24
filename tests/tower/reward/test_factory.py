@@ -282,6 +282,8 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
         terminal_cadence_reward=10.0,
         vertical_consonance_weight=2.0,
         spacing_reward=0.1,
+        target_vertical_interval=5,
+        target_vertical_interval_weight=1.0,
     )
 
     result = reward_fn(
@@ -307,13 +309,14 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
 
     assert result.is_terminal_success is True
     assert result.reward == pytest.approx(
-        10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1
+        10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1 + 0.5
     )
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
     assert child_results[1]["reward"] == 1.0
     assert child_results[2]["reward"] == pytest.approx(2.0 / 9.0)
     assert child_results[3]["reward"] == 0.1
+    assert child_results[4]["reward"] == 0.5
 
 
 def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:
@@ -330,7 +333,7 @@ def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:
     assert result.diagnostics["kind"] == "rank2_reward"
     assert result.diagnostics["key_pitch_class"] == 3
     assert result.diagnostics["target_root_octave"] == 4
-    assert len(result.diagnostics["terms"]) == 4
+    assert len(result.diagnostics["terms"]) == 5
 
 
 def test_rank2_reward_factory_can_preserve_context_target_octave() -> None:
@@ -388,3 +391,5 @@ def test_rank2_reward_factory_validates_config_values() -> None:
         Rank2RewardFactoryConfig(upper_register_soft_ceiling=128)
     with pytest.raises(ValueError, match="min_vertical_gap must be at least 1"):
         Rank2RewardFactoryConfig(min_vertical_gap=0)
+    with pytest.raises(ValueError, match="target_vertical_interval must be non-negative"):
+        Rank2RewardFactoryConfig(target_vertical_interval=-1)

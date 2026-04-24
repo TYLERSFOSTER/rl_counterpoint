@@ -185,6 +185,54 @@ class Rank2SpacingControlReward:
         )
 
 
+@dataclass(frozen=True)
+class Rank2TargetVerticalIntervalReward:
+    """Reward realized vertical gap by inverse distance from a target interval."""
+
+    target_vertical_interval: int = 5
+    interval_reward_weight: float = 1.0
+    diagnostics_key: str = "rank2_target_vertical_interval"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.target_vertical_interval, int):
+            raise TypeError("target_vertical_interval must be an int")
+        if self.target_vertical_interval < 0:
+            raise ValueError("target_vertical_interval must be non-negative")
+        _validate_number(
+            self.interval_reward_weight,
+            field_name="interval_reward_weight",
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_2_context(context)
+
+        new_voice_index = _new_voice_index(context)
+        new_voice_pitch = context.target[new_voice_index]
+        other_pitch = context.target[1 - new_voice_index]
+        vertical_gap = new_voice_pitch - other_pitch
+        interval_distance = abs(vertical_gap - self.target_vertical_interval)
+        reward = float(self.interval_reward_weight) * (
+            1.0 / (interval_distance + 1.0)
+        )
+
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank2_target_vertical_interval",
+                    "new_voice_index": new_voice_index,
+                    "new_voice_pitch": new_voice_pitch,
+                    "other_pitch": other_pitch,
+                    "vertical_gap": vertical_gap,
+                    "target_vertical_interval": self.target_vertical_interval,
+                    "interval_distance": interval_distance,
+                    "interval_reward_weight": float(self.interval_reward_weight),
+                    "reward_formula": "w/(|gap-target|+1)",
+                }
+            },
+        )
+
+
 def _validate_rank_2_context(context: TowerRewardContext) -> None:
     if context.rank != 2:
         raise ValueError("rank-2 harmonic reward requires rank 2 context")

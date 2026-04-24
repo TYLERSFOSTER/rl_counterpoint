@@ -31,6 +31,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--measure-size", type=int, default=4)
     parser.add_argument("--context-measures", type=int, default=2)
     parser.add_argument("--max-step-size", type=int, default=1)
+    parser.add_argument("--pitch-min", type=int, default=0)
+    parser.add_argument("--pitch-max", type=int, default=127)
+    parser.add_argument("--target-max-rank", type=int, default=4)
+    parser.add_argument(
+        "--reserved-semitones-per-future-voice",
+        type=int,
+        default=4,
+    )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
     parser.add_argument("--initial-pitch-min", type=int, default=36)
@@ -136,6 +144,14 @@ def main(argv: list[str] | None = None) -> int:
         context_measures=args.context_measures,
         max_step_size=args.max_step_size,
         reward_config=reward_config,
+        graph_config={
+            "pitch_min": args.pitch_min,
+            "pitch_max": args.pitch_max,
+            "target_max_rank": args.target_max_rank,
+            "reserved_semitones_per_future_voice": (
+                args.reserved_semitones_per_future_voice
+            ),
+        },
         policy_config={
             "d_model": 32,
             "num_layers": 1,
@@ -200,6 +216,18 @@ def main(argv: list[str] | None = None) -> int:
     print(f"rank: {config.rank}")
     print(f"episodes: {config.episode_count}")
     print(f"max_steps: {args.max_steps}")
+    graph_spec = TowerGraphSpec(
+        rank=1,
+        pitch_min=config.graph_config["pitch_min"],  # type: ignore[index]
+        pitch_max=min(
+            config.graph_config["pitch_max"],  # type: ignore[index]
+            127
+            - config.graph_config["reserved_semitones_per_future_voice"]  # type: ignore[index]
+            * (config.graph_config["target_max_rank"] - 1),  # type: ignore[index]
+        ),
+        max_step_size=args.max_step_size,
+    )
+    print(f"pitch_range: [{graph_spec.pitch_min}, {graph_spec.pitch_max}]")
     print(f"reward: {reward_config['kind']}")
     print(f"latest checkpoint: {result.paths.checkpoint_latest_path}")
     print(f"final midi: {result.final_midi_path}")

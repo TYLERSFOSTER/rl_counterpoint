@@ -9,6 +9,7 @@ from tower.reward.context import TowerRewardContext
 from tower.reward.harmony import (
     Rank2SpacingControlReward,
     Rank2TargetOctaveDistanceReward,
+    Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
 )
 from tower.reward.melody import (
@@ -198,6 +199,8 @@ class Rank2RewardFactoryConfig:
     min_vertical_gap: int = 3
     spacing_reward: float = 0.1
     spacing_penalty: float = -0.1
+    target_vertical_interval: int = 5
+    target_vertical_interval_weight: float = 1.0
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
@@ -240,6 +243,14 @@ class Rank2RewardFactoryConfig:
             self.spacing_penalty,
             field_name="spacing_penalty",
         )
+        _validate_positive_int_or_zero(
+            self.target_vertical_interval,
+            field_name="target_vertical_interval",
+        )
+        _validate_number(
+            self.target_vertical_interval_weight,
+            field_name="target_vertical_interval_weight",
+        )
 
 
 @dataclass(frozen=True)
@@ -280,6 +291,14 @@ class Rank2RewardFunction:
                         min_vertical_gap=int(self.config.min_vertical_gap),
                         spacing_reward=float(self.config.spacing_reward),
                         spacing_penalty=float(self.config.spacing_penalty),
+                    ),
+                    Rank2TargetVerticalIntervalReward(
+                        target_vertical_interval=int(
+                            self.config.target_vertical_interval
+                        ),
+                        interval_reward_weight=float(
+                            self.config.target_vertical_interval_weight
+                        ),
                     ),
                 ),
                 diagnostics={
@@ -374,6 +393,8 @@ def build_rank2_reward_fn(
     min_vertical_gap: int = 3,
     spacing_reward: float = 0.1,
     spacing_penalty: float = -0.1,
+    target_vertical_interval: int = 5,
+    target_vertical_interval_weight: float = 1.0,
 ) -> Rank2RewardFunction:
     """Build the first narrow rank-2 reward function."""
     return Rank2RewardFunction(
@@ -390,6 +411,8 @@ def build_rank2_reward_fn(
             min_vertical_gap=min_vertical_gap,
             spacing_reward=spacing_reward,
             spacing_penalty=spacing_penalty,
+            target_vertical_interval=target_vertical_interval,
+            target_vertical_interval_weight=target_vertical_interval_weight,
         )
     )
 
@@ -417,6 +440,13 @@ def _validate_positive_int(value: int, *, field_name: str) -> None:
         raise TypeError(f"{field_name} must be an integer")
     if value < 1:
         raise ValueError(f"{field_name} must be at least 1")
+
+
+def _validate_positive_int_or_zero(value: int, *, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an integer")
+    if value < 0:
+        raise ValueError(f"{field_name} must be non-negative")
 
 
 def _validate_target_octave(value: int) -> None:

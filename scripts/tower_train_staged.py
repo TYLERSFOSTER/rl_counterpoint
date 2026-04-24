@@ -40,6 +40,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--measure-size", type=int, default=4)
     parser.add_argument("--context-measures", type=int, default=2)
     parser.add_argument("--max-step-size", type=int, default=7)
+    parser.add_argument("--pitch-min", type=int, default=0)
+    parser.add_argument("--pitch-max", type=int, default=127)
+    parser.add_argument("--target-max-rank", type=int, default=4)
+    parser.add_argument(
+        "--reserved-semitones-per-future-voice",
+        type=int,
+        default=4,
+    )
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
     parser.add_argument("--initial-pitch-min", type=int, default=36)
@@ -158,6 +166,17 @@ def _base_training_config_from_args(args: argparse.Namespace) -> dict[str, objec
     }
 
 
+def _graph_config_from_args(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "pitch_min": args.pitch_min,
+        "pitch_max": args.pitch_max,
+        "target_max_rank": args.target_max_rank,
+        "reserved_semitones_per_future_voice": (
+            args.reserved_semitones_per_future_voice
+        ),
+    }
+
+
 def _build_rank1_reward_from_config(reward_config: dict[str, object]):
     return build_rank1_reward_fn(
         key_pitch_class=int(reward_config["key_pitch_class"]),
@@ -231,9 +250,20 @@ def main(argv: list[str] | None = None) -> int:
     try:
         reward_config = _reward_config_from_args(args)
         policy_config = _policy_config_from_args(args)
+        graph_config = _graph_config_from_args(args)
         base_training_config = _base_training_config_from_args(args)
         reward_fn = _build_rank1_reward_from_config(reward_config)
-        graph_spec = TowerGraphSpec(rank=1, max_step_size=args.max_step_size)
+        graph_spec = TowerGraphSpec(
+            rank=1,
+            pitch_min=args.pitch_min,
+            pitch_max=min(
+                args.pitch_max,
+                127
+                - args.reserved_semitones_per_future_voice
+                * (args.target_max_rank - 1),
+            ),
+            max_step_size=args.max_step_size,
+        )
         stage1_lineage_id = f"{args.lineage_id}-stage1"
         stage2_lineage_id = args.lineage_id
 
@@ -247,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
             context_measures=args.context_measures,
             max_step_size=args.max_step_size,
             reward_config=reward_config,
+            graph_config=graph_config,
             policy_config=policy_config,
             training_config={
                 **base_training_config,
@@ -279,6 +310,7 @@ def main(argv: list[str] | None = None) -> int:
             context_measures=args.context_measures,
             max_step_size=args.max_step_size,
             reward_config=reward_config,
+            graph_config=graph_config,
             policy_config=policy_config,
             training_config={
                 **base_training_config,

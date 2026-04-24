@@ -8,6 +8,7 @@ from tower.reward.context import NewFacts, TowerRewardContext
 from tower.reward.harmony import (
     Rank2SpacingControlReward,
     Rank2TargetOctaveDistanceReward,
+    Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
 )
 from tower.reward.melody import consonance_from_pitch_class
@@ -121,6 +122,8 @@ def test_rank2_harmonic_terms_reject_non_rank_2_context() -> None:
         Rank2VerticalConsonanceReward()(context)
     with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
         Rank2SpacingControlReward()(context)
+    with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
+        Rank2TargetVerticalIntervalReward()(context)
 
 
 def test_rank2_spacing_control_rewards_safe_spacing_below_ceiling() -> None:
@@ -165,3 +168,41 @@ def test_rank2_spacing_control_penalizes_compressed_gap_and_ceiling_excess() -> 
     assert diagnostics["vertical_gap"] == 2
     assert diagnostics["excess_above_ceiling"] == 2
     assert diagnostics["ceiling_penalty"] == pytest.approx(-0.5)
+
+
+def test_rank2_target_vertical_interval_reward_peaks_at_target_gap() -> None:
+    term = Rank2TargetVerticalIntervalReward(
+        target_vertical_interval=5,
+        interval_reward_weight=1.0,
+    )
+
+    result = term(
+        make_context(
+            history=((60, 64),),
+            action=(0, 1),
+        )
+    )
+
+    diagnostics = result.diagnostics["rank2_target_vertical_interval"]
+    assert result.reward == 1.0
+    assert diagnostics["vertical_gap"] == 5
+    assert diagnostics["interval_distance"] == 0
+
+
+def test_rank2_target_vertical_interval_reward_decays_by_distance() -> None:
+    term = Rank2TargetVerticalIntervalReward(
+        target_vertical_interval=5,
+        interval_reward_weight=2.0,
+    )
+
+    result = term(
+        make_context(
+            history=((60, 64),),
+            action=(0, 3),
+        )
+    )
+
+    diagnostics = result.diagnostics["rank2_target_vertical_interval"]
+    assert diagnostics["vertical_gap"] == 7
+    assert diagnostics["interval_distance"] == 2
+    assert result.reward == pytest.approx(2.0 / 3.0)

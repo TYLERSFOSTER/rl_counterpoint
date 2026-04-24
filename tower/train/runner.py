@@ -926,12 +926,49 @@ def _build_optimizer(
 
 def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
     graph_config = dict(config.graph_config)
+    pitch_min = _mapping_int(graph_config, "pitch_min", default=0)
+    requested_pitch_max = _mapping_int(graph_config, "pitch_max", default=127)
+    effective_pitch_max = _effective_pitch_max_for_rank(
+        rank=config.rank,
+        requested_pitch_max=requested_pitch_max,
+        graph_config=graph_config,
+    )
     return TowerGraphSpec(
         rank=config.rank,
-        pitch_min=_mapping_int(graph_config, "pitch_min", default=0),
-        pitch_max=_mapping_int(graph_config, "pitch_max", default=127),
+        pitch_min=pitch_min,
+        pitch_max=effective_pitch_max,
         max_step_size=config.max_step_size,
     )
+
+
+def _effective_pitch_max_for_rank(
+    *,
+    rank: int,
+    requested_pitch_max: int,
+    graph_config: Mapping[str, object],
+) -> int:
+    target_max_rank = graph_config.get("target_max_rank")
+    if target_max_rank is None:
+        return requested_pitch_max
+    if not isinstance(target_max_rank, int):
+        raise TypeError("target_max_rank must be an int")
+    if target_max_rank < rank:
+        raise ValueError("target_max_rank must be at least the current rank")
+
+    reserved_semitones_per_future_voice = graph_config.get(
+        "reserved_semitones_per_future_voice",
+        4,
+    )
+    if not isinstance(reserved_semitones_per_future_voice, int):
+        raise TypeError("reserved_semitones_per_future_voice must be an int")
+    if reserved_semitones_per_future_voice < 0:
+        raise ValueError("reserved_semitones_per_future_voice must be non-negative")
+
+    future_voice_count = target_max_rank - rank
+    reserved_semitones = (
+        reserved_semitones_per_future_voice * future_voice_count
+    )
+    return min(requested_pitch_max, 127 - reserved_semitones)
 
 
 def _training_int(
