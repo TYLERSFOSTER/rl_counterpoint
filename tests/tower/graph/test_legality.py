@@ -11,7 +11,7 @@ def test_valid_rank_1_state() -> None:
 
 
 def test_valid_rank_2_increasing_state() -> None:
-    assert is_valid_state((60, 64), TowerGraphSpec(rank=2))
+    assert is_valid_state((63, 67), TowerGraphSpec(rank=2))
 
 
 def test_non_increasing_rank_2_state_false() -> None:
@@ -24,6 +24,11 @@ def test_rank_2_non_consonant_vertical_interval_false() -> None:
 
 def test_rank_2_octave_vertical_interval_false() -> None:
     assert not is_valid_state((60, 72), TowerGraphSpec(rank=2))
+
+
+def test_rank_2_lower_note_must_be_consonant_relative_to_key() -> None:
+    assert is_valid_state((63, 67), TowerGraphSpec(rank=2, key_pitch_class=0))
+    assert not is_valid_state((60, 64), TowerGraphSpec(rank=2, key_pitch_class=0))
 
 
 def test_transition_to_out_of_range_target_false() -> None:

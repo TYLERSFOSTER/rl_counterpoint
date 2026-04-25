@@ -6,6 +6,7 @@ from tower.graph.spec import TowerGraphSpec
 from tower.state_action import TowerAction, TowerState, apply_action, validate_action, validate_state
 
 RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 5, 7, 8, 9})
+RANK2_ALLOWED_ROOT_INTERVAL_CLASSES = frozenset({3, 4, 5, 7, 8, 9})
 RANK2_MAX_VERTICAL_INTERVAL = 10
 
 
@@ -38,6 +39,9 @@ def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
         return state in spec.induced_node_image
 
     if spec.rank == 2:
+        lower_pitch_class = (state[0] - spec.key_pitch_class) % 12
+        if lower_pitch_class not in RANK2_ALLOWED_ROOT_INTERVAL_CLASSES:
+            return False
         vertical_interval = _rank2_vertical_interval(state)
         if vertical_interval > RANK2_MAX_VERTICAL_INTERVAL:
             return False

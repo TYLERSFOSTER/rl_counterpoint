@@ -931,6 +931,7 @@ def _build_optimizer(
 
 def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
     graph_config = dict(config.graph_config)
+    key_pitch_class = _optional_reward_int(config, "key_pitch_class")
     pitch_min = _mapping_int(graph_config, "pitch_min", default=0)
     requested_pitch_max = _mapping_int(graph_config, "pitch_max", default=127)
     if (
@@ -939,6 +940,7 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
     ):
         source_spec = TowerGraphSpec(
             rank=2,
+            key_pitch_class=0 if key_pitch_class is None else key_pitch_class,
             pitch_min=_mapping_int(
                 graph_config,
                 "induced_rank2_pitch_min",
@@ -989,6 +991,7 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
         induced_pitch_max = max(state[0] for state in induced_node_image)
         return TowerGraphSpec(
             rank=1,
+            key_pitch_class=0 if key_pitch_class is None else key_pitch_class,
             pitch_min=induced_pitch_min,
             pitch_max=induced_pitch_max,
             max_step_size=config.max_step_size,
@@ -1002,6 +1005,7 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
     )
     return TowerGraphSpec(
         rank=config.rank,
+        key_pitch_class=0 if key_pitch_class is None else key_pitch_class,
         pitch_min=pitch_min,
         pitch_max=effective_pitch_max,
         max_step_size=config.max_step_size,

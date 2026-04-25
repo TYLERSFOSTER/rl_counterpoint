@@ -21,8 +21,10 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.max_steps == 1
     assert args.pitch_min == 0
     assert args.pitch_max == 127
-    assert args.final_chord_size == 4
-    assert args.reserved_upper_semitones_per_voice == 5
+    assert args.use_induced_rank1_graph is True
+    assert args.induced_rank2_pitch_min == 0
+    assert args.induced_rank2_pitch_max == 127
+    assert args.induced_rank2_max_step_size == 1
     assert args.sample_initial_pitch is True
     assert args.initial_pitch_min == 36
     assert args.initial_pitch_max == 84
@@ -102,8 +104,9 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["graph_config"]["pitch_min"] == 0
     assert config["graph_config"]["pitch_max"] == 127
     assert config["graph_config"]["use_induced_rank1_graph"] is True
-    assert config["graph_config"]["final_chord_size"] == 4
-    assert config["graph_config"]["reserved_upper_semitones_per_voice"] == 5
+    assert config["graph_config"]["induced_rank2_pitch_min"] == 0
+    assert config["graph_config"]["induced_rank2_pitch_max"] == 127
+    assert config["graph_config"]["induced_rank2_max_step_size"] == 1
     assert config["policy_config"]["num_heads"] == 4
     assert config["policy_config"]["ff_dim"] == 64
     assert config["training_config"]["sample_initial_pitch"] is True

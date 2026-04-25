@@ -42,12 +42,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-step-size", type=int, default=7)
     parser.add_argument("--pitch-min", type=int, default=0)
     parser.add_argument("--pitch-max", type=int, default=127)
-    parser.add_argument("--final-chord-size", type=int, default=4)
     parser.add_argument(
-        "--reserved-upper-semitones-per-voice",
-        type=int,
-        default=5,
+        "--use-induced-rank1-graph",
+        action=argparse.BooleanOptionalAction,
+        default=True,
     )
+    parser.add_argument("--induced-rank2-pitch-min", type=int, default=0)
+    parser.add_argument("--induced-rank2-pitch-max", type=int, default=127)
+    parser.add_argument("--induced-rank2-max-step-size", type=int, default=7)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
     parser.add_argument("--initial-pitch-min", type=int, default=36)
@@ -170,11 +172,10 @@ def _graph_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "pitch_min": args.pitch_min,
         "pitch_max": args.pitch_max,
-        "use_induced_rank1_graph": True,
-        "final_chord_size": args.final_chord_size,
-        "reserved_upper_semitones_per_voice": (
-            args.reserved_upper_semitones_per_voice
-        ),
+        "use_induced_rank1_graph": args.use_induced_rank1_graph,
+        "induced_rank2_pitch_min": args.induced_rank2_pitch_min,
+        "induced_rank2_pitch_max": args.induced_rank2_pitch_max,
+        "induced_rank2_max_step_size": args.induced_rank2_max_step_size,
     }
 
 

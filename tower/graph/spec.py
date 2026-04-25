@@ -13,6 +13,7 @@ class TowerGraphSpec:
     """Minimal graph knobs needed by early tower slices."""
 
     rank: int
+    key_pitch_class: int = 0
     pitch_min: int = 0
     pitch_max: int = 127
     max_step_size: int = 4
@@ -21,6 +22,8 @@ class TowerGraphSpec:
 
     def __post_init__(self) -> None:
         validate_rank(self.rank)
+        if self.key_pitch_class < 0 or self.key_pitch_class > 11:
+            raise ValueError("key_pitch_class must be in [0, 11]")
         if self.pitch_min < 0:
             raise ValueError("pitch_min must be at least 0")
         if self.pitch_max > 127:

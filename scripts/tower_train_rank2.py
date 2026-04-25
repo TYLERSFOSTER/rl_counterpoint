@@ -44,8 +44,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--pitch-min", type=int, default=36)
     parser.add_argument("--pitch-max", type=int, default=84)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
-    parser.add_argument("--initial-parent-pitch", type=int, default=60)
-    parser.add_argument("--initial-child-pitch", type=int, default=64)
+    parser.add_argument("--initial-parent-pitch", type=int, default=63)
+    parser.add_argument("--initial-child-pitch", type=int, default=67)
     parser.add_argument("--key-pitch-class", type=int, default=0)
     parser.add_argument("--target-root-octave", type=int, default=4)
     parser.add_argument("--parent-top-m", type=int, default=3)
@@ -214,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
         graph_spec=TowerGraphSpec(
             rank=2,
+            key_pitch_class=args.key_pitch_class,
             pitch_min=args.pitch_min,
             pitch_max=args.pitch_max,
             max_step_size=args.max_step_size,
