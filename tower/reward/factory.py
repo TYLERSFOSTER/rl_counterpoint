@@ -7,13 +7,14 @@ from numbers import Real
 
 from tower.reward.context import TowerRewardContext
 from tower.reward.harmony import (
+    Rank2CadenceEndpointReward,
     Rank2SpacingControlReward,
-    Rank2TargetOctaveDistanceReward,
     Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
 )
 from tower.reward.melody import (
     BeatClassPitchReward,
+    GoalOctaveDirectionReward,
     LargeLeapRecoveryTerm,
     RecentMelodicRangePenalty,
     StepSizeBinBalanceReward,
@@ -36,6 +37,7 @@ class Rank1RewardFactoryConfig:
     cadence_failure_reward: float = 0.0
     target_root_octave: int = 4
     use_context_target_root_octave: bool = False
+    goal_octave_direction_weight: float = 0.5
     max_recent_range: int = 12
     range_penalty: float = -1.0
     large_leap_threshold: int = 6
@@ -64,6 +66,10 @@ class Rank1RewardFactoryConfig:
         _validate_target_octave(self.target_root_octave)
         if not isinstance(self.use_context_target_root_octave, bool):
             raise TypeError("use_context_target_root_octave must be a bool")
+        _validate_number(
+            self.goal_octave_direction_weight,
+            field_name="goal_octave_direction_weight",
+        )
         _validate_number(
             self.measure_start_tonic_reward,
             field_name="measure_start_tonic_reward",
@@ -128,6 +134,9 @@ class Rank1RewardFunction:
                         failure_penalty=float(self.config.failure_penalty),
                     ),
                     TargetOctaveDistanceReward(),
+                    GoalOctaveDirectionReward(
+                        weight=float(self.config.goal_octave_direction_weight),
+                    ),
                     BeatClassPitchReward(
                         measure_start_tonic_reward=(
                             self.config.measure_start_tonic_reward
@@ -190,10 +199,11 @@ class Rank2RewardFactoryConfig:
     key_pitch_class: int = 0
     terminal_cadence_reward: float = 10.0
     cadence_failure_reward: float = 0.0
+    cadence_endpoint_weight: float = 1.0
     target_root_octave: int = 4
     use_context_target_root_octave: bool = False
     vertical_consonance_weight: float = 1.0
-    vertical_non_consonance_penalty: float = -0.5
+    vertical_non_consonance_penalty: float = 0.0
     upper_register_soft_ceiling: int = 80
     upper_register_penalty_weight: float = 0.05
     min_vertical_gap: int = 3
@@ -211,6 +221,10 @@ class Rank2RewardFactoryConfig:
         _validate_number(
             self.cadence_failure_reward,
             field_name="cadence_failure_reward",
+        )
+        _validate_number(
+            self.cadence_endpoint_weight,
+            field_name="cadence_endpoint_weight",
         )
         _validate_target_octave(self.target_root_octave)
         if not isinstance(self.use_context_target_root_octave, bool):
@@ -272,7 +286,9 @@ class Rank2RewardFunction:
                         failure_reward=float(self.config.cadence_failure_reward),
                         diagnostics_key="cadence",
                     ),
-                    Rank2TargetOctaveDistanceReward(),
+                    Rank2CadenceEndpointReward(
+                        weight=float(self.config.cadence_endpoint_weight),
+                    ),
                     Rank2VerticalConsonanceReward(
                         consonance_weight=float(
                             self.config.vertical_consonance_weight
@@ -304,7 +320,6 @@ class Rank2RewardFunction:
                 diagnostics={
                     "kind": "rank2_reward",
                     "key_pitch_class": self.config.key_pitch_class,
-                    "target_root_octave": self.config.target_root_octave,
                 },
             ),
         )
@@ -315,18 +330,9 @@ class Rank2RewardFunction:
         if context.rank != 2:
             raise ValueError("rank-2 reward function requires rank 2 context")
 
-        target_root_octave = (
-            context.target_root_octave
-            if self.config.use_context_target_root_octave
-            else self.config.target_root_octave
-        )
-        if target_root_octave is None:
-            raise ValueError("target_root_octave is required for rank-2 reward")
-
         keyed_context = replace(
             context,
             key_pitch_class=self.config.key_pitch_class,
-            target_root_octave=target_root_octave,
         )
         return self.term(keyed_context)
 
@@ -338,6 +344,7 @@ def build_rank1_reward_fn(
     cadence_failure_reward: float = 0.0,
     target_root_octave: int = 4,
     use_context_target_root_octave: bool = False,
+    goal_octave_direction_weight: float = 0.5,
     max_recent_range: int = 12,
     range_penalty: float = -1.0,
     large_leap_threshold: int = 6,
@@ -361,6 +368,7 @@ def build_rank1_reward_fn(
             cadence_failure_reward=cadence_failure_reward,
             target_root_octave=target_root_octave,
             use_context_target_root_octave=use_context_target_root_octave,
+            goal_octave_direction_weight=goal_octave_direction_weight,
             max_recent_range=max_recent_range,
             range_penalty=range_penalty,
             large_leap_threshold=large_leap_threshold,
@@ -384,10 +392,11 @@ def build_rank2_reward_fn(
     key_pitch_class: int = 0,
     terminal_cadence_reward: float = 10.0,
     cadence_failure_reward: float = 0.0,
+    cadence_endpoint_weight: float = 1.0,
     target_root_octave: int = 4,
     use_context_target_root_octave: bool = False,
     vertical_consonance_weight: float = 1.0,
-    vertical_non_consonance_penalty: float = -0.5,
+    vertical_non_consonance_penalty: float = 0.0,
     upper_register_soft_ceiling: int = 80,
     upper_register_penalty_weight: float = 0.05,
     min_vertical_gap: int = 3,
@@ -402,6 +411,7 @@ def build_rank2_reward_fn(
             key_pitch_class=key_pitch_class,
             terminal_cadence_reward=terminal_cadence_reward,
             cadence_failure_reward=cadence_failure_reward,
+            cadence_endpoint_weight=cadence_endpoint_weight,
             target_root_octave=target_root_octave,
             use_context_target_root_octave=use_context_target_root_octave,
             vertical_consonance_weight=vertical_consonance_weight,

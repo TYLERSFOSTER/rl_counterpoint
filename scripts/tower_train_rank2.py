@@ -51,11 +51,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--parent-top-m", type=int, default=3)
     parser.add_argument("--terminal-cadence-reward", type=float, default=10.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
+    parser.add_argument("--cadence-endpoint-weight", type=float, default=1.0)
     parser.add_argument("--vertical-consonance-weight", type=float, default=1.0)
     parser.add_argument(
         "--vertical-non-consonance-penalty",
         type=float,
-        default=-0.5,
+        default=0.0,
     )
     parser.add_argument("--upper-register-soft-ceiling", type=int, default=80)
     parser.add_argument("--upper-register-penalty-weight", type=float, default=0.05)
@@ -86,6 +87,7 @@ def _reward_config_from_args(args: argparse.Namespace) -> dict[str, object]:
         "target_root_octave": args.target_root_octave,
         "terminal_cadence_reward": args.terminal_cadence_reward,
         "cadence_failure_reward": args.cadence_failure_reward,
+        "cadence_endpoint_weight": args.cadence_endpoint_weight,
         "vertical_consonance_weight": args.vertical_consonance_weight,
         "vertical_non_consonance_penalty": args.vertical_non_consonance_penalty,
         "upper_register_soft_ceiling": args.upper_register_soft_ceiling,
@@ -202,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
             target_root_octave=args.target_root_octave,
             terminal_cadence_reward=args.terminal_cadence_reward,
             cadence_failure_reward=args.cadence_failure_reward,
+            cadence_endpoint_weight=args.cadence_endpoint_weight,
             vertical_consonance_weight=args.vertical_consonance_weight,
             vertical_non_consonance_penalty=args.vertical_non_consonance_penalty,
             upper_register_soft_ceiling=args.upper_register_soft_ceiling,

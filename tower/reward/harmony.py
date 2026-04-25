@@ -54,7 +54,7 @@ class Rank2VerticalConsonanceReward:
     """Reward consonant realized outer intervals and penalize non-consonance."""
 
     consonance_weight: float = 1.0
-    non_consonance_penalty: float = -0.5
+    non_consonance_penalty: float = 0.0
     diagnostics_key: str = "rank2_vertical_consonance"
 
     def __post_init__(self) -> None:
@@ -107,6 +107,64 @@ class Rank2VerticalConsonanceReward:
                         sorted(CONSONANT_INTERVALS_MOD_12)
                     ),
                     "intervals": tuple(interval_rows),
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
+class Rank2CadenceEndpointReward:
+    """Give endpoint shaping for the child voice even when parent cadence fails."""
+
+    weight: float = 1.0
+    diagnostics_key: str = "rank2_cadence_endpoint"
+
+    def __post_init__(self) -> None:
+        _validate_number(self.weight, field_name="weight")
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_2_context(context)
+        if context.key_pitch_class is None:
+            raise ValueError("key_pitch_class is required for Rank2CadenceEndpointReward")
+        if not context.is_final_step:
+            return TowerRewardResult(
+                reward=0.0,
+                diagnostics={
+                    self.diagnostics_key: {
+                        "kind": "rank2_cadence_endpoint",
+                        "reason": "not_final_step",
+                    }
+                },
+            )
+
+        previous_outer_pitch_class = context.source[1] % 12
+        final_outer_pitch_class = context.target[1] % 12
+        dominant_third_pitch_class = (context.key_pitch_class + 11) % 12
+        tonic_third_pitch_class = (context.key_pitch_class + 4) % 12
+        previous_distance = _pitch_class_distance(
+            previous_outer_pitch_class,
+            dominant_third_pitch_class,
+        )
+        final_distance = _pitch_class_distance(
+            final_outer_pitch_class,
+            tonic_third_pitch_class,
+        )
+        reward = float(self.weight) * (
+            (1.0 / (1.0 + previous_distance) + 1.0 / (1.0 + final_distance)) / 2.0
+        )
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank2_cadence_endpoint",
+                    "previous_outer_pitch_class": previous_outer_pitch_class,
+                    "final_outer_pitch_class": final_outer_pitch_class,
+                    "dominant_third_pitch_class": dominant_third_pitch_class,
+                    "tonic_third_pitch_class": tonic_third_pitch_class,
+                    "previous_distance": previous_distance,
+                    "final_distance": final_distance,
+                    "weight": float(self.weight),
+                    "reward_formula": "w * (1/(1+d_prev) + 1/(1+d_final)) / 2",
                 }
             },
         )
@@ -243,6 +301,12 @@ def _new_voice_index(context: TowerRewardContext) -> int:
     if new_voice_index is None:
         return 1
     return new_voice_index
+
+
+def _pitch_class_distance(a: int, b: int) -> int:
+    clockwise = (a - b) % 12
+    counterclockwise = (b - a) % 12
+    return min(clockwise, counterclockwise)
 
 
 def _validate_number(value: float, *, field_name: str) -> None:

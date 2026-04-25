@@ -61,6 +61,61 @@ class TargetOctaveDistanceReward:
 
 
 @dataclass(frozen=True)
+class GoalOctaveDirectionReward:
+    """Reward rank-1 motion that reduces octave distance to the goal."""
+
+    weight: float = 0.5
+    diagnostics_key: str = "goal_octave_direction"
+
+    def __post_init__(self) -> None:
+        _validate_number(self.weight, field_name="weight")
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_1_context(context)
+        if context.target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required for GoalOctaveDirectionReward"
+            )
+
+        source_pitch = context.source[0]
+        target_pitch = context.target[0]
+        source_octave = midi_to_octave(source_pitch)
+        target_octave = midi_to_octave(target_pitch)
+        source_distance = abs(source_octave - context.target_root_octave)
+        target_distance = abs(target_octave - context.target_root_octave)
+        distance_delta = source_distance - target_distance
+        if distance_delta > 0:
+            reward = float(self.weight)
+            direction = "toward_goal_octave"
+        elif distance_delta < 0:
+            reward = -float(self.weight)
+            direction = "away_from_goal_octave"
+        else:
+            reward = 0.0
+            direction = "no_octave_distance_change"
+
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "goal_octave_direction",
+                    "source_pitch": source_pitch,
+                    "target_pitch": target_pitch,
+                    "source_octave": source_octave,
+                    "target_octave": target_octave,
+                    "target_root_octave": context.target_root_octave,
+                    "source_octave_distance": source_distance,
+                    "target_octave_distance": target_distance,
+                    "distance_delta": distance_delta,
+                    "direction": direction,
+                    "weight": float(self.weight),
+                    "reward_formula": "+w if d_target<d_source; -w if d_target>d_source; 0 otherwise",
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
 class BeatClassPitchReward:
     """Reward rank-1 pitches according to metrical role and key relation."""
 
@@ -103,8 +158,9 @@ class BeatClassPitchReward:
         target_pitch = context.target[0]
         pitch_class = target_pitch % 12
         relative_pitch_class = (pitch_class - context.key_pitch_class) % 12
-        bar_position = context.step_index % context.measure_size
-        measure_index = context.step_index // context.measure_size
+        landing_step_index = context.step_index + 1
+        bar_position = landing_step_index % context.measure_size
+        measure_index = landing_step_index // context.measure_size
         is_measure_start = bar_position == 0
         is_onbeat = bar_position % 2 == 0
         is_offbeat = bar_position % 2 == 1
@@ -152,6 +208,8 @@ class BeatClassPitchReward:
                     "pitch_class": pitch_class,
                     "key_pitch_class": context.key_pitch_class,
                     "relative_pitch_class": relative_pitch_class,
+                    "source_step_index": context.step_index,
+                    "landing_step_index": landing_step_index,
                     "measure_size": context.measure_size,
                     "measure_index": measure_index,
                     "bar_position": bar_position,
@@ -171,7 +229,7 @@ class BeatClassPitchReward:
                     "onbeat_non_scale_penalty": onbeat_penalty,
                     "offbeat_consonance_reward": offbeat_reward,
                     "offbeat_non_consonance_penalty": offbeat_penalty,
-                    "beat_class_timing": "source_window_step_index",
+                    "beat_class_timing": "target_landing_step_index",
                 }
             },
         )
@@ -379,16 +437,18 @@ class StepSizeBinBalanceReward:
             balance_score = observed_small_rate / self.target_small_rate
         else:
             balance_score = observed_large_rate / (1.0 - self.target_small_rate)
+        signed_balance_score = 2.0 * balance_score - 1.0
         diagnostics.update(
             {
                 "observed_small_rate": observed_small_rate,
                 "observed_large_rate": observed_large_rate,
                 "balance_score": balance_score,
+                "signed_balance_score": signed_balance_score,
                 "reason": "target_matched" if balance_score == 1.0 else "off_target",
             }
         )
         return TowerRewardResult(
-            reward=float(self.weight) * balance_score,
+            reward=float(self.weight) * signed_balance_score,
             diagnostics={self.diagnostics_key: diagnostics},
         )
 

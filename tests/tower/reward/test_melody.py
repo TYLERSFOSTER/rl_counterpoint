@@ -7,6 +7,7 @@ import pytest
 from tower.reward.context import TowerRewardContext
 from tower.reward.melody import (
     BeatClassPitchReward,
+    GoalOctaveDirectionReward,
     LargeLeapRecoveryTerm,
     RecentMelodicRangePenalty,
     StepSizeBinBalanceReward,
@@ -98,13 +99,73 @@ def test_target_octave_distance_reward_requires_target_octave() -> None:
         term(context)
 
 
+def test_goal_octave_direction_reward_rewards_motion_toward_goal() -> None:
+    term = GoalOctaveDirectionReward(weight=0.75)
+    context = make_context(
+        history=((84,),),
+        action=(-12,),
+        target_root_octave=4,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["goal_octave_direction"]
+    assert result.reward == 0.75
+    assert diagnostics["source_octave_distance"] == 2
+    assert diagnostics["target_octave_distance"] == 1
+    assert diagnostics["distance_delta"] == 1
+    assert diagnostics["direction"] == "toward_goal_octave"
+
+
+def test_goal_octave_direction_reward_penalizes_motion_away_from_goal() -> None:
+    term = GoalOctaveDirectionReward(weight=0.25)
+    context = make_context(
+        history=((60,),),
+        action=(-12,),
+        target_root_octave=4,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["goal_octave_direction"]
+    assert result.reward == -0.25
+    assert diagnostics["source_octave_distance"] == 0
+    assert diagnostics["target_octave_distance"] == 1
+    assert diagnostics["distance_delta"] == -1
+    assert diagnostics["direction"] == "away_from_goal_octave"
+
+
+def test_goal_octave_direction_reward_zero_when_octave_distance_unchanged() -> None:
+    term = GoalOctaveDirectionReward(weight=0.5)
+    context = make_context(
+        history=((60,),),
+        action=(5,),
+        target_root_octave=4,
+    )
+
+    result = term(context)
+
+    diagnostics = result.diagnostics["goal_octave_direction"]
+    assert result.reward == 0.0
+    assert diagnostics["distance_delta"] == 0
+    assert diagnostics["direction"] == "no_octave_distance_change"
+
+
+def test_goal_octave_direction_reward_requires_target_octave() -> None:
+    term = GoalOctaveDirectionReward()
+    context = make_context(history=((60,),), action=(1,))
+
+    with pytest.raises(ValueError, match="target_root_octave is required"):
+        term(context)
+
+
 def test_beat_class_pitch_reward_rewards_tonic_on_measure_start() -> None:
     term = BeatClassPitchReward(
         measure_start_tonic_reward=1.25,
         onbeat_scale_degree_reward=0.75,
     )
     context = make_context(
-        history=((59,),),
+        history=((56,), (57,), (58,), (59,)),
         action=(1,),
         key_pitch_class=0,
     )
@@ -124,13 +185,14 @@ def test_beat_class_pitch_reward_rewards_tonic_on_measure_start() -> None:
     assert diagnostics["onbeat_non_scale_penalty"] == 0.0
     assert diagnostics["offbeat_consonance_reward"] == 0.0
     assert diagnostics["offbeat_non_consonance_penalty"] == 0.0
-    assert diagnostics["beat_class_timing"] == "source_window_step_index"
+    assert diagnostics["beat_class_timing"] == "target_landing_step_index"
+    assert diagnostics["landing_step_index"] == 4
 
 
 def test_beat_class_pitch_reward_rewards_major_scale_degree_on_onbeat() -> None:
     term = BeatClassPitchReward(onbeat_scale_degree_reward=0.75)
     context = make_context(
-        history=((60,), (61,), (61,)),
+        history=((60,), (61,)),
         action=(1,),
         key_pitch_class=0,
     )
@@ -149,7 +211,7 @@ def test_beat_class_pitch_reward_rewards_major_scale_degree_on_onbeat() -> None:
 def test_beat_class_pitch_reward_penalizes_non_scale_onbeat() -> None:
     term = BeatClassPitchReward()
     context = make_context(
-        history=((60,), (61,), (60,)),
+        history=((59,), (60,)),
         action=(1,),
         key_pitch_class=0,
     )
@@ -167,7 +229,7 @@ def test_beat_class_pitch_reward_penalizes_non_scale_onbeat() -> None:
 def test_beat_class_pitch_reward_rewards_just_consonance_on_offbeat() -> None:
     term = BeatClassPitchReward(offbeat_consonance_weight=2.0)
     context = make_context(
-        history=((66,), (66,)),
+        history=((66,),),
         action=(1,),
         key_pitch_class=0,
     )
@@ -190,7 +252,7 @@ def test_beat_class_pitch_reward_rewards_just_consonance_on_offbeat() -> None:
 def test_beat_class_pitch_reward_penalizes_non_consonant_offbeat() -> None:
     term = BeatClassPitchReward(offbeat_non_consonance_penalty=-3.0)
     context = make_context(
-        history=((60,), (60,)),
+        history=((60,),),
         action=(1,),
         key_pitch_class=0,
     )
@@ -424,10 +486,13 @@ def test_step_size_bin_balance_partially_rewards_off_target_mix() -> None:
     result = term(context)
 
     diagnostics = result.diagnostics["step_size_bin_balance"]
-    assert result.reward == pytest.approx(2.0 * (0.5 / 0.7))
+    assert result.reward == pytest.approx(2.0 * (2.0 * (0.5 / 0.7) - 1.0))
     assert diagnostics["observed_small_rate"] == 0.5
     assert diagnostics["observed_large_rate"] == 0.5
     assert diagnostics["balance_score"] == pytest.approx(0.5 / 0.7)
+    assert diagnostics["signed_balance_score"] == pytest.approx(
+        2.0 * (0.5 / 0.7) - 1.0
+    )
     assert diagnostics["reason"] == "off_target"
 
 
@@ -438,10 +503,11 @@ def test_step_size_bin_balance_reward_is_zero_for_one_bin_only() -> None:
     result = term(context)
 
     diagnostics = result.diagnostics["step_size_bin_balance"]
-    assert result.reward == 0.0
+    assert result.reward == -2.0
     assert diagnostics["small_count"] == 3
     assert diagnostics["large_count"] == 0
     assert diagnostics["balance_score"] == 0.0
+    assert diagnostics["signed_balance_score"] == -1.0
     assert diagnostics["reason"] == "off_target"
 
 

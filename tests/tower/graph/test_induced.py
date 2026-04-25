@@ -16,22 +16,22 @@ from tower.graph.spec import TowerGraphSpec
 
 def test_induced_rank1_payload_contains_only_projected_valid_rank2_nodes() -> None:
     payload = build_induced_rank1_graph_payload(
-        source_spec=TowerGraphSpec(rank=2, pitch_min=60, pitch_max=64, max_step_size=1)
+        source_spec=TowerGraphSpec(rank=2, pitch_min=63, pitch_max=67, max_step_size=1)
     )
 
     assert payload["source_rank"] == 2
     assert payload["target_rank"] == 1
-    assert payload["node_image"] == [[60], [61]]
+    assert payload["node_image"] == [[63], [64]]
 
 
 def test_induced_rank1_payload_contains_projected_valid_edges() -> None:
     payload = build_induced_rank1_graph_payload(
-        source_spec=TowerGraphSpec(rank=2, pitch_min=60, pitch_max=64, max_step_size=1)
+        source_spec=TowerGraphSpec(rank=2, pitch_min=63, pitch_max=67, max_step_size=1)
     )
 
     assert payload["edge_image"] == [
-        {"source": [60], "target": [61]},
-        {"source": [61], "target": [60]},
+        {"source": [63], "target": [64]},
+        {"source": [64], "target": [63]},
     ]
 
 
@@ -41,6 +41,29 @@ def test_induced_rank1_cache_key_depends_on_source_graph_spec() -> None:
     )
     right = induced_rank1_graph_cache_key(
         source_spec=TowerGraphSpec(rank=2, pitch_min=36, pitch_max=84, max_step_size=1)
+    )
+
+    assert left != right
+
+
+def test_induced_rank1_cache_key_depends_on_key_pitch_class() -> None:
+    left = induced_rank1_graph_cache_key(
+        source_spec=TowerGraphSpec(
+            rank=2,
+            key_pitch_class=0,
+            pitch_min=36,
+            pitch_max=84,
+            max_step_size=7,
+        )
+    )
+    right = induced_rank1_graph_cache_key(
+        source_spec=TowerGraphSpec(
+            rank=2,
+            key_pitch_class=5,
+            pitch_min=36,
+            pitch_max=84,
+            max_step_size=7,
+        )
     )
 
     assert left != right
@@ -63,7 +86,7 @@ def test_induced_rank1_artifact_path_is_deterministic() -> None:
 
 
 def test_write_induced_rank1_graph_artifact_persists_payload(tmp_path: Path) -> None:
-    spec = TowerGraphSpec(rank=2, pitch_min=60, pitch_max=64, max_step_size=1)
+    spec = TowerGraphSpec(rank=2, pitch_min=63, pitch_max=67, max_step_size=1)
 
     artifact_path = write_induced_rank1_graph_artifact(
         source_spec=spec,
@@ -73,4 +96,6 @@ def test_write_induced_rank1_graph_artifact_persists_payload(tmp_path: Path) -> 
     assert artifact_path.exists()
     payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert payload["kind"] == "induced_rank1_graph"
-    assert payload["node_image"] == [[60], [61]]
+    assert payload["artifact_schema_version"] == 2
+    assert payload["rank2_legality_contract_version"] == "tower.rank2_legality.v4"
+    assert payload["node_image"] == [[63], [64]]

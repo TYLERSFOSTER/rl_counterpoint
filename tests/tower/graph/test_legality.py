@@ -67,3 +67,8 @@ def test_rank_2_voice_crossing_transition_false() -> None:
 
 def test_rank_2_parallel_fifth_transition_false() -> None:
     assert not is_valid_transition((60, 67), (1, 1), TowerGraphSpec(rank=2))
+
+
+def test_rank_2_stationary_voice_transition_false() -> None:
+    assert not is_valid_transition((63, 67), (1, 0), TowerGraphSpec(rank=2))
+    assert not is_valid_transition((63, 67), (0, 1), TowerGraphSpec(rank=2))

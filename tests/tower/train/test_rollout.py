@@ -205,11 +205,11 @@ def test_rollout_rank2_one_step_happy_path() -> None:
         return TowerRewardResult(reward=1.5, diagnostics={"kind": "reward"})
 
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,),)),
-        active_sampler=ScriptedSampler(script=(1,)),
+        active_sampler=ScriptedSampler(script=(2,)),
         reward_fn=reward_fn,
         measure_size=4,
         context_measures=1,
@@ -219,21 +219,21 @@ def test_rollout_rank2_one_step_happy_path() -> None:
     step = trajectory.steps[0]
     assert step.rank == 2
     assert step.step_index == 0
-    assert step.source_state == (60, 64)
-    assert step.parent_state == (60,)
+    assert step.source_state == (63, 70)
+    assert step.parent_state == (63,)
     assert step.parent_action == (1,)
-    assert step.active_choice == 1
-    assert step.assembled_action == (1, 1)
-    assert step.attempted_target_state == (61, 65)
-    assert step.realized_next_state == (61, 65)
+    assert step.active_choice == 2
+    assert step.assembled_action == (1, 2)
+    assert step.attempted_target_state == (64, 72)
+    assert step.realized_next_state == (64, 72)
     assert step.reward.reward == 1.5
     assert step.outcome == TRAJECTORY_OUTCOME_VALID
     assert not step.terminated
     assert step.truncated
-    assert trajectory.final_state == (61, 65)
-    assert rewards[0].source == (60, 64)
-    assert rewards[0].target == (61, 65)
-    assert rewards[0].action == (1, 1)
+    assert trajectory.final_state == (64, 72)
+    assert rewards[0].source == (63, 70)
+    assert rewards[0].target == (64, 72)
+    assert rewards[0].action == (1, 2)
 
 
 def test_rollout_rank2_parent_sampler_called_before_active_sampler() -> None:
@@ -248,7 +248,7 @@ def test_rollout_rank2_parent_sampler_called_before_active_sampler() -> None:
         return SamplerResult(choice=1)
 
     rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=parent_sampler,
@@ -257,27 +257,27 @@ def test_rollout_rank2_parent_sampler_called_before_active_sampler() -> None:
     )
 
     assert calls == [
-        ("parent", (60,)),
-        ("active", (0, 1, 2)),
+        ("parent", (63,)),
+        ("active", (-2, -1, 2)),
     ]
 
 
 def test_rollout_rank2_multi_step_advances_history_and_final_state() -> None:
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=2,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,), (1,))),
-        active_sampler=ScriptedSampler(script=(2, -1)),
+        active_sampler=ScriptedSampler(script=(2, 1)),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
     )
 
     assert len(trajectory.steps) == 2
-    assert trajectory.steps[0].source_state == (60, 64)
-    assert trajectory.steps[0].realized_next_state == (61, 66)
-    assert trajectory.steps[1].source_state == (61, 66)
-    assert trajectory.steps[1].realized_next_state == (62, 65)
-    assert trajectory.final_state == (62, 65)
+    assert trajectory.steps[0].source_state == (63, 70)
+    assert trajectory.steps[0].realized_next_state == (64, 72)
+    assert trajectory.steps[1].source_state == (64, 72)
+    assert trajectory.steps[1].realized_next_state == (65, 73)
+    assert trajectory.final_state == (65, 73)
     assert trajectory.total_reward == 2.0
 
 
@@ -289,7 +289,7 @@ def test_rollout_rank2_active_sampler_receives_active_choices_only() -> None:
         return SamplerResult(choice=2)
 
     rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,),)),
@@ -297,20 +297,20 @@ def test_rollout_rank2_active_sampler_receives_active_choices_only() -> None:
         reward_fn=lambda context: TowerRewardResult(reward=0.0),
     )
 
-    assert observed[0]["active_choices"] == (0, 1, 2)
+    assert observed[0]["active_choices"] == (-2, -1, 2)
     assert "lift_fiber" not in observed[0]
 
 
 def test_rollout_rank2_keeps_parent_and_active_logprobs_separate() -> None:
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(
             script=(scripted_result((1,), logprob=-5.0),),
         ),
         active_sampler=ScriptedSampler(
-            script=(scripted_result(1, logprob=-0.25),),
+            script=(scripted_result(2, logprob=-0.25),),
         ),
         reward_fn=lambda context: TowerRewardResult(reward=0.0),
     )
@@ -329,11 +329,11 @@ def test_rollout_rank2_stores_reward_callback_result() -> None:
     )
 
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=2,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,),)),
-        active_sampler=ScriptedSampler(script=(1,)),
+        active_sampler=ScriptedSampler(script=(2,)),
         reward_fn=lambda context: reward,
     )
 
@@ -347,7 +347,7 @@ def test_rollout_rank2_stores_reward_callback_result() -> None:
 def test_rollout_rank2_rejects_non_rank_2_spec() -> None:
     with pytest.raises(ValueError, match="rank-2 graph spec"):
         rollout_rank2(
-            initial_state=(60, 64),
+            initial_state=(63, 70),
             max_steps=1,
             graph_spec=TowerGraphSpec(rank=1),
             parent_sampler=ScriptedSampler(script=((1,),)),
@@ -358,7 +358,7 @@ def test_rollout_rank2_rejects_non_rank_2_spec() -> None:
 
 def test_rollout_rank2_records_invalid_extension_no_op_step() -> None:
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,),)),
@@ -371,22 +371,22 @@ def test_rollout_rank2_records_invalid_extension_no_op_step() -> None:
     assert step.parent_action == (1,)
     assert step.active_choice == 3
     assert step.assembled_action == (1, 3)
-    assert step.attempted_target_state == (61, 67)
+    assert step.attempted_target_state == (64, 73)
     assert step.realized_next_state == step.source_state
     assert step.reward.reward == 0.0
     assert step.reward.diagnostics == {"outcome": TRAJECTORY_OUTCOME_INVALID_EXTENSION}
     assert not step.terminated
     assert step.truncated
-    assert trajectory.final_state == (60, 64)
+    assert trajectory.final_state == (63, 70)
 
 
 def test_rollout_rank2_invalid_extension_advances_time_with_repeated_state() -> None:
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=2,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,), (1,))),
-        active_sampler=ScriptedSampler(script=(3, 1)),
+        active_sampler=ScriptedSampler(script=(3, 2)),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         measure_size=4,
         context_measures=1,
@@ -396,10 +396,10 @@ def test_rollout_rank2_invalid_extension_advances_time_with_repeated_state() -> 
     assert trajectory.steps[0].outcome == TRAJECTORY_OUTCOME_INVALID_EXTENSION
     assert trajectory.steps[1].outcome == TRAJECTORY_OUTCOME_VALID
     assert trajectory.steps[1].step_index == 1
-    assert trajectory.steps[1].source_state == (60, 64)
-    assert trajectory.steps[1].window.states[-2:] == ((60, 64), (60, 64))
+    assert trajectory.steps[1].source_state == (63, 70)
+    assert trajectory.steps[1].window.states[-2:] == ((63, 70), (63, 70))
     assert trajectory.steps[1].window.valid_mask[-2:] == (True, True)
-    assert trajectory.final_state == (61, 65)
+    assert trajectory.final_state == (64, 72)
 
 
 def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None:
@@ -410,9 +410,9 @@ def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None
         return SamplerResult(choice=1)
 
     trajectory = rollout_rank2(
-        initial_state=(60, 63),
+        initial_state=(63, 66),
         max_steps=1,
-        graph_spec=TowerGraphSpec(rank=2, pitch_max=63, max_step_size=1),
+        graph_spec=TowerGraphSpec(rank=2, pitch_min=63, pitch_max=66, max_step_size=1),
         parent_sampler=ScriptedSampler(script=((1,),)),
         active_sampler=active_sampler,
         reward_fn=lambda context: TowerRewardResult(reward=9.0),
@@ -424,7 +424,7 @@ def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None
     assert step.parent_action == (1,)
     assert step.active_choice is None
     assert step.assembled_action == (0, 0)
-    assert step.attempted_target_state == (60, 63)
+    assert step.attempted_target_state == (63, 66)
     assert step.realized_next_state == step.source_state
     assert step.reward.reward == 0.0
     assert step.reward.diagnostics == {"outcome": TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER}
@@ -434,9 +434,9 @@ def test_rollout_rank2_records_empty_lift_fiber_without_active_sampler() -> None
 
 def test_rollout_rank2_empty_lift_fiber_advances_time() -> None:
     trajectory = rollout_rank2(
-        initial_state=(60, 63),
+        initial_state=(63, 66),
         max_steps=2,
-        graph_spec=TowerGraphSpec(rank=2, pitch_max=63, max_step_size=1),
+        graph_spec=TowerGraphSpec(rank=2, pitch_min=63, pitch_max=66, max_step_size=1),
         parent_sampler=ScriptedSampler(script=((1,), (1,))),
         active_sampler=ScriptedSampler(script=(1,)),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
@@ -450,7 +450,7 @@ def test_rollout_rank2_empty_lift_fiber_advances_time() -> None:
         for step in trajectory.steps
     )
     assert trajectory.steps[1].step_index == 1
-    assert trajectory.steps[1].window.states[-2:] == ((60, 63), (60, 63))
+    assert trajectory.steps[1].window.states[-2:] == ((63, 66), (63, 66))
 
 
 def test_rollout_rank2_records_parent_failure_and_truncates() -> None:
@@ -461,7 +461,7 @@ def test_rollout_rank2_records_parent_failure_and_truncates() -> None:
         return SamplerResult(choice=1)
 
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=2,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((0,),)),
@@ -486,7 +486,7 @@ def test_rollout_rank2_records_parent_failure_and_truncates() -> None:
 
 def test_rollout_rank2_projected_parent_data_recoverable_on_demand() -> None:
     trajectory = rollout_rank2(
-        initial_state=(60, 64),
+        initial_state=(63, 70),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
         parent_sampler=ScriptedSampler(script=((1,),)),

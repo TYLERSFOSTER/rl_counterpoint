@@ -30,6 +30,7 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.initial_pitch_max == 84
     assert args.key_pitch_class == 0
     assert args.target_root_octave == 4
+    assert args.goal_octave_direction_weight == 0.5
     assert args.sample_target_root_octave is True
     assert args.target_root_octave_choices is None
     assert args.sample_initial_pitch_in_target_octave is False
@@ -68,6 +69,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
             "1",
             "--max-step-size",
             "1",
+            "--no-use-induced-rank1-graph",
         ]
     )
     output = capsys.readouterr().out
@@ -75,7 +77,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     run_dir = tmp_path / "lineage-a" / "rank_1"
     assert exit_code == 0
     assert f"run_dir: {run_dir}" in output
-    assert "pitch_range: [0, 124]" in output
+    assert "pitch_range: [0, 127]" in output
     assert "reward: rank1_slice_a" in output
     assert "final midi:" in output
     assert "latest checkpoint:" in output
@@ -92,6 +94,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["reward_config"]["key_pitch_class"] == 0
     assert config["reward_config"]["target_root_octave"] == 4
     assert config["reward_config"]["use_context_target_root_octave"] is True
+    assert config["reward_config"]["goal_octave_direction_weight"] == 0.5
     assert config["reward_config"]["measure_start_tonic_reward"] == 1.0
     assert config["reward_config"]["onbeat_scale_degree_reward"] == 1.0
     assert config["reward_config"]["offbeat_consonance_weight"] == 1.0
@@ -103,7 +106,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["policy_config"]["d_model"] == 32
     assert config["graph_config"]["pitch_min"] == 0
     assert config["graph_config"]["pitch_max"] == 127
-    assert config["graph_config"]["use_induced_rank1_graph"] is True
+    assert config["graph_config"]["use_induced_rank1_graph"] is False
     assert config["graph_config"]["induced_rank2_pitch_min"] == 0
     assert config["graph_config"]["induced_rank2_pitch_max"] == 127
     assert config["graph_config"]["induced_rank2_max_step_size"] == 1
@@ -141,6 +144,7 @@ def test_tower_train_main_writes_target_octave_choices(
             "1",
             "--max-step-size",
             "1",
+            "--no-use-induced-rank1-graph",
             "--target-root-octave-choices",
             "2,3,4",
             "--sample-initial-pitch-in-target-octave",
@@ -175,6 +179,7 @@ def test_tower_train_main_can_disable_training_reward_diagnostics(
             "1",
             "--max-step-size",
             "1",
+            "--no-use-induced-rank1-graph",
             "--no-log-reward-diagnostics",
         ]
     )
@@ -208,6 +213,7 @@ def test_tower_train_script_runs_by_file_path(tmp_path: Path) -> None:
             "1",
             "--max-step-size",
             "1",
+            "--no-use-induced-rank1-graph",
         ],
         cwd=PROJECT_ROOT,
         check=True,

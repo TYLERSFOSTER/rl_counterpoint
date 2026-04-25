@@ -66,15 +66,16 @@ def test_rank1_reward_factory_combines_cadence_and_melody_terms() -> None:
 
     result = reward_fn(make_context(history=((60,), (67,)), action=(-7,)))
 
-    assert result.reward == 11.0
+    assert result.reward == 11.5
     assert result.is_terminal_success is True
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
     assert child_results[1]["reward"] == 0.0
     assert child_results[2]["reward"] == -0.5
     assert child_results[3]["reward"] == 1.0
-    assert child_results[4]["reward"] == 0.5
-    assert child_results[5]["reward"] == 0.0
+    assert child_results[4]["reward"] == 0.0
+    assert child_results[5]["reward"] == 2.0
+    assert child_results[6]["reward"] == -1.0
 
 
 def test_rank1_reward_factory_injects_configured_key() -> None:
@@ -130,7 +131,7 @@ def test_rank1_reward_factory_exposes_top_level_diagnostics() -> None:
     assert result.diagnostics["kind"] == "rank1_reward"
     assert result.diagnostics["key_pitch_class"] == 3
     assert result.diagnostics["target_root_octave"] == 4
-    assert len(result.diagnostics["terms"]) == 6
+    assert len(result.diagnostics["terms"]) == 7
 
 
 def test_rank1_reward_factory_injects_configured_target_octave() -> None:
@@ -141,7 +142,7 @@ def test_rank1_reward_factory_injects_configured_target_octave() -> None:
     target_octave = result.diagnostics["terms"][3]["diagnostics"][
         "target_octave_distance"
     ]
-    assert result.reward == 1.5
+    assert result.reward == 3.5
     assert target_octave["root_octave"] == 5
     assert target_octave["target_root_octave"] == 5
     assert target_octave["octave_distance"] == 0
@@ -167,6 +168,8 @@ def test_rank1_reward_factory_can_preserve_context_target_octave() -> None:
     assert target_octave["root_octave"] == 5
     assert target_octave["target_root_octave"] == 4
     assert target_octave["octave_distance"] == 1
+    direction = result.diagnostics["terms"][4]["diagnostics"]["goal_octave_direction"]
+    assert direction["target_octave_distance"] == 1
 
 
 def test_rank1_reward_factory_adds_beat_class_pitch_term() -> None:
@@ -180,13 +183,13 @@ def test_rank1_reward_factory_adds_beat_class_pitch_term() -> None:
         make_context(
             history=((59,),),
             action=(1,),
-            step_index=0,
+            step_index=3,
             key_pitch_class=None,
             is_final_step=False,
         )
     )
 
-    beat_class_result = result.diagnostics["terms"][4]
+    beat_class_result = result.diagnostics["terms"][5]
     diagnostics = beat_class_result["diagnostics"]["beat_class_pitch"]
     assert beat_class_result["reward"] == 2.0
     assert diagnostics["is_measure_start"] is True
@@ -211,7 +214,7 @@ def test_rank1_reward_factory_adds_step_size_bin_balance_term() -> None:
         )
     )
 
-    step_balance_result = result.diagnostics["terms"][5]
+    step_balance_result = result.diagnostics["terms"][6]
     diagnostics = step_balance_result["diagnostics"]["step_size_bin_balance"]
     assert step_balance_result["reward"] == 2.0
     assert diagnostics["small_step_threshold"] == 3
@@ -245,6 +248,8 @@ def test_rank1_reward_factory_validates_config_values() -> None:
 
     with pytest.raises(TypeError, match="use_context_target_root_octave must be"):
         Rank1RewardFactoryConfig(use_context_target_root_octave=1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="goal_octave_direction_weight must be"):
+        Rank1RewardFactoryConfig(goal_octave_direction_weight=True)  # type: ignore[arg-type]
 
     with pytest.raises(ValueError, match="max_recent_range must be non-negative"):
         build_rank1_reward_fn(max_recent_range=-1)
@@ -280,6 +285,7 @@ def test_build_rank2_reward_fn_returns_reward_result() -> None:
 def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None:
     reward_fn = build_rank2_reward_fn(
         terminal_cadence_reward=10.0,
+        cadence_endpoint_weight=1.0,
         vertical_consonance_weight=2.0,
         spacing_reward=0.1,
         target_vertical_interval=5,
@@ -308,9 +314,7 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
     )
 
     assert result.is_terminal_success is True
-    assert result.reward == pytest.approx(
-        10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1 + 0.5
-    )
+    assert result.reward == pytest.approx(10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1 + 0.5)
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
     assert child_results[1]["reward"] == 1.0
@@ -332,41 +336,8 @@ def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:
 
     assert result.diagnostics["kind"] == "rank2_reward"
     assert result.diagnostics["key_pitch_class"] == 3
-    assert result.diagnostics["target_root_octave"] == 4
+    assert "target_root_octave" not in result.diagnostics
     assert len(result.diagnostics["terms"]) == 5
-
-
-def test_rank2_reward_factory_can_preserve_context_target_octave() -> None:
-    reward_fn = build_rank2_reward_fn(
-        target_root_octave=5,
-        use_context_target_root_octave=True,
-    )
-
-    result = reward_fn(
-        TowerRewardContext(
-            rank=2,
-            step_index=0,
-            source=(60, 64),
-            target=(60, 76),
-            action=(0, 12),
-            window=build_window(
-                history=((60, 64),),
-                step_index=0,
-                measure_size=4,
-                context_measures=2,
-            ),
-            measure_size=4,
-            target_root_octave=4,
-            new_facts=NewFacts(new_voice_index=1),
-        )
-    )
-
-    target_octave = result.diagnostics["terms"][1]["diagnostics"][
-        "rank2_target_octave_distance"
-    ]
-    assert target_octave["root_octave"] == 5
-    assert target_octave["target_root_octave"] == 4
-    assert target_octave["octave_distance"] == 1
 
 
 def test_rank2_reward_factory_rejects_non_rank_2_context() -> None:

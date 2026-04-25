@@ -25,6 +25,10 @@ def _rank2_has_parallel_fifth(source: TowerState, target: TowerState) -> bool:
     )
 
 
+def _rank2_has_stationary_voice(action: TowerAction) -> bool:
+    return any(delta == 0 for delta in action)
+
+
 def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
     """Return True iff a state satisfies the minimal rank/range contract."""
     try:
@@ -73,6 +77,8 @@ def is_valid_transition(
         return (source, target) in spec.induced_edge_image
 
     if spec.rank == 2:
+        if _rank2_has_stationary_voice(action):
+            return False
         if _rank2_has_voice_crossing(source, target):
             return False
         if _rank2_has_parallel_fifth(source, target):

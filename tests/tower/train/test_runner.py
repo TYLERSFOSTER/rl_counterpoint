@@ -191,7 +191,7 @@ def test_graph_spec_from_config_builds_induced_rank1_graph_from_rank2() -> None:
     spec = _graph_spec_from_config(config)
 
     assert spec.pitch_min == 0
-    assert spec.pitch_max == 124
+    assert spec.pitch_max == 120
     assert spec.key_pitch_class == 3
     assert spec.induced_node_image is not None
     assert spec.induced_edge_image is not None
@@ -854,7 +854,7 @@ def test_run_rank2_training_child_optimizer_changes_child_policy(
             episode_count=1,
             seed=123,
             artifact_root=tmp_path,
-            max_step_size=1,
+            max_step_size=2,
             parent_checkpoint="rank_1/checkpoint_latest.pt",
             parent_top_m=1,
             training_config={"max_steps": 1},
@@ -862,9 +862,9 @@ def test_run_rank2_training_child_optimizer_changes_child_policy(
         parent_policy=parent_policy,
         child_policy=child_policy,
         child_optimizer=torch.optim.SGD(child_policy.parameters(), lr=0.1),
-        initial_state=(63, 67),
+        initial_state=(63, 70),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
-        graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
+        graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
     )
 
     assert not torch.allclose(child_policy.logits.detach(), child_before)

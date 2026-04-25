@@ -13,9 +13,10 @@ from tower.graph.projection import project_state
 from tower.graph.spec import TowerGraphSpec
 from tower.state_action import apply_action
 
-INDUCED_GRAPH_ARTIFACT_SCHEMA_VERSION: Final[int] = 1
+INDUCED_GRAPH_ARTIFACT_SCHEMA_VERSION: Final[int] = 2
 INDUCED_RANK1_FROM_RANK2_KIND: Final[str] = "induced_rank1_graph"
 PROJECTION_CONVENTION_VERSION: Final[str] = "tower.project_tuple.v1"
+RANK2_LEGALITY_CONTRACT_VERSION: Final[str] = "tower.rank2_legality.v4"
 
 
 def build_induced_rank1_graph_payload(
@@ -49,6 +50,7 @@ def build_induced_rank1_graph_payload(
     )
     source_graph_spec_payload = {
         "rank": source_spec.rank,
+        "key_pitch_class": source_spec.key_pitch_class,
         "pitch_min": source_spec.pitch_min,
         "pitch_max": source_spec.pitch_max,
         "max_step_size": source_spec.max_step_size,
@@ -65,6 +67,7 @@ def build_induced_rank1_graph_payload(
         "source_rank": 2,
         "target_rank": 1,
         "projection_convention_version": PROJECTION_CONVENTION_VERSION,
+        "rank2_legality_contract_version": RANK2_LEGALITY_CONTRACT_VERSION,
         "source_graph_spec": source_graph_spec_payload,
         "target_graph_spec_base": target_graph_spec_payload,
         "construction_mode": "enumerated",
@@ -83,8 +86,10 @@ def induced_rank1_graph_cache_key(*, source_spec: TowerGraphSpec) -> str:
     key_payload = {
         "artifact_schema_version": INDUCED_GRAPH_ARTIFACT_SCHEMA_VERSION,
         "projection_convention_version": PROJECTION_CONVENTION_VERSION,
+        "rank2_legality_contract_version": RANK2_LEGALITY_CONTRACT_VERSION,
         "source_graph_spec": {
             "rank": source_spec.rank,
+            "key_pitch_class": source_spec.key_pitch_class,
             "pitch_min": source_spec.pitch_min,
             "pitch_max": source_spec.pitch_max,
             "max_step_size": source_spec.max_step_size,

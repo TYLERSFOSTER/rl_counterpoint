@@ -56,6 +56,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--key-pitch-class", type=int, default=0)
     parser.add_argument("--target-root-octave", type=int, default=4)
+    parser.add_argument("--goal-octave-direction-weight", type=float, default=0.5)
     parser.add_argument(
         "--sample-target-root-octave",
         action=argparse.BooleanOptionalAction,
@@ -120,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         "key_pitch_class": args.key_pitch_class,
         "target_root_octave": args.target_root_octave,
         "use_context_target_root_octave": args.sample_target_root_octave,
+        "goal_octave_direction_weight": args.goal_octave_direction_weight,
         "terminal_cadence_reward": args.terminal_cadence_reward,
         "cadence_failure_reward": args.cadence_failure_reward,
         "max_recent_range": args.max_recent_range,
@@ -192,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
             key_pitch_class=args.key_pitch_class,
             target_root_octave=args.target_root_octave,
             use_context_target_root_octave=args.sample_target_root_octave,
+            goal_octave_direction_weight=args.goal_octave_direction_weight,
             terminal_cadence_reward=args.terminal_cadence_reward,
             cadence_failure_reward=args.cadence_failure_reward,
             max_recent_range=args.max_recent_range,

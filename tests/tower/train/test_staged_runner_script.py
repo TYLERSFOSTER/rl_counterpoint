@@ -29,6 +29,7 @@ def test_tower_train_staged_parse_args_defaults() -> None:
     assert args.induced_rank2_pitch_max == 127
     assert args.induced_rank2_max_step_size == 7
     assert args.target_root_octave_choices == [2, 3, 4, 5, 6]
+    assert args.goal_octave_direction_weight == 0.5
     assert args.terminal_cadence_reward == 100.0
     assert args.d_model == 64
     assert args.num_layers == 2
@@ -59,6 +60,7 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
             "1",
             "--max-step-size",
             "1",
+            "--no-use-induced-rank1-graph",
             "--target-root-octave-choices",
             "2,3,4",
             "--progress-every",
@@ -93,13 +95,14 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
     assert stage2_config["policy_config"]["d_model"] == 64
     assert stage2_config["graph_config"]["pitch_min"] == 0
     assert stage2_config["graph_config"]["pitch_max"] == 127
-    assert stage2_config["graph_config"]["use_induced_rank1_graph"] is True
+    assert stage2_config["graph_config"]["use_induced_rank1_graph"] is False
     assert stage2_config["graph_config"]["induced_rank2_pitch_min"] == 0
     assert stage2_config["graph_config"]["induced_rank2_pitch_max"] == 127
     assert stage2_config["graph_config"]["induced_rank2_max_step_size"] == 7
     assert stage2_config["policy_config"]["num_layers"] == 2
     assert stage2_config["policy_config"]["ff_dim"] == 128
     assert stage2_config["reward_config"]["terminal_cadence_reward"] == 100.0
+    assert stage2_config["reward_config"]["goal_octave_direction_weight"] == 0.5
     assert stage2_config["training_config"]["target_root_octave_choices"] == [2, 3, 4]
     assert stage2_config["training_config"]["progress_every"] == 1
     assert stage2_config["training_config"]["sampling_temperature"] == 1.5
@@ -125,6 +128,7 @@ def test_tower_train_staged_script_runs_by_file_path(tmp_path: Path) -> None:
             "1",
             "--max-step-size",
             "1",
+            "--no-use-induced-rank1-graph",
         ],
         cwd=PROJECT_ROOT,
         check=True,

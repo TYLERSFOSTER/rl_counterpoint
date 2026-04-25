@@ -6,8 +6,8 @@ import pytest
 
 from tower.reward.context import NewFacts, TowerRewardContext
 from tower.reward.harmony import (
+    Rank2CadenceEndpointReward,
     Rank2SpacingControlReward,
-    Rank2TargetOctaveDistanceReward,
     Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
 )
@@ -21,6 +21,8 @@ def make_context(
     action: tuple[int, ...],
     target_root_octave: int | None = None,
     new_voice_index: int | None = 1,
+    key_pitch_class: int | None = 0,
+    is_final_step: bool = False,
 ) -> TowerRewardContext:
     source = history[-1]
     target = tuple(pitch + delta for pitch, delta in zip(source, action, strict=True))
@@ -38,35 +40,11 @@ def make_context(
             context_measures=2,
         ),
         measure_size=4,
+        key_pitch_class=key_pitch_class,
         target_root_octave=target_root_octave,
+        is_final_step=is_final_step,
         new_facts=NewFacts(new_voice_index=new_voice_index),
     )
-
-
-def test_rank2_target_octave_distance_reward_uses_outer_voice() -> None:
-    term = Rank2TargetOctaveDistanceReward()
-    context = make_context(
-        history=((60, 64),),
-        action=(0, 12),
-        target_root_octave=4,
-    )
-
-    result = term(context)
-
-    diagnostics = result.diagnostics["rank2_target_octave_distance"]
-    assert result.reward == 0.5
-    assert diagnostics["new_voice_index"] == 1
-    assert diagnostics["target_pitch"] == 76
-    assert diagnostics["root_octave"] == 5
-    assert diagnostics["target_root_octave"] == 4
-    assert diagnostics["octave_distance"] == 1
-
-
-def test_rank2_target_octave_distance_reward_requires_target_octave() -> None:
-    term = Rank2TargetOctaveDistanceReward()
-
-    with pytest.raises(ValueError, match="target_root_octave is required"):
-        term(make_context(history=((60, 64),), action=(0, 1)))
 
 
 def test_rank2_vertical_consonance_reward_rewards_consonant_interval() -> None:
@@ -116,8 +94,6 @@ def test_rank2_harmonic_terms_reject_non_rank_2_context() -> None:
         ),
     )
 
-    with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
-        Rank2TargetOctaveDistanceReward()(context)
     with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
         Rank2VerticalConsonanceReward()(context)
     with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
@@ -206,3 +182,37 @@ def test_rank2_target_vertical_interval_reward_decays_by_distance() -> None:
     assert diagnostics["vertical_gap"] == 7
     assert diagnostics["interval_distance"] == 2
     assert result.reward == pytest.approx(2.0 / 3.0)
+
+
+def test_rank2_cadence_endpoint_reward_noops_before_final_step() -> None:
+    term = Rank2CadenceEndpointReward(weight=2.0)
+
+    result = term(
+        make_context(
+            history=((67, 71),),
+            action=(-7, -7),
+            key_pitch_class=0,
+            is_final_step=False,
+        )
+    )
+
+    assert result.reward == 0.0
+    assert result.diagnostics["rank2_cadence_endpoint"]["reason"] == "not_final_step"
+
+
+def test_rank2_cadence_endpoint_reward_scores_outer_third_closeness() -> None:
+    term = Rank2CadenceEndpointReward(weight=2.0)
+
+    result = term(
+        make_context(
+            history=((67, 71),),
+            action=(-7, -7),
+            key_pitch_class=0,
+            is_final_step=True,
+        )
+    )
+
+    diagnostics = result.diagnostics["rank2_cadence_endpoint"]
+    assert result.reward == 2.0
+    assert diagnostics["previous_distance"] == 0
+    assert diagnostics["final_distance"] == 0

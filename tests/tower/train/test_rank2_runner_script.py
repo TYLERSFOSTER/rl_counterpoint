@@ -52,8 +52,9 @@ def test_tower_train_rank2_parse_args_defaults() -> None:
     assert args.parent_top_m == 3
     assert args.terminal_cadence_reward == 10.0
     assert args.cadence_failure_reward == 0.0
+    assert args.cadence_endpoint_weight == 1.0
     assert args.vertical_consonance_weight == 1.0
-    assert args.vertical_non_consonance_penalty == -0.5
+    assert args.vertical_non_consonance_penalty == 0.0
     assert args.upper_register_soft_ceiling == 80
     assert args.upper_register_penalty_weight == 0.05
     assert args.min_vertical_gap == 3
@@ -118,8 +119,9 @@ def test_tower_train_rank2_main_runs_tiny_job(
     assert config["reward_config"]["kind"] == "rank2_slice_a"
     assert config["reward_config"]["key_pitch_class"] == 0
     assert config["reward_config"]["target_root_octave"] == 4
+    assert config["reward_config"]["cadence_endpoint_weight"] == 1.0
     assert config["reward_config"]["vertical_consonance_weight"] == 1.0
-    assert config["reward_config"]["vertical_non_consonance_penalty"] == -0.5
+    assert config["reward_config"]["vertical_non_consonance_penalty"] == 0.0
     assert config["reward_config"]["upper_register_soft_ceiling"] == 80
     assert config["reward_config"]["upper_register_penalty_weight"] == 0.05
     assert config["reward_config"]["min_vertical_gap"] == 3
