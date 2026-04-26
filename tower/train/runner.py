@@ -14,7 +14,7 @@ from tower.graph.induced import (
     induced_rank1_graph_artifact_path,
     write_induced_rank1_graph_artifact,
 )
-from tower.graph.legality import is_valid_transition
+from tower.graph.legality import is_valid_state, is_valid_transition
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import RankPolicy
 from tower.policy.samplers import (
@@ -365,18 +365,30 @@ def run_rank2_training(
     target_root_octave = _optional_reward_int(config, "target_root_octave")
     episode_results = []
     for episode_index in range(config.episode_count):
+        episode_target_root_octave = _rank2_episode_target_root_octave(
+            target_root_octave=target_root_octave,
+            config=config,
+            generator=generator,
+        )
+        episode_initial_state = _rank2_episode_initial_state(
+            initial_state=initial_state,
+            target_root_octave=episode_target_root_octave,
+            spec=spec,
+            config=config,
+            generator=generator,
+        )
         episode_result = train_rank2_episode_with_artifacts(
             parent_policy=parent_policy,  # type: ignore[arg-type]
             child_policy=active_child_policy,  # type: ignore[arg-type]
             child_optimizer=active_child_optimizer,
             config=rank_config,
             paths=paths,
-            initial_state=initial_state,
+            initial_state=episode_initial_state,
             reward_fn=reward_fn,
             episode_index=episode_index,
             graph_spec=spec,
             key_pitch_class=key_pitch_class,
-            target_root_octave=target_root_octave,
+            target_root_octave=episode_target_root_octave,
             generator=generator,
         )
         episode_results.append(episode_result)
@@ -400,10 +412,22 @@ def run_rank2_training(
     final_midi_paths = []
     max_steps = _training_int(config, "max_steps", default=1)
     for final_inference_index in range(4):
+        final_target_root_octave = _rank2_episode_target_root_octave(
+            target_root_octave=target_root_octave,
+            config=config,
+            generator=generator,
+        )
+        final_initial_state = _rank2_episode_initial_state(
+            initial_state=initial_state,
+            target_root_octave=final_target_root_octave,
+            spec=spec,
+            config=config,
+            generator=generator,
+        )
         final_inference = run_final_inference_episode(
             policy=active_child_policy,  # type: ignore[arg-type]
             parent_policy=parent_policy,  # type: ignore[arg-type]
-            initial_state=initial_state,
+            initial_state=final_initial_state,
             reward_fn=reward_fn,
             max_steps=max_steps,
             graph_spec=spec,
@@ -411,7 +435,7 @@ def run_rank2_training(
             context_measures=config.context_measures,
             parent_top_m=config.parent_top_m,
             key_pitch_class=key_pitch_class,
-            target_root_octave=target_root_octave,
+            target_root_octave=final_target_root_octave,
             sampling_temperature=_training_float(
                 config,
                 "sampling_temperature",
@@ -613,11 +637,14 @@ def _rank1_episode_initial_state(
     )
     pitch_min = max(spec.pitch_min, pitch_min)
     pitch_max = min(spec.pitch_max, pitch_max)
-    if _training_bool(
+    sample_in_target_octave = _training_bool(
         config,
         "sample_initial_pitch_in_target_octave",
         default=False,
-    ):
+    )
+    octave_pitch_min: int | None = None
+    octave_pitch_max: int | None = None
+    if sample_in_target_octave:
         if target_root_octave is None:
             raise ValueError(
                 "target_root_octave is required to sample initial pitch in target octave"
@@ -626,6 +653,32 @@ def _rank1_episode_initial_state(
         octave_pitch_max = octave_pitch_min + 11
         pitch_min = max(pitch_min, octave_pitch_min)
         pitch_max = min(pitch_max, octave_pitch_max)
+
+    if spec.induced_node_image is not None:
+        eligible_pitches = sorted(
+            state[0]
+            for state in spec.induced_node_image
+            if pitch_min <= state[0] <= pitch_max
+            and (
+                octave_pitch_min is None
+                or octave_pitch_max is None
+                or octave_pitch_min <= state[0] <= octave_pitch_max
+            )
+        )
+        if not eligible_pitches:
+            raise ValueError(
+                "initial pitch sampling range must intersect induced rank-1 node image"
+            )
+        choice_index = int(
+            torch.randint(
+                low=0,
+                high=len(eligible_pitches),
+                size=(1,),
+                generator=generator,
+            ).item()
+        )
+        return (eligible_pitches[choice_index],)
+
     if pitch_min > pitch_max:
         raise ValueError("initial pitch sampling range must not be empty")
     pitch = int(
@@ -660,6 +713,26 @@ def _rank1_episode_target_root_octave(
     return choices[choice_index]
 
 
+def _rank2_episode_target_root_octave(
+    *,
+    target_root_octave: int | None,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> int | None:
+    if not _training_bool(config, "sample_target_root_octave", default=False):
+        return target_root_octave
+    choices = _target_root_octave_choices(config)
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(choices),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return choices[choice_index]
+
+
 def _target_root_octave_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
     raw_choices = config.training_config.get("target_root_octave_choices")
     if raw_choices is None:
@@ -675,6 +748,73 @@ def _target_root_octave_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
         if choice < -1 or choice > 9:
             raise ValueError("target_root_octave_choices must be in [-1, 9]")
     return choices
+
+
+def _rank2_episode_initial_state(
+    *,
+    initial_state: tuple[int, ...],
+    target_root_octave: int | None,
+    spec: TowerGraphSpec,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> tuple[int, ...]:
+    if not _training_bool(config, "sample_initial_state", default=False):
+        return initial_state
+
+    parent_pitch_min = _training_int(
+        config,
+        "initial_parent_pitch_min",
+        default=spec.pitch_min,
+    )
+    parent_pitch_max = _training_int(
+        config,
+        "initial_parent_pitch_max",
+        default=spec.pitch_max,
+    )
+    parent_pitch_min = max(spec.pitch_min, parent_pitch_min)
+    parent_pitch_max = min(spec.pitch_max, parent_pitch_max)
+
+    sample_parent_in_target_octave = _training_bool(
+        config,
+        "sample_initial_parent_pitch_in_target_octave",
+        default=False,
+    )
+    octave_pitch_min: int | None = None
+    octave_pitch_max: int | None = None
+    if sample_parent_in_target_octave:
+        if target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required to sample rank-2 parent pitch in target octave"
+            )
+        octave_pitch_min = 12 * (target_root_octave + 1)
+        octave_pitch_max = octave_pitch_min + 11
+        parent_pitch_min = max(parent_pitch_min, octave_pitch_min)
+        parent_pitch_max = min(parent_pitch_max, octave_pitch_max)
+
+    if parent_pitch_min > parent_pitch_max:
+        raise ValueError("rank-2 initial parent pitch sampling range must not be empty")
+
+    eligible_states = [
+        (lower, upper)
+        for lower in range(parent_pitch_min, parent_pitch_max + 1)
+        for upper in range(lower + 1, spec.pitch_max + 1)
+        if (
+            (octave_pitch_min is None or octave_pitch_min <= lower <= octave_pitch_max)
+            and is_valid_state((lower, upper), spec)
+        )
+    ]
+    if not eligible_states:
+        raise ValueError("no legal rank-2 initial states satisfy the requested sampling constraints")
+
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(eligible_states),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return eligible_states[choice_index]
 
 
 def _run_rank2_final_inference(

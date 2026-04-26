@@ -30,6 +30,7 @@ from tower.train.runner import (
     Rank2TrainingRunResult,
     TowerRunnerConfig,
     _graph_spec_from_config,
+    _rank1_episode_initial_state,
     run_rank1_training,
     run_rank2_training,
     run_final_inference_episode,
@@ -195,6 +196,38 @@ def test_graph_spec_from_config_builds_induced_rank1_graph_from_rank2() -> None:
     assert spec.key_pitch_class == 3
     assert spec.induced_node_image is not None
     assert spec.induced_edge_image is not None
+
+
+def test_rank1_episode_initial_state_samples_from_induced_node_image() -> None:
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=1,
+        episode_count=1,
+        seed=123,
+        training_config={
+            "sample_initial_pitch": True,
+            "sample_initial_pitch_in_target_octave": True,
+            "initial_pitch_min": 36,
+            "initial_pitch_max": 84,
+        },
+    )
+    spec = TowerGraphSpec(
+        rank=1,
+        pitch_min=0,
+        pitch_max=127,
+        max_step_size=7,
+        induced_node_image=frozenset({(48,), (55,), (60,), (72,)}),
+    )
+
+    sampled = _rank1_episode_initial_state(
+        initial_state=(60,),
+        target_root_octave=4,
+        spec=spec,
+        config=config,
+        generator=torch.Generator().manual_seed(123),
+    )
+
+    assert sampled in {(60,), (72,)}
 
 
 def test_rank_2_runner_config_requires_parent_checkpoint() -> None:
