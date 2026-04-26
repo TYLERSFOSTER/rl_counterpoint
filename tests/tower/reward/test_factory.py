@@ -288,7 +288,7 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
         cadence_endpoint_weight=1.0,
         vertical_consonance_weight=2.0,
         spacing_reward=0.1,
-        target_vertical_interval=5,
+        target_vertical_interval=4,
         target_vertical_interval_weight=1.0,
     )
 
@@ -314,13 +314,13 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
     )
 
     assert result.is_terminal_success is True
-    assert result.reward == pytest.approx(10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1 + 0.5)
+    assert result.reward == pytest.approx(10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1 + 1.0)
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
     assert child_results[1]["reward"] == 1.0
     assert child_results[2]["reward"] == pytest.approx(2.0 / 9.0)
     assert child_results[3]["reward"] == 0.1
-    assert child_results[4]["reward"] == 0.5
+    assert child_results[4]["reward"] == 1.0
 
 
 def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:

@@ -112,14 +112,14 @@ def test_rank2_spacing_control_rewards_safe_spacing_below_ceiling() -> None:
 
     result = term(
         make_context(
-            history=((60, 64),),
+            history=((60, 63),),
             action=(0, 1),
         )
     )
 
     diagnostics = result.diagnostics["rank2_spacing_control"]
     assert result.reward == 0.25
-    assert diagnostics["vertical_gap"] == 5
+    assert diagnostics["vertical_gap"] == 4
     assert diagnostics["excess_above_ceiling"] == 0
 
 
@@ -148,38 +148,38 @@ def test_rank2_spacing_control_penalizes_compressed_gap_and_ceiling_excess() -> 
 
 def test_rank2_target_vertical_interval_reward_peaks_at_target_gap() -> None:
     term = Rank2TargetVerticalIntervalReward(
-        target_vertical_interval=5,
+        target_vertical_interval=4,
         interval_reward_weight=1.0,
     )
 
     result = term(
         make_context(
-            history=((60, 64),),
+            history=((60, 63),),
             action=(0, 1),
         )
     )
 
     diagnostics = result.diagnostics["rank2_target_vertical_interval"]
     assert result.reward == 1.0
-    assert diagnostics["vertical_gap"] == 5
+    assert diagnostics["vertical_gap"] == 4
     assert diagnostics["interval_distance"] == 0
 
 
 def test_rank2_target_vertical_interval_reward_decays_by_distance() -> None:
     term = Rank2TargetVerticalIntervalReward(
-        target_vertical_interval=5,
+        target_vertical_interval=4,
         interval_reward_weight=2.0,
     )
 
     result = term(
         make_context(
             history=((60, 64),),
-            action=(0, 3),
+            action=(0, 2),
         )
     )
 
     diagnostics = result.diagnostics["rank2_target_vertical_interval"]
-    assert diagnostics["vertical_gap"] == 7
+    assert diagnostics["vertical_gap"] == 6
     assert diagnostics["interval_distance"] == 2
     assert result.reward == pytest.approx(2.0 / 3.0)
 

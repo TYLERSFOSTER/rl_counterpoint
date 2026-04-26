@@ -209,7 +209,7 @@ class Rank2RewardFactoryConfig:
     min_vertical_gap: int = 3
     spacing_reward: float = 0.1
     spacing_penalty: float = -0.1
-    target_vertical_interval: int = 5
+    target_vertical_interval: int = 4
     target_vertical_interval_weight: float = 1.0
 
     def __post_init__(self) -> None:
@@ -402,7 +402,7 @@ def build_rank2_reward_fn(
     min_vertical_gap: int = 3,
     spacing_reward: float = 0.1,
     spacing_penalty: float = -0.1,
-    target_vertical_interval: int = 5,
+    target_vertical_interval: int = 4,
     target_vertical_interval_weight: float = 1.0,
 ) -> Rank2RewardFunction:
     """Build the first narrow rank-2 reward function."""

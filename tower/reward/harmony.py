@@ -7,11 +7,12 @@ from numbers import Real
 
 from tower.reward.context import TowerRewardContext
 from tower.reward.melody import (
-    CONSONANT_INTERVALS_MOD_12,
     consonance_from_pitch_class,
     midi_to_octave,
 )
 from tower.reward.result import TowerRewardResult
+
+RANK2_CONSONANT_INTERVALS_MOD_12 = frozenset({3, 4, 7, 8, 9})
 
 
 @dataclass(frozen=True)
@@ -75,7 +76,7 @@ class Rank2VerticalConsonanceReward:
             if other_index == new_voice_index:
                 continue
             interval_pitch_class = abs(new_voice_pitch - other_pitch) % 12
-            is_consonant = interval_pitch_class in CONSONANT_INTERVALS_MOD_12
+            is_consonant = interval_pitch_class in RANK2_CONSONANT_INTERVALS_MOD_12
             consonance = consonance_from_pitch_class(interval_pitch_class)
             interval_reward = (
                 float(self.consonance_weight) * consonance
@@ -104,7 +105,7 @@ class Rank2VerticalConsonanceReward:
                     "consonance_weight": float(self.consonance_weight),
                     "non_consonance_penalty": float(self.non_consonance_penalty),
                     "consonant_intervals_mod_12": tuple(
-                        sorted(CONSONANT_INTERVALS_MOD_12)
+                        sorted(RANK2_CONSONANT_INTERVALS_MOD_12)
                     ),
                     "intervals": tuple(interval_rows),
                 }
@@ -247,7 +248,7 @@ class Rank2SpacingControlReward:
 class Rank2TargetVerticalIntervalReward:
     """Reward realized vertical gap by inverse distance from a target interval."""
 
-    target_vertical_interval: int = 5
+    target_vertical_interval: int = 4
     interval_reward_weight: float = 1.0
     diagnostics_key: str = "rank2_target_vertical_interval"
 

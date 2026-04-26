@@ -22,6 +22,10 @@ def test_rank_2_non_consonant_vertical_interval_false() -> None:
     assert not is_valid_state((60, 61), TowerGraphSpec(rank=2))
 
 
+def test_rank_2_perfect_fourth_vertical_interval_false() -> None:
+    assert not is_valid_state((63, 68), TowerGraphSpec(rank=2))
+
+
 def test_rank_2_octave_vertical_interval_false() -> None:
     assert not is_valid_state((60, 72), TowerGraphSpec(rank=2))
 

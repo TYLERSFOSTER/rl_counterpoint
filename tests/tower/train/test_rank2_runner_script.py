@@ -60,7 +60,7 @@ def test_tower_train_rank2_parse_args_defaults() -> None:
     assert args.min_vertical_gap == 3
     assert args.spacing_reward == 0.1
     assert args.spacing_penalty == -0.1
-    assert args.target_vertical_interval == 5
+    assert args.target_vertical_interval == 4
     assert args.target_vertical_interval_weight == 1.0
     assert args.d_model == 32
     assert args.num_layers == 1
@@ -127,7 +127,7 @@ def test_tower_train_rank2_main_runs_tiny_job(
     assert config["reward_config"]["min_vertical_gap"] == 3
     assert config["reward_config"]["spacing_reward"] == 0.1
     assert config["reward_config"]["spacing_penalty"] == -0.1
-    assert config["reward_config"]["target_vertical_interval"] == 5
+    assert config["reward_config"]["target_vertical_interval"] == 4
     assert config["reward_config"]["target_vertical_interval_weight"] == 1.0
     assert config["parent_sampler_config"]["top_m"] == 1
     assert config["parent_checkpoint"] == "rank_1/checkpoint_latest.pt"

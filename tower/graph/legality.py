@@ -5,8 +5,8 @@ from __future__ import annotations
 from tower.graph.spec import TowerGraphSpec
 from tower.state_action import TowerAction, TowerState, apply_action, validate_action, validate_state
 
-RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 5, 7, 8, 9})
-RANK2_ALLOWED_ROOT_INTERVAL_CLASSES = frozenset({3, 4, 5, 7, 8, 9})
+RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
+RANK2_ALLOWED_ROOT_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
 RANK2_MAX_VERTICAL_INTERVAL = 10
 
 
