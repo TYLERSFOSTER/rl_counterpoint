@@ -6,8 +6,8 @@ from tower.graph.spec import TowerGraphSpec
 from tower.state_action import TowerAction, TowerState, apply_action, validate_action, validate_state
 
 RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
-RANK2_ALLOWED_ROOT_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
 RANK2_MAX_VERTICAL_INTERVAL = 10
+RANK1_ALLOWED_DIATONIC_INTERVAL_CLASSES = frozenset({0, 2, 4, 5, 7, 9, 11})
 
 
 def _rank2_vertical_interval(state: TowerState) -> int:
@@ -39,12 +39,22 @@ def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
     if not all(spec.pitch_min <= pitch <= spec.pitch_max for pitch in state):
         return False
 
-    if spec.rank == 1 and spec.induced_node_image is not None:
-        return state in spec.induced_node_image
+    if spec.rank == 1:
+        pitch_class = (state[0] - spec.key_pitch_class) % 12
+        if pitch_class not in RANK1_ALLOWED_DIATONIC_INTERVAL_CLASSES:
+            return False
+        if spec.induced_node_image is not None:
+            return state in spec.induced_node_image
 
     if spec.rank == 2:
-        lower_pitch_class = (state[0] - spec.key_pitch_class) % 12
-        if lower_pitch_class not in RANK2_ALLOWED_ROOT_INTERVAL_CLASSES:
+        projected_parent_spec = TowerGraphSpec(
+            rank=1,
+            key_pitch_class=spec.key_pitch_class,
+            pitch_min=spec.pitch_min,
+            pitch_max=spec.pitch_max,
+            max_step_size=spec.max_step_size,
+        )
+        if not is_valid_state((state[0],), projected_parent_spec):
             return False
         vertical_interval = _rank2_vertical_interval(state)
         if vertical_interval > RANK2_MAX_VERTICAL_INTERVAL:
@@ -74,7 +84,7 @@ def is_valid_transition(
         return False
 
     if spec.rank == 1 and spec.induced_edge_image is not None:
-        return (source, target) in spec.induced_edge_image
+        return (source, target) in spec.induced_edge_image and is_valid_state(target, spec)
 
     if spec.rank == 2:
         if _rank2_has_stationary_voice(action):

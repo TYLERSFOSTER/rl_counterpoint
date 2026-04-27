@@ -74,6 +74,24 @@ class TinyRank2Policy(torch.nn.Module):
         return PolicyOutput(logits=self.logits)
 
 
+class WideTinyRank2Policy(torch.nn.Module):
+    rank = 2
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.logits = torch.nn.Parameter(torch.tensor([0.0, 1.0, 2.0, 1.0, 0.0]))
+
+    def forward(
+        self,
+        *,
+        state: tuple[int, ...],
+        window: TowerWindow,
+    ) -> PolicyOutput:
+        assert len(state) == 2
+        assert window.valid_mask[-1]
+        return PolicyOutput(logits=self.logits)
+
+
 def prepare_accepted_rank1_parent(
     *,
     tmp_path: Path,
@@ -213,10 +231,11 @@ def test_rank1_episode_initial_state_samples_from_induced_node_image() -> None:
     )
     spec = TowerGraphSpec(
         rank=1,
+        key_pitch_class=0,
         pitch_min=0,
         pitch_max=127,
         max_step_size=7,
-        induced_node_image=frozenset({(48,), (55,), (60,), (72,)}),
+        induced_node_image=frozenset({(48,), (55,), (60,), (61,), (72,)}),
     )
 
     sampled = _rank1_episode_initial_state(
@@ -228,6 +247,7 @@ def test_rank1_episode_initial_state_samples_from_induced_node_image() -> None:
     )
 
     assert sampled in {(60,), (72,)}
+    assert sampled != (61,)
 
 
 def test_rank_2_runner_config_requires_parent_checkpoint() -> None:
@@ -401,7 +421,7 @@ def test_final_inference_runs_rank_2_with_parent_policy_without_gradients() -> N
     result = run_final_inference_episode(
         policy=child_policy,
         parent_policy=parent_policy,
-        initial_state=(63, 67),
+        initial_state=(76, 79),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
@@ -429,7 +449,7 @@ def test_rank2_final_inference_filters_parent_actions_to_nonempty_lifts() -> Non
     result = run_final_inference_episode(
         policy=TinyRank2Policy(),
         parent_policy=TinyRank1Policy(),
-        initial_state=(81, 84),
+        initial_state=(76, 79),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         max_steps=1,
         graph_spec=TowerGraphSpec(rank=2, pitch_min=36, pitch_max=84, max_step_size=1),
@@ -438,11 +458,11 @@ def test_rank2_final_inference_filters_parent_actions_to_nonempty_lifts() -> Non
     )
 
     parent_sampler = result.trajectory.steps[0].diagnostics["parent_sampler"]
-    assert parent_sampler["unfiltered_parent_actions"] == ((-1,), (1,))
-    assert parent_sampler["feasible_parent_actions"] == ((-1,),)
-    assert parent_sampler["parent_actions"] == ((-1,),)
-    assert parent_sampler["parent_feasibility_filter_applied"] is True
-    assert result.trajectory.steps[0].parent_action == (-1,)
+    assert parent_sampler["unfiltered_parent_actions"] == ((1,),)
+    assert parent_sampler["feasible_parent_actions"] == ((1,),)
+    assert parent_sampler["parent_actions"] == ((1,),)
+    assert parent_sampler["parent_feasibility_filter_applied"] is False
+    assert result.trajectory.steps[0].parent_action == (1,)
 
 
 def test_final_inference_rejects_rank_1_parent_policy() -> None:
@@ -461,7 +481,7 @@ def test_final_inference_rejects_rank_2_without_parent_policy() -> None:
     with pytest.raises(ValueError, match="rank 2 final inference requires parent"):
         run_final_inference_episode(
             policy=TinyRank2Policy(),
-            initial_state=(63, 67),
+            initial_state=(76, 79),
             reward_fn=lambda context: TowerRewardResult(reward=1.0),
             max_steps=1,
             graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
@@ -592,7 +612,7 @@ def test_run_rank1_training_can_sample_episode_initial_pitch_and_target(
             episode_count=8,
             seed=123,
             artifact_root=tmp_path,
-            max_step_size=1,
+            max_step_size=2,
             final_midi_enabled=False,
             reward_config={
                 "target_root_octave": 4,
@@ -602,7 +622,7 @@ def test_run_rank1_training_can_sample_episode_initial_pitch_and_target(
                 "max_steps": 1,
                 "sample_initial_pitch": True,
                 "initial_pitch_min": 50,
-                "initial_pitch_max": 52,
+                "initial_pitch_max": 53,
                 "sample_target_root_octave": True,
                 "target_root_octave_choices": [2, 3],
             },
@@ -611,14 +631,14 @@ def test_run_rank1_training_can_sample_episode_initial_pitch_and_target(
         optimizer=torch.optim.SGD(policy.parameters(), lr=0.1),
         initial_state=(60,),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
-        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=2),
     )
 
     metrics = read_rank_metrics(result.paths)
     training_rows = [row for row in metrics if not row.get("final_inference")]
     initial_pitches = {row["initial_state"][0] for row in training_rows}
     target_octaves = {row["target_root_octave"] for row in training_rows}
-    assert initial_pitches <= {50, 51, 52}
+    assert initial_pitches <= {50, 52, 53}
     assert target_octaves <= {2, 3}
     assert len(initial_pitches) > 1
     assert len(target_octaves) > 1
@@ -635,7 +655,7 @@ def test_run_rank1_training_can_sample_initial_pitch_in_target_octave(
             episode_count=8,
             seed=123,
             artifact_root=tmp_path,
-            max_step_size=1,
+            max_step_size=2,
             final_midi_enabled=False,
             reward_config={
                 "target_root_octave": 4,
@@ -655,7 +675,7 @@ def test_run_rank1_training_can_sample_initial_pitch_in_target_octave(
         optimizer=torch.optim.SGD(policy.parameters(), lr=0.1),
         initial_state=(60,),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
-        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=2),
     )
 
     metrics = read_rank_metrics(result.paths)
@@ -677,14 +697,14 @@ def test_run_rank1_training_optimizer_changes_policy(tmp_path: Path) -> None:
             episode_count=1,
             seed=123,
             artifact_root=tmp_path,
-            max_step_size=1,
+            max_step_size=2,
             training_config={"max_steps": 1},
         ),
         policy=policy,
         optimizer=torch.optim.SGD(policy.parameters(), lr=0.1),
         initial_state=(60,),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
-        graph_spec=TowerGraphSpec(rank=1, max_step_size=1),
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=2),
     )
 
     assert not torch.allclose(policy.logits.detach(), before)
@@ -814,7 +834,7 @@ def test_run_rank2_training_writes_parent_linked_artifacts_and_final_midi(
         parent_policy=parent_policy,
         child_policy=child_policy,
         child_optimizer=child_optimizer,
-        initial_state=(63, 67),
+        initial_state=(76, 79),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
     )
@@ -848,7 +868,7 @@ def test_run_rank2_training_writes_parent_linked_artifacts_and_final_midi(
     diagnostics = read_reward_diagnostics(result.paths)
     assert len(diagnostics) == 6
     assert diagnostics[0]["rank"] == 2
-    assert diagnostics[0]["parent_state"] == [63]
+    assert diagnostics[0]["parent_state"] == [76]
     assert diagnostics[0]["parent_action"] == [1]
     assert diagnostics[-1]["episode_kind"] == "final_inference"
 
@@ -877,7 +897,7 @@ def test_run_rank2_training_child_optimizer_changes_child_policy(
 ) -> None:
     prepare_accepted_rank1_parent(tmp_path=tmp_path)
     parent_policy = TinyRank1Policy()
-    child_policy = TinyRank2Policy()
+    child_policy = WideTinyRank2Policy()
     child_before = child_policy.logits.detach().clone()
 
     run_rank2_training(
@@ -895,7 +915,7 @@ def test_run_rank2_training_child_optimizer_changes_child_policy(
         parent_policy=parent_policy,
         child_policy=child_policy,
         child_optimizer=torch.optim.SGD(child_policy.parameters(), lr=0.1),
-        initial_state=(63, 70),
+        initial_state=(76, 79),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
     )
@@ -926,7 +946,7 @@ def test_run_rank2_training_preserves_parent_policy_and_checkpoint(
         ),
         parent_policy=parent_policy,
         child_policy=TinyRank2Policy(),
-        initial_state=(63, 67),
+        initial_state=(76, 79),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
     )
@@ -963,7 +983,7 @@ def test_run_rank2_training_can_build_default_child_transformer_policy(
             training_config={"max_steps": 1},
         ),
         parent_policy=TinyRank1Policy(),
-        initial_state=(63, 67),
+        initial_state=(76, 79),
         reward_fn=lambda context: TowerRewardResult(reward=1.0),
         graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
     )
@@ -993,7 +1013,7 @@ def test_run_rank2_training_rejects_missing_accepted_parent(
             ),
             parent_policy=TinyRank1Policy(),
             child_policy=TinyRank2Policy(),
-            initial_state=(63, 67),
+            initial_state=(76, 79),
             reward_fn=lambda context: TowerRewardResult(reward=1.0),
             graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
         )
@@ -1010,6 +1030,6 @@ def test_run_rank2_training_rejects_non_rank_2_config(tmp_path: Path) -> None:
                 artifact_root=tmp_path,
             ),
             parent_policy=TinyRank1Policy(),
-            initial_state=(63, 67),
+            initial_state=(76, 79),
             reward_fn=lambda context: TowerRewardResult(reward=1.0),
         )

@@ -45,8 +45,8 @@ def test_tower_train_rank2_parse_args_defaults() -> None:
     assert args.max_steps == 1
     assert args.pitch_min == 36
     assert args.pitch_max == 84
-    assert args.initial_parent_pitch == 63
-    assert args.initial_child_pitch == 67
+    assert args.initial_parent_pitch == 64
+    assert args.initial_child_pitch == 68
     assert args.key_pitch_class == 0
     assert args.target_root_octave == 4
     assert args.parent_top_m == 3
@@ -93,6 +93,10 @@ def test_tower_train_rank2_main_runs_tiny_job(
             "1",
             "--max-step-size",
             "1",
+            "--initial-parent-pitch",
+            "40",
+            "--initial-child-pitch",
+            "43",
             "--parent-top-m",
             "1",
         ]

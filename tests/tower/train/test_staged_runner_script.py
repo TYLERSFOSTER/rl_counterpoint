@@ -28,7 +28,7 @@ def test_tower_train_staged_parse_args_defaults() -> None:
     assert args.induced_rank2_pitch_min == 0
     assert args.induced_rank2_pitch_max == 127
     assert args.induced_rank2_max_step_size == 7
-    assert args.target_root_octave_choices == [2, 3, 4, 5, 6]
+    assert args.target_root_octave_choices == [2, 3, 4, 5]
     assert args.goal_octave_direction_weight == 0.5
     assert args.terminal_cadence_reward == 100.0
     assert args.d_model == 64
@@ -59,7 +59,7 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
             "--max-steps",
             "1",
             "--max-step-size",
-            "1",
+            "2",
             "--no-use-induced-rank1-graph",
             "--target-root-octave-choices",
             "2,3,4",
@@ -127,7 +127,7 @@ def test_tower_train_staged_script_runs_by_file_path(tmp_path: Path) -> None:
             "--max-steps",
             "1",
             "--max-step-size",
-            "1",
+            "2",
             "--no-use-induced-rank1-graph",
         ],
         cwd=PROJECT_ROOT,

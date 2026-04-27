@@ -664,6 +664,7 @@ def _rank1_episode_initial_state(
                 or octave_pitch_max is None
                 or octave_pitch_min <= state[0] <= octave_pitch_max
             )
+            and is_valid_state(state, spec)
         )
         if not eligible_pitches:
             raise ValueError(
@@ -681,15 +682,22 @@ def _rank1_episode_initial_state(
 
     if pitch_min > pitch_max:
         raise ValueError("initial pitch sampling range must not be empty")
-    pitch = int(
+    eligible_pitches = [
+        pitch
+        for pitch in range(pitch_min, pitch_max + 1)
+        if is_valid_state((pitch,), spec)
+    ]
+    if not eligible_pitches:
+        raise ValueError("initial pitch sampling range must contain a legal rank-1 pitch")
+    choice_index = int(
         torch.randint(
-            low=pitch_min,
-            high=pitch_max + 1,
+            low=0,
+            high=len(eligible_pitches),
             size=(1,),
             generator=generator,
         ).item()
     )
-    return (pitch,)
+    return (eligible_pitches[choice_index],)
 
 
 def _rank1_episode_target_root_octave(

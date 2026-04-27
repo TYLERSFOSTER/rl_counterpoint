@@ -36,8 +36,8 @@ def test_tower_train_rank2_staged_parse_args_defaults() -> None:
     assert args.stage1_episodes == 5000
     assert args.stage2_episodes == 5000
     assert args.lineage_id == "local-tower-rank2-staged"
-    assert args.initial_parent_pitch == 63
-    assert args.initial_child_pitch == 67
+    assert args.initial_parent_pitch == 64
+    assert args.initial_child_pitch == 68
     assert args.sample_target_root_octave is True
     assert args.target_root_octave_choices == [2, 3, 4, 5]
     assert args.log_reward_diagnostics is False
@@ -65,15 +65,15 @@ def test_tower_train_rank2_staged_main_runs_tiny_job(
             "--max-steps",
             "1",
             "--max-step-size",
-            "1",
+            "2",
             "--pitch-min",
             "36",
             "--pitch-max",
             "48",
             "--initial-parent-pitch-min",
-            "36",
+            "40",
             "--initial-parent-pitch-max",
-            "48",
+            "40",
             "--parent-top-m",
             "1",
             "--target-root-octave-choices",

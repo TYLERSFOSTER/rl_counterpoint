@@ -70,7 +70,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--target-root-octave-choices",
         type=_parse_int_choices,
-        default=[2, 3, 4, 5, 6],
+        default=[2, 3, 4, 5],
     )
     parser.add_argument("--terminal-cadence-reward", type=float, default=100.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
