@@ -27,6 +27,158 @@ questions. It does **not** answer the `tower`-specific questions about:
 So the next rank-3 work should begin with a short explicit spec pass, not with
 blind implementation.
 
+## Owner Decisions Captured
+
+The following decisions are now explicitly chosen.
+
+### 1. Rank 3 Adds An Interior Voice
+
+Settled:
+
+\[
+(\lambda_0,\lambda_2)\leadsto(\lambda_0,\lambda_1,\lambda_2)
+\]
+
+Rank 3 inserts an interior voice, not a new outermost voice.
+
+### 2. Final-Rank Construction Rebuilds The Whole Tower
+
+This is the most important architectural decision now on record.
+
+When starting a training job, the intended **final rank** is part of graph
+construction from the beginning.
+
+So for final rank 3:
+
+1. build an initial candidate \(G(3)_\bullet\),
+2. replace it by the full preimage of the lower tower constraint:
+
+\[
+G(3)_\bullet \rightsquigarrow (\operatorname{pr}^{3})^{-1}\!\big((\operatorname{pr}^{2})^{-1}(G(1)_\bullet)\big)
+\]
+
+3. then replace the lower tiers by projection image:
+
+\[
+G(2)_\bullet \leftarrow \operatorname{pr}^{3}(G(3)_\bullet), \qquad
+G(1)_\bullet \leftarrow \operatorname{pr}^{2}(G(2)_\bullet)
+\]
+
+The intended pattern is:
+
+- whenever we know the final rank of the training program, that final rank
+  modifies the whole tower of graphs when they are built.
+
+This is stronger than the earlier rank-1-from-rank-2 induced graph correction:
+
+- it makes rank-3 construction a whole-tower operation, not a local graph tweak.
+
+### 3. Rank-3 Node Legality Should Be Strict
+
+Chosen direction:
+
+- use the stricter option corresponding to:
+  - lower note valid as rank 1 over tonic,
+  - projected outer pair valid as rank 2,
+  - both adjacent intervals consonant,
+  - outer interval consonant,
+  - width bounded.
+
+In other words, the current leaning is toward the fully hard-pruned version of:
+
+1. lower voice legal in rank 1,
+2. projected outer pair legal in rank 2,
+3. both adjacent intervals structurally consonant,
+4. outer interval structurally consonant,
+5. bounded width,
+6. strict increasing order.
+
+### 4. Rank-3 Allowed Interval Classes
+
+Chosen:
+
+\[
+\{3,4,7,8,9\} \pmod{12}
+\]
+
+Use the current rank-2 style set everywhere relevant, unless later evidence forces
+us to split adjacent-vs-outer interval vocabularies.
+
+### 5. Parallel Perfect Pruning
+
+Chosen:
+
+- hard-prune parallel fifths **and** parallel octaves.
+
+This is stricter than the present rank-2 graph and should be treated as a planned
+rank-3 edge contract.
+
+### 6. Stationary Voices
+
+Chosen:
+
+- no voice may stay fixed in rank-3 transitions.
+
+So the present rank-2 "no stationary voices" rule is intended to generalize to
+rank 3.
+
+### 7. Rank-3 Parent Contract
+
+Chosen:
+
+- one rank-3 run trains over exactly one accepted rank-2 checkpoint,
+- with the parent frozen in the same style that rank 2 uses rank 1.
+
+This also keeps the lineage rule simple:
+
+- rank 3 depends on one accepted rank-2 parent artifact.
+
+### 8. Single-Line Motion Bound
+
+Chosen:
+
+- `max_step_size` is sufficient for rank 3.
+
+So the current direction is:
+
+- do **not** add a separate legacy-style per-voice edge bound unless later
+  evidence shows `max_step_size` is not enough.
+
+### 9. Reward Ownership
+
+Chosen:
+
+- rank-3 reward should be **global-triad** oriented.
+
+That means rank-3 reward is allowed to score whole-triad sonority and spacing,
+not only facts local to the inserted voice.
+
+### 10. Goal Register
+
+Chosen:
+
+- the inserted interior voice has **no octave/register goal**.
+
+The octave-goal concept remains a pedal/lower-voice concern, not an interior-voice
+training target.
+
+### 11. Curriculum
+
+Chosen:
+
+- no staging for rank 3, at least initially.
+
+So rank 3 should start with a direct uncoupled training setup rather than a
+coupled/decoupled curriculum.
+
+### 12. Implementation Style
+
+Chosen:
+
+- build **just rank 3** first, as a concrete slice.
+
+Do not stop first for a rank-`k` generalization pass.
+
 ## What Is Already Implicitly Decided By Legacy
 
 The following decisions are already present in legacy `rl_counterpoint`, even if
@@ -148,10 +300,9 @@ Legacy uses `max_single_line_interval`.
 
 In `tower`, bounded action space and `max_step_size` currently play a similar role.
 
-So for rank 3 we still need to decide:
+This is now answered for the first implementation pass:
 
-- is `max_step_size` enough, or
-- do we also want an explicit edge predicate in the style of legacy?
+- `max_step_size` is enough.
 
 ### 3. Root/Outer/Adjacent Ownership In A Tiered Tower
 
@@ -194,7 +345,7 @@ What is still not explicitly written down is the musical interpretation:
 - is rank 3 always "insert the inner third voice between bass and top"?
 - is there ever any alternate insertion policy?
 
-This should be made explicit before implementation.
+This is now explicit and settled.
 
 ### 2. Exact Rank-3 Node Legality Contract
 
@@ -208,7 +359,17 @@ We need to decide exactly which of these are hard-pruned in `G(3)_0`:
 6. strict increasing order
 7. perhaps diatonic membership for the inserted voice
 
-This is the most important unresolved graph decision.
+This is no longer fully open. The current chosen direction is the strict version:
+
+1. lower voice valid in rank 1,
+2. projected outer pair valid in rank 2,
+3. both adjacent intervals consonant,
+4. outer interval consonant,
+5. bounded width,
+6. strict increasing order.
+
+The remaining work is to formalize the exact implementation contract, not to pick
+between loose and strict families.
 
 ### 3. Exact Rank-3 Edge Legality Contract
 
@@ -222,7 +383,19 @@ We need to decide which edge predicates are hard:
 6. whether to prune other parallel perfects
 7. whether to impose explicit per-voice motion caps beyond `max_step_size`
 
-Legacy answers some of this, but not all.
+Partially settled:
+
+1. no self-loop
+2. no voice crossing
+3. no stationary voices
+4. no parallel fifths
+5. no parallel octaves
+
+Still open:
+
+6. whether to add any further parallel-perfect or motion predicates beyond those
+7. whether to add an explicit legacy-style single-line edge predicate beyond
+   `max_step_size`
 
 ### 4. Projection-Induced Pruning Direction
 
@@ -237,6 +410,11 @@ For rank 3 we need the next analogue:
 \[
 G(2)_\bullet \leftarrow \operatorname{pr}^3(G(3)_\bullet)
 \]
+
+Settled in direction, still open in implementation details:
+
+- yes, `G(2)` should eventually be replaced by \(\operatorname{pr}^{3}(G(3)_\bullet)\)
+- and the tower should be built top-down from the known final rank
 
 Questions still to settle:
 
@@ -257,7 +435,15 @@ For rank 3 we need to decide:
 3. do we keep top-`m` parent sampling?
 4. do we keep the feasibility filter over the child lift fiber?
 
-The likely answer is "yes" to all four, but it should be made explicit.
+This is now explicit in spirit:
+
+- one accepted rank-2 parent checkpoint,
+- frozen parent.
+
+Still open:
+
+- whether top-`m` parent sampling remains unchanged at rank 3
+- whether the current feasibility filter is used unchanged or generalized
 
 ### 6. Reward Ownership For Rank 3
 
@@ -277,7 +463,11 @@ For rank 3 that becomes:
 - can it score spacing on both sides of the inserted voice?
 - how much terminal cadence logic belongs at rank 3 versus rank 2?
 
-This is a genuinely open design decision.
+This is no longer open.
+
+Chosen:
+
+- reward ownership is global-triad, not strictly new-voice-local.
 
 ### 7. Rank-3 Success Semantics
 
@@ -290,7 +480,7 @@ Questions:
 3. what pitch classes must the inserted voice realize at pre-cadential and final steps?
 4. is there one accepted cadence pattern or several?
 
-Legacy does not answer this in `tower` terms.
+This remains the main unresolved musical contract question.
 
 ### 8. Coupled/Decoupled Curriculum For Rank 3
 
@@ -305,7 +495,9 @@ and more importantly:
 
 - what "coupled" even means for an inserted interior voice.
 
-That is still unresolved.
+This is now answered for the first pass:
+
+- no staged curriculum for rank 3 initially.
 
 ### 9. Register Contract For The Inserted Voice
 
@@ -318,7 +510,9 @@ So we need to decide:
 3. do we bias it toward a preferred band?
 4. does it have its own target octave at all, or is that the wrong concept for an interior voice?
 
-This is currently open, and it affects both graph and reward design.
+This is now answered:
+
+- no goal octave/register for the inserted interior voice.
 
 ### 10. Whether Rank-3 Should Be Built As Generic Rank-k Infrastructure Or A Concrete Rank-3 Slice
 
@@ -332,7 +526,7 @@ or:
 
 - "generalize rank-2 machinery into true rank-k machinery before rank 3."
 
-Given where the repo is today, the safer recommendation is:
+This is now chosen explicitly:
 
 - implement rank 3 as a **concrete slice first**, while keeping names and data
   shapes generic where cheap.
@@ -345,17 +539,16 @@ These are the decisions I would lock first.
 
 1. rank 3 inserts an interior voice at projection index `1`
 2. rank-3 graph should be hard-pruned, not reward-cleaned
-3. strict ordering, no crossing, and at least some parallel-perfect pruning are graph concerns
-4. tonic-relative legality remains global, not merely pedal-relative
-5. rank-3 should train over one accepted rank-2 parent checkpoint
+3. the final intended rank modifies the whole tower of graphs at build time
+4. strict ordering, no crossing, no stationary voices, and at least fifth/octave parallel-perfect pruning are graph concerns
+5. tonic-relative legality remains global, not merely pedal-relative
+6. rank-3 should train over one accepted rank-2 parent checkpoint
+7. rank-3 should use the current rank-2 style consonance set `{3,4,7,8,9}`
 
 ### Still Need Explicit Spec
 
-1. exact allowed adjacent and outer interval classes for `G(3)_0`
-2. exact rank-3 terminal cadence predicate
-3. whether inserted voice has a goal octave / goal register at all
-4. which rank-3 facts belong to reward versus hard legality
-5. whether to induce `G(2)` from `G(3)` immediately or postpone that cutover
+1. exact rank-3 terminal cadence predicate
+2. whether projected rank-2 success is strictly required, or whether rank 3 adds a direct interior-voice cadence clause
 
 ## Practical Recommendation
 
@@ -369,3 +562,16 @@ Before coding tier 3, write one short contract doc covering:
 
 That should be enough to start implementation without opening another design fog bank.
 
+## Remaining Questions For Owner
+
+The following are still unanswered and should be answered before implementation starts:
+
+1. **Rank-3 success predicate**
+   - chosen:
+     - rank-3 success is:
+       - pedal in goal octave, and
+       - a perfect cadence of triads in that octave
+
+   So rank 3 is **not** defined merely as projected rank-2 success plus a local
+   helper clause. Its success condition is explicitly triadic and octave-anchored
+   by the pedal voice.
