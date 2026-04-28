@@ -10,6 +10,9 @@ from tower.reward.harmony import (
     Rank2SpacingControlReward,
     Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
+    Rank3CadenceEndpointTriadReward,
+    Rank3GlobalSpacingReward,
+    Rank3GlobalTriadConsonanceReward,
 )
 from tower.reward.melody import consonance_from_pitch_class
 from tower.window import build_window
@@ -216,3 +219,86 @@ def test_rank2_cadence_endpoint_reward_scores_outer_third_closeness() -> None:
     assert result.reward == 2.0
     assert diagnostics["previous_distance"] == 0
     assert diagnostics["final_distance"] == 0
+
+
+def make_rank3_context(
+    *,
+    history: tuple[tuple[int, ...], ...],
+    action: tuple[int, ...],
+    key_pitch_class: int | None = 0,
+    is_final_step: bool = False,
+) -> TowerRewardContext:
+    source = history[-1]
+    target = tuple(pitch + delta for pitch, delta in zip(source, action, strict=True))
+    step_index = len(history) - 1
+    return TowerRewardContext(
+        rank=3,
+        step_index=step_index,
+        source=source,
+        target=target,
+        action=action,
+        window=build_window(
+            history=history,
+            step_index=step_index,
+            measure_size=4,
+            context_measures=2,
+        ),
+        measure_size=4,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=4,
+        is_final_step=is_final_step,
+    )
+
+
+def test_rank3_global_triad_consonance_reward_scores_all_pairs() -> None:
+    term = Rank3GlobalTriadConsonanceReward(consonance_weight=2.0)
+
+    result = term(
+        make_rank3_context(
+            history=((60, 64, 68),),
+            action=(0, 0, 0),
+        )
+    )
+
+    expected = 2.0 * (
+        consonance_from_pitch_class(4)
+        + consonance_from_pitch_class(4)
+        + consonance_from_pitch_class(8)
+    )
+    assert result.reward == pytest.approx(expected)
+
+
+def test_rank3_global_spacing_reward_scores_adjacent_and_outer_span() -> None:
+    term = Rank3GlobalSpacingReward(
+        min_adjacent_gap=3,
+        max_outer_span=15,
+        adjacent_spacing_reward=0.25,
+        outer_span_reward=0.5,
+    )
+
+    result = term(
+        make_rank3_context(
+            history=((60, 64, 68),),
+            action=(0, 0, 0),
+        )
+    )
+
+    assert result.reward == pytest.approx(1.0)
+
+
+def test_rank3_cadence_endpoint_triad_reward_scores_dominant_to_tonic_triads() -> None:
+    term = Rank3CadenceEndpointTriadReward(weight=2.0)
+
+    result = term(
+        make_rank3_context(
+            history=((65, 72, 81), (67, 74, 83)),
+            action=(-7, -7, -7),
+            key_pitch_class=0,
+            is_final_step=True,
+        )
+    )
+
+    diagnostics = result.diagnostics["rank3_cadence_endpoint_triad"]
+    assert result.reward == 2.0
+    assert diagnostics["previous_distances"] == (0, 0, 0)
+    assert diagnostics["final_distances"] == (0, 0, 0)

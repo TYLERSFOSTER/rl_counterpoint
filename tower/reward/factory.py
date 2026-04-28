@@ -11,6 +11,9 @@ from tower.reward.harmony import (
     Rank2SpacingControlReward,
     Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
+    Rank3CadenceEndpointTriadReward,
+    Rank3GlobalSpacingReward,
+    Rank3GlobalTriadConsonanceReward,
 )
 from tower.reward.melody import (
     BeatClassPitchReward,
@@ -24,6 +27,7 @@ from tower.reward.result import TowerRewardResult
 from tower.reward.success import (
     rank1_projected_cadence_success,
     rank2_lifted_cadence_success,
+    rank3_triadic_cadence_success,
 )
 from tower.reward.terms import CompositeRewardTerm, RewardTerm, SuccessRewardTerm
 
@@ -337,6 +341,141 @@ class Rank2RewardFunction:
         return self.term(keyed_context)
 
 
+@dataclass(frozen=True)
+class Rank3RewardFactoryConfig:
+    """Configuration for the first concrete rank-3 reward bundle."""
+
+    key_pitch_class: int = 0
+    terminal_cadence_reward: float = 10.0
+    cadence_failure_reward: float = 0.0
+    target_root_octave: int = 4
+    use_context_target_root_octave: bool = False
+    triad_consonance_weight: float = 1.0
+    triad_non_consonance_penalty: float = 0.0
+    min_adjacent_gap: int = 3
+    max_outer_span: int = 15
+    adjacent_spacing_reward: float = 0.1
+    adjacent_spacing_penalty: float = -0.1
+    outer_span_reward: float = 0.1
+    outer_span_penalty: float = -0.1
+    cadence_endpoint_weight: float = 1.0
+
+    def __post_init__(self) -> None:
+        _validate_pitch_class(self.key_pitch_class)
+        _validate_number(
+            self.terminal_cadence_reward,
+            field_name="terminal_cadence_reward",
+        )
+        _validate_number(
+            self.cadence_failure_reward,
+            field_name="cadence_failure_reward",
+        )
+        _validate_target_octave(self.target_root_octave)
+        if not isinstance(self.use_context_target_root_octave, bool):
+            raise TypeError("use_context_target_root_octave must be a bool")
+        _validate_number(
+            self.triad_consonance_weight,
+            field_name="triad_consonance_weight",
+        )
+        _validate_number(
+            self.triad_non_consonance_penalty,
+            field_name="triad_non_consonance_penalty",
+        )
+        _validate_positive_int(self.min_adjacent_gap, field_name="min_adjacent_gap")
+        _validate_positive_int(self.max_outer_span, field_name="max_outer_span")
+        _validate_number(
+            self.adjacent_spacing_reward,
+            field_name="adjacent_spacing_reward",
+        )
+        _validate_number(
+            self.adjacent_spacing_penalty,
+            field_name="adjacent_spacing_penalty",
+        )
+        _validate_number(
+            self.outer_span_reward,
+            field_name="outer_span_reward",
+        )
+        _validate_number(
+            self.outer_span_penalty,
+            field_name="outer_span_penalty",
+        )
+        _validate_number(
+            self.cadence_endpoint_weight,
+            field_name="cadence_endpoint_weight",
+        )
+
+
+@dataclass(frozen=True)
+class Rank3RewardFunction:
+    """Callable rank-3 reward bundle built from composable reward terms."""
+
+    config: Rank3RewardFactoryConfig
+    term: RewardTerm = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "term",
+            CompositeRewardTerm(
+                terms=(
+                    SuccessRewardTerm(
+                        predicate=rank3_triadic_cadence_success,
+                        success_reward=float(self.config.terminal_cadence_reward),
+                        failure_reward=float(self.config.cadence_failure_reward),
+                        diagnostics_key="cadence",
+                    ),
+                    Rank3GlobalTriadConsonanceReward(
+                        consonance_weight=float(self.config.triad_consonance_weight),
+                        non_consonance_penalty=float(
+                            self.config.triad_non_consonance_penalty
+                        ),
+                    ),
+                    Rank3GlobalSpacingReward(
+                        min_adjacent_gap=int(self.config.min_adjacent_gap),
+                        max_outer_span=int(self.config.max_outer_span),
+                        adjacent_spacing_reward=float(
+                            self.config.adjacent_spacing_reward
+                        ),
+                        adjacent_spacing_penalty=float(
+                            self.config.adjacent_spacing_penalty
+                        ),
+                        outer_span_reward=float(self.config.outer_span_reward),
+                        outer_span_penalty=float(self.config.outer_span_penalty),
+                    ),
+                    Rank3CadenceEndpointTriadReward(
+                        weight=float(self.config.cadence_endpoint_weight),
+                    ),
+                ),
+                diagnostics={
+                    "kind": "rank3_reward",
+                    "key_pitch_class": self.config.key_pitch_class,
+                    "target_root_octave": self.config.target_root_octave,
+                },
+            ),
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        if not isinstance(context, TowerRewardContext):
+            raise TypeError("context must be a TowerRewardContext")
+        if context.rank != 3:
+            raise ValueError("rank-3 reward function requires rank 3 context")
+
+        target_root_octave = (
+            context.target_root_octave
+            if self.config.use_context_target_root_octave
+            else self.config.target_root_octave
+        )
+        if target_root_octave is None:
+            raise ValueError("target_root_octave is required for rank-3 reward")
+
+        keyed_context = replace(
+            context,
+            key_pitch_class=self.config.key_pitch_class,
+            target_root_octave=target_root_octave,
+        )
+        return self.term(keyed_context)
+
+
 def build_rank1_reward_fn(
     *,
     key_pitch_class: int = 0,
@@ -423,6 +562,44 @@ def build_rank2_reward_fn(
             spacing_penalty=spacing_penalty,
             target_vertical_interval=target_vertical_interval,
             target_vertical_interval_weight=target_vertical_interval_weight,
+        )
+    )
+
+
+def build_rank3_reward_fn(
+    *,
+    key_pitch_class: int = 0,
+    terminal_cadence_reward: float = 10.0,
+    cadence_failure_reward: float = 0.0,
+    target_root_octave: int = 4,
+    use_context_target_root_octave: bool = False,
+    triad_consonance_weight: float = 1.0,
+    triad_non_consonance_penalty: float = 0.0,
+    min_adjacent_gap: int = 3,
+    max_outer_span: int = 15,
+    adjacent_spacing_reward: float = 0.1,
+    adjacent_spacing_penalty: float = -0.1,
+    outer_span_reward: float = 0.1,
+    outer_span_penalty: float = -0.1,
+    cadence_endpoint_weight: float = 1.0,
+) -> Rank3RewardFunction:
+    """Build the first concrete rank-3 reward function."""
+    return Rank3RewardFunction(
+        config=Rank3RewardFactoryConfig(
+            key_pitch_class=key_pitch_class,
+            terminal_cadence_reward=terminal_cadence_reward,
+            cadence_failure_reward=cadence_failure_reward,
+            target_root_octave=target_root_octave,
+            use_context_target_root_octave=use_context_target_root_octave,
+            triad_consonance_weight=triad_consonance_weight,
+            triad_non_consonance_penalty=triad_non_consonance_penalty,
+            min_adjacent_gap=min_adjacent_gap,
+            max_outer_span=max_outer_span,
+            adjacent_spacing_reward=adjacent_spacing_reward,
+            adjacent_spacing_penalty=adjacent_spacing_penalty,
+            outer_span_reward=outer_span_reward,
+            outer_span_penalty=outer_span_penalty,
+            cadence_endpoint_weight=cadence_endpoint_weight,
         )
     )
 

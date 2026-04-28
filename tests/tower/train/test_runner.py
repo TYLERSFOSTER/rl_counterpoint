@@ -28,11 +28,14 @@ from tower.train.runner import (
     FinalInferenceResult,
     Rank1TrainingRunResult,
     Rank2TrainingRunResult,
+    Rank3TrainingRunResult,
     TowerRunnerConfig,
     _graph_spec_from_config,
     _rank1_episode_initial_state,
+    _build_rank3_policy,
     run_rank1_training,
     run_rank2_training,
+    run_rank3_training,
     run_final_inference_episode,
 )
 from tower.window import TowerWindow
@@ -92,6 +95,60 @@ class WideTinyRank2Policy(torch.nn.Module):
         return PolicyOutput(logits=self.logits)
 
 
+class TinyRank1GrandparentPolicy(torch.nn.Module):
+    rank = 1
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.logits = torch.nn.Parameter(torch.tensor([2.0, 0.0]))
+
+    def forward(
+        self,
+        *,
+        state: tuple[int, ...],
+        window: TowerWindow,
+    ) -> PolicyOutput:
+        assert len(state) == 1
+        assert window.valid_mask[-1]
+        return PolicyOutput(logits=self.logits)
+
+
+class TinyRank2ParentPolicy(torch.nn.Module):
+    rank = 2
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.logits = torch.nn.Parameter(torch.tensor([2.0, 0.0]))
+
+    def forward(
+        self,
+        *,
+        state: tuple[int, ...],
+        window: TowerWindow,
+    ) -> PolicyOutput:
+        assert len(state) == 2
+        assert window.valid_mask[-1]
+        return PolicyOutput(logits=self.logits)
+
+
+class TinyRank3Policy(torch.nn.Module):
+    rank = 3
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.logits = torch.nn.Parameter(torch.tensor([1.0]))
+
+    def forward(
+        self,
+        *,
+        state: tuple[int, ...],
+        window: TowerWindow,
+    ) -> PolicyOutput:
+        assert len(state) == 3
+        assert window.valid_mask[-1]
+        return PolicyOutput(logits=self.logits)
+
+
 def prepare_accepted_rank1_parent(
     *,
     tmp_path: Path,
@@ -120,6 +177,45 @@ def prepare_accepted_rank1_parent(
     )
     record_rank_manifest_entry(paths=rank_1_paths, status="accepted")
     return rank_1_paths
+
+
+def prepare_accepted_rank2_parent(
+    *,
+    tmp_path: Path,
+    lineage_id: str = "lineage-a",
+) -> TowerArtifactPaths:
+    prepare_accepted_rank1_parent(tmp_path=tmp_path, lineage_id=lineage_id)
+    rank_2_paths = TowerArtifactPaths(
+        lineage_id=lineage_id,
+        rank=2,
+        artifact_root=tmp_path,
+    )
+    rank_2_config = TowerRankConfig(
+        rank=2,
+        lineage_id=lineage_id,
+        episode_budget=1,
+        max_step_size=2,
+        parent_checkpoint="rank_1/checkpoint_latest.pt",
+        parent_sampler_config={"top_m": 1},
+    )
+    save_latest_checkpoint(
+        paths=rank_2_paths,
+        payload=build_checkpoint_payload(
+            config=rank_2_config,
+            episode_index=0,
+            stats={"episode_return": 1.0},
+            policy_state_dict={"parent_weight": [1.0]},
+            optimizer_state_dict={"step": 1},
+            parent_checkpoint="rank_1/checkpoint_latest.pt",
+            parent_artifact_schema_version=1,
+        ),
+    )
+    record_rank_manifest_entry(
+        paths=rank_2_paths,
+        status="accepted",
+        parent_checkpoint="rank_1/checkpoint_latest.pt",
+    )
+    return rank_2_paths
 
 
 def test_runner_config_records_rank_1_run_settings() -> None:
@@ -210,10 +306,67 @@ def test_graph_spec_from_config_builds_induced_rank1_graph_from_rank2() -> None:
     spec = _graph_spec_from_config(config)
 
     assert spec.pitch_min == 0
-    assert spec.pitch_max == 120
+    assert spec.pitch_max == 123
     assert spec.key_pitch_class == 3
     assert spec.induced_node_image is not None
     assert spec.induced_edge_image is not None
+
+
+def test_graph_spec_from_config_builds_induced_rank2_graph_from_rank3() -> None:
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=2,
+        episode_count=1,
+        seed=123,
+        artifact_root=Path("/tmp/tower-induced-rank3-test-rank2"),
+        reward_config={"key_pitch_class": 0},
+        parent_checkpoint="rank_1/checkpoint_latest.pt",
+        graph_config={
+            "pitch_min": 60,
+            "pitch_max": 69,
+            "final_rank": 3,
+            "induced_rank3_pitch_min": 60,
+            "induced_rank3_pitch_max": 69,
+            "induced_rank3_max_step_size": 2,
+        },
+    )
+
+    spec = _graph_spec_from_config(config)
+
+    assert spec.rank == 2
+    assert spec.pitch_min == 60
+    assert spec.pitch_max == 69
+    assert spec.induced_node_image == frozenset({(60, 67), (60, 68), (62, 69)})
+    assert spec.induced_edge_image == frozenset(
+        {((60, 68), (62, 69)), ((62, 69), (60, 68))}
+    )
+
+
+def test_graph_spec_from_config_builds_induced_rank1_graph_from_rank3() -> None:
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=1,
+        episode_count=1,
+        seed=123,
+        artifact_root=Path("/tmp/tower-induced-rank3-test-rank1"),
+        reward_config={"key_pitch_class": 0},
+        graph_config={
+            "pitch_min": 60,
+            "pitch_max": 69,
+            "final_rank": 3,
+            "induced_rank3_pitch_min": 60,
+            "induced_rank3_pitch_max": 69,
+            "induced_rank3_max_step_size": 2,
+        },
+    )
+
+    spec = _graph_spec_from_config(config)
+
+    assert spec.rank == 1
+    assert spec.pitch_min == 60
+    assert spec.pitch_max == 62
+    assert spec.induced_node_image == frozenset({(60,), (62,)})
+    assert spec.induced_edge_image == frozenset({((60,), (62,)), ((62,), (60,))})
 
 
 def test_rank1_episode_initial_state_samples_from_induced_node_image() -> None:
@@ -496,6 +649,65 @@ def test_final_inference_rejects_graph_spec_rank_mismatch() -> None:
             reward_fn=lambda context: TowerRewardResult(reward=1.0),
             max_steps=1,
             graph_spec=TowerGraphSpec(rank=2, max_step_size=1),
+        )
+
+
+def test_final_inference_runs_rank_3_with_parent_stack_without_gradients() -> None:
+    grandparent_policy = TinyRank1GrandparentPolicy()
+    parent_policy = TinyRank2ParentPolicy()
+    child_policy = TinyRank3Policy()
+    grandparent_policy.train()
+    parent_policy.train()
+    child_policy.train()
+
+    result = run_final_inference_episode(
+        policy=child_policy,
+        parent_policy=parent_policy,
+        grandparent_policy=grandparent_policy,
+        initial_state=(62, 65, 69),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
+        parent_top_m=1,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    step = result.trajectory.steps[0]
+    assert result.trajectory.rank == 3
+    assert step.parent_logprob is not None
+    assert step.active_logprob is not None
+    assert isinstance(step.parent_logprob, torch.Tensor)
+    assert isinstance(step.active_logprob, torch.Tensor)
+    assert step.parent_logprob.requires_grad is False
+    assert step.active_logprob.requires_grad is False
+    assert grandparent_policy.logits.grad is None
+    assert parent_policy.logits.grad is None
+    assert child_policy.logits.grad is None
+    assert not grandparent_policy.training
+    assert not parent_policy.training
+    assert not child_policy.training
+    assert result.metrics["rank"] == 3
+    assert result.metrics["episode_return"] == 1.0
+
+
+def test_final_inference_rejects_rank_3_without_parent_stack() -> None:
+    with pytest.raises(ValueError, match="rank 3 final inference requires parent_policy"):
+        run_final_inference_episode(
+            policy=TinyRank3Policy(),
+            initial_state=(62, 65, 69),
+            reward_fn=lambda context: TowerRewardResult(reward=1.0),
+            max_steps=1,
+            graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
+        )
+
+    with pytest.raises(ValueError, match="rank 3 final inference requires grandparent_policy"):
+        run_final_inference_episode(
+            policy=TinyRank3Policy(),
+            parent_policy=TinyRank2ParentPolicy(),
+            initial_state=(62, 65, 69),
+            reward_fn=lambda context: TowerRewardResult(reward=1.0),
+            max_steps=1,
+            graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
         )
 
 
@@ -1031,5 +1243,171 @@ def test_run_rank2_training_rejects_non_rank_2_config(tmp_path: Path) -> None:
             ),
             parent_policy=TinyRank1Policy(),
             initial_state=(76, 79),
+            reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        )
+
+
+def test_run_rank3_training_writes_parent_linked_artifacts_and_final_midi(
+    tmp_path: Path,
+) -> None:
+    prepare_accepted_rank2_parent(tmp_path=tmp_path)
+    grandparent_policy = TinyRank1GrandparentPolicy()
+    parent_policy = TinyRank2ParentPolicy()
+    child_policy = TinyRank3Policy()
+    child_optimizer = torch.optim.SGD(child_policy.parameters(), lr=0.1)
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=3,
+        episode_count=2,
+        seed=123,
+        artifact_root=tmp_path,
+        max_step_size=2,
+        parent_checkpoint="rank_2/checkpoint_latest.pt",
+        parent_top_m=1,
+        training_config={"max_steps": 1, "gamma": 1.0},
+    )
+
+    result = run_rank3_training(
+        config=config,
+        grandparent_policy=grandparent_policy,
+        parent_policy=parent_policy,
+        child_policy=child_policy,
+        child_optimizer=child_optimizer,
+        initial_state=(62, 65, 69),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
+    )
+
+    assert isinstance(result, Rank3TrainingRunResult)
+    assert result.paths.rank_dir == tmp_path / "lineage-a" / "rank_3"
+    assert result.rank_config == read_rank_config(result.paths)
+    assert len(result.episode_results) == 2
+    assert len(result.final_inferences) == 4
+    assert len(result.final_midi_paths) == 4
+    assert result.final_midi_path == result.paths.example_episode_path
+    assert result.paths.example_episode_path.exists()
+    assert result.paths.example_episode_path.read_bytes().startswith(b"MThd")
+    for index in range(1, 4):
+        midi_path = result.paths.rank_dir / f"example_episode_{index}.mid"
+        assert midi_path.exists()
+        assert midi_path.read_bytes().startswith(b"MThd")
+    assert result.paths.reward_diagnostics_path.exists()
+
+    metrics = read_rank_metrics(result.paths)
+    assert len(metrics) == 6
+    assert metrics[0]["episode_index"] == 0
+    assert metrics[1]["episode_index"] == 1
+    assert [row["kind"] for row in metrics[2:]] == ["final_inference"] * 4
+    assert [row["final_inference_index"] for row in metrics[2:]] == [0, 1, 2, 3]
+    assert metrics[2]["midi_path"] == "rank_3/example_episode.mid"
+    assert metrics[3]["midi_path"] == "rank_3/example_episode_1.mid"
+    assert metrics[2]["final_inference"] is True
+    assert metrics[2]["rank"] == 3
+
+    diagnostics = read_reward_diagnostics(result.paths)
+    assert len(diagnostics) == 6
+    assert diagnostics[0]["rank"] == 3
+    assert diagnostics[0]["parent_state"] == [62, 69]
+    assert diagnostics[0]["parent_action"] == [-2, -1]
+    assert diagnostics[-1]["episode_kind"] == "final_inference"
+
+    checkpoint = load_latest_checkpoint(result.paths)
+    assert checkpoint["rank"] == 3
+    assert checkpoint["lineage_id"] == "lineage-a"
+    assert checkpoint["episode_index"] == 1
+    assert checkpoint["parent_rank"] == 2
+    assert checkpoint["parent_checkpoint"] == "rank_2/checkpoint_latest.pt"
+    assert checkpoint["parent_artifact_schema_version"] == 1
+
+    manifest = read_lineage_manifest(result.paths)
+    rank_3_entry = manifest["ranks"]["3"]
+    assert rank_3_entry["status"] == "accepted"
+    assert rank_3_entry["parent_rank"] == 2
+    assert rank_3_entry["parent_checkpoint"] == "rank_2/checkpoint_latest.pt"
+    assert (
+        rank_3_entry["reward_diagnostics"]
+        == "rank_3/reward_diagnostics.jsonl"
+    )
+
+
+def test_run_rank3_training_can_build_default_child_transformer_policy(
+    tmp_path: Path,
+) -> None:
+    prepare_accepted_rank2_parent(tmp_path=tmp_path)
+
+    result = run_rank3_training(
+        config=TowerRunnerConfig(
+            lineage_id="lineage-a",
+            rank=3,
+            episode_count=1,
+            seed=123,
+            artifact_root=tmp_path,
+            max_step_size=2,
+            parent_checkpoint="rank_2/checkpoint_latest.pt",
+            parent_top_m=1,
+            policy_config={
+                "d_model": 8,
+                "num_layers": 1,
+                "num_heads": 2,
+                "ff_dim": 16,
+                "dropout": 0.0,
+            },
+            training_config={"max_steps": 1},
+        ),
+        grandparent_policy=TinyRank1GrandparentPolicy(),
+        parent_policy=TinyRank2ParentPolicy(),
+        initial_state=(62, 65, 69),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
+    )
+
+    assert result.child_policy.rank == 3
+    assert len(result.episode_results) == 1
+    assert len(result.final_inferences) == 4
+    assert result.final_midi_path == result.paths.example_episode_path
+    assert result.paths.example_episode_path.exists()
+
+
+def test_run_rank3_training_rejects_missing_accepted_parent(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="accepted parent checkpoint is missing"):
+        run_rank3_training(
+            config=TowerRunnerConfig(
+                lineage_id="lineage-a",
+                rank=3,
+                episode_count=1,
+                seed=123,
+                artifact_root=tmp_path,
+                max_step_size=2,
+                parent_checkpoint="rank_2/checkpoint_latest.pt",
+                parent_top_m=1,
+                training_config={"max_steps": 1},
+            ),
+            grandparent_policy=TinyRank1GrandparentPolicy(),
+            parent_policy=TinyRank2ParentPolicy(),
+            child_policy=TinyRank3Policy(),
+            initial_state=(62, 65, 69),
+            reward_fn=lambda context: TowerRewardResult(reward=1.0),
+            graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
+        )
+
+
+def test_run_rank3_training_rejects_non_rank_3_config(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="rank-3 runner config"):
+        run_rank3_training(
+            config=TowerRunnerConfig(
+                lineage_id="lineage-a",
+                rank=2,
+                episode_count=1,
+                seed=123,
+                artifact_root=tmp_path,
+                max_step_size=2,
+                parent_checkpoint="rank_1/checkpoint_latest.pt",
+                parent_top_m=1,
+            ),
+            grandparent_policy=TinyRank1GrandparentPolicy(),
+            parent_policy=TinyRank2ParentPolicy(),
+            initial_state=(62, 65, 69),
             reward_fn=lambda context: TowerRewardResult(reward=1.0),
         )

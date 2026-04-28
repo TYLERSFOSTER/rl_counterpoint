@@ -1,4 +1,4 @@
-"""Rank-2 harmonic reward shaping terms."""
+"""Rank-2 and rank-3 harmonic reward shaping terms."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from tower.reward.melody import (
 from tower.reward.result import TowerRewardResult
 
 RANK2_CONSONANT_INTERVALS_MOD_12 = frozenset({3, 4, 7, 8, 9})
+RANK3_CONSONANT_INTERVALS_MOD_12 = frozenset({3, 4, 7, 8, 9})
 
 
 @dataclass(frozen=True)
@@ -292,9 +293,205 @@ class Rank2TargetVerticalIntervalReward:
         )
 
 
+@dataclass(frozen=True)
+class Rank3GlobalTriadConsonanceReward:
+    """Score the realized three-voice sonority by pairwise consonance quality."""
+
+    consonance_weight: float = 1.0
+    non_consonance_penalty: float = 0.0
+    diagnostics_key: str = "rank3_global_triad_consonance"
+
+    def __post_init__(self) -> None:
+        _validate_number(self.consonance_weight, field_name="consonance_weight")
+        _validate_number(
+            self.non_consonance_penalty,
+            field_name="non_consonance_penalty",
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_3_context(context)
+
+        interval_rows: list[dict[str, object]] = []
+        reward = 0.0
+        for lower_index, upper_index in ((0, 1), (1, 2), (0, 2)):
+            interval_pitch_class = (context.target[upper_index] - context.target[lower_index]) % 12
+            is_consonant = interval_pitch_class in RANK3_CONSONANT_INTERVALS_MOD_12
+            consonance = consonance_from_pitch_class(interval_pitch_class)
+            interval_reward = (
+                float(self.consonance_weight) * consonance
+                if is_consonant
+                else float(self.non_consonance_penalty)
+            )
+            reward += interval_reward
+            interval_rows.append(
+                {
+                    "lower_voice_index": lower_index,
+                    "upper_voice_index": upper_index,
+                    "interval_pitch_class": interval_pitch_class,
+                    "is_consonant": is_consonant,
+                    "just_consonance": consonance,
+                    "reward": interval_reward,
+                }
+            )
+
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank3_global_triad_consonance",
+                    "consonance_weight": float(self.consonance_weight),
+                    "non_consonance_penalty": float(self.non_consonance_penalty),
+                    "consonant_intervals_mod_12": tuple(
+                        sorted(RANK3_CONSONANT_INTERVALS_MOD_12)
+                    ),
+                    "intervals": tuple(interval_rows),
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
+class Rank3GlobalSpacingReward:
+    """Reward uncluttered adjacent spacing and bounded outer span."""
+
+    min_adjacent_gap: int = 3
+    max_outer_span: int = 15
+    adjacent_spacing_reward: float = 0.1
+    adjacent_spacing_penalty: float = -0.1
+    outer_span_reward: float = 0.1
+    outer_span_penalty: float = -0.1
+    diagnostics_key: str = "rank3_global_spacing"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.min_adjacent_gap, int):
+            raise TypeError("min_adjacent_gap must be an int")
+        if self.min_adjacent_gap < 1:
+            raise ValueError("min_adjacent_gap must be at least 1")
+        if not isinstance(self.max_outer_span, int):
+            raise TypeError("max_outer_span must be an int")
+        if self.max_outer_span < 1:
+            raise ValueError("max_outer_span must be at least 1")
+        _validate_number(self.adjacent_spacing_reward, field_name="adjacent_spacing_reward")
+        _validate_number(self.adjacent_spacing_penalty, field_name="adjacent_spacing_penalty")
+        _validate_number(self.outer_span_reward, field_name="outer_span_reward")
+        _validate_number(self.outer_span_penalty, field_name="outer_span_penalty")
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_3_context(context)
+
+        lower_gap = context.target[1] - context.target[0]
+        upper_gap = context.target[2] - context.target[1]
+        outer_span = context.target[2] - context.target[0]
+        lower_reward = (
+            float(self.adjacent_spacing_reward)
+            if lower_gap >= self.min_adjacent_gap
+            else float(self.adjacent_spacing_penalty)
+        )
+        upper_reward = (
+            float(self.adjacent_spacing_reward)
+            if upper_gap >= self.min_adjacent_gap
+            else float(self.adjacent_spacing_penalty)
+        )
+        outer_reward = (
+            float(self.outer_span_reward)
+            if outer_span <= self.max_outer_span
+            else float(self.outer_span_penalty)
+        )
+        reward = lower_reward + upper_reward + outer_reward
+
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank3_global_spacing",
+                    "lower_gap": lower_gap,
+                    "upper_gap": upper_gap,
+                    "outer_span": outer_span,
+                    "min_adjacent_gap": self.min_adjacent_gap,
+                    "max_outer_span": self.max_outer_span,
+                    "lower_reward": lower_reward,
+                    "upper_reward": upper_reward,
+                    "outer_reward": outer_reward,
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
+class Rank3CadenceEndpointTriadReward:
+    """Give final-step shaping toward the intended dominant and tonic triads."""
+
+    weight: float = 1.0
+    diagnostics_key: str = "rank3_cadence_endpoint_triad"
+
+    def __post_init__(self) -> None:
+        _validate_number(self.weight, field_name="weight")
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_3_context(context)
+        if context.key_pitch_class is None:
+            raise ValueError("key_pitch_class is required for Rank3CadenceEndpointTriadReward")
+        if not context.is_final_step:
+            return TowerRewardResult(
+                reward=0.0,
+                diagnostics={
+                    self.diagnostics_key: {
+                        "kind": "rank3_cadence_endpoint_triad",
+                        "reason": "not_final_step",
+                    }
+                },
+            )
+
+        previous_expected = (
+            (context.key_pitch_class + 7) % 12,
+            (context.key_pitch_class + 2) % 12,
+            (context.key_pitch_class + 11) % 12,
+        )
+        final_expected = (
+            context.key_pitch_class % 12,
+            (context.key_pitch_class + 7) % 12,
+            (context.key_pitch_class + 4) % 12,
+        )
+        previous_pitch_classes = tuple(pitch % 12 for pitch in context.source)
+        final_pitch_classes = tuple(pitch % 12 for pitch in context.target)
+        previous_distances = tuple(
+            _pitch_class_distance(actual, expected)
+            for actual, expected in zip(previous_pitch_classes, previous_expected, strict=True)
+        )
+        final_distances = tuple(
+            _pitch_class_distance(actual, expected)
+            for actual, expected in zip(final_pitch_classes, final_expected, strict=True)
+        )
+        reward = float(self.weight) * (
+            sum(1.0 / (distance + 1.0) for distance in previous_distances + final_distances)
+            / 6.0
+        )
+        return TowerRewardResult(
+            reward=reward,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank3_cadence_endpoint_triad",
+                    "previous_pitch_classes": previous_pitch_classes,
+                    "final_pitch_classes": final_pitch_classes,
+                    "previous_expected_pitch_classes": previous_expected,
+                    "final_expected_pitch_classes": final_expected,
+                    "previous_distances": previous_distances,
+                    "final_distances": final_distances,
+                    "weight": float(self.weight),
+                    "reward_formula": "w * mean(1/(1+d_i)) over prev/final triad voices",
+                }
+            },
+        )
+
+
 def _validate_rank_2_context(context: TowerRewardContext) -> None:
     if context.rank != 2:
         raise ValueError("rank-2 harmonic reward requires rank 2 context")
+
+
+def _validate_rank_3_context(context: TowerRewardContext) -> None:
+    if context.rank != 3:
+        raise ValueError("rank-3 harmonic reward requires rank 3 context")
 
 
 def _new_voice_index(context: TowerRewardContext) -> int:

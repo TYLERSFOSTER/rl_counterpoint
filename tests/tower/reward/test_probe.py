@@ -47,12 +47,14 @@ def test_terminal_cadence_success_probe_row_records_composed_terms() -> None:
     cadence = term_diagnostics(row, 0)["cadence"]
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
-    beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
-    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
+    goal_direction = term_diagnostics(row, 4)["goal_octave_direction"]
+    beat_class = term_diagnostics(row, 5)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 6)["step_size_bin_balance"]
     assert cadence["reason"] == "success"
     assert recovery["reason"] == "failed_recovery"
     assert recovery["current_action"] == -7
     assert target_octave["octave_distance"] == 0
+    assert goal_direction["target_octave_distance"] == 0
     assert beat_class["is_measure_start"] is True
     assert beat_class["measure_start_tonic_reward"] == 1.0
     assert beat_class["onbeat_scale_degree_reward"] == 1.0
@@ -68,14 +70,16 @@ def test_recent_range_penalty_probe_row_records_penalty() -> None:
     range_diagnostics = term_diagnostics(row, 1)["recent_melodic_range"]
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
-    beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
-    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
+    goal_direction = term_diagnostics(row, 4)["goal_octave_direction"]
+    beat_class = term_diagnostics(row, 5)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 6)["step_size_bin_balance"]
     assert cadence["reason"] == "not_final_step"
     assert range_diagnostics["observed_range"] == 13
     assert range_diagnostics["penalty_applied"] is True
     assert range_diagnostics["reason"] == "range_exceeded"
     assert recovery["reason"] == "failed_recovery"
     assert target_octave["octave_distance"] == 1
+    assert goal_direction["target_octave_distance"] == 1
     assert beat_class["is_onbeat"] is True
     assert beat_class["relative_pitch_class"] == 2
     assert beat_class["onbeat_scale_degree_reward"] == 1.0
@@ -92,14 +96,16 @@ def test_large_leap_recovery_success_probe_row_records_reward() -> None:
     assert row["reward"] == pytest.approx(2.928571428571429)
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
-    beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
-    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
+    goal_direction = term_diagnostics(row, 4)["goal_octave_direction"]
+    beat_class = term_diagnostics(row, 5)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 6)["step_size_bin_balance"]
     assert recovery["previous_interval"] == 7
     assert recovery["current_action"] == -2
     assert recovery["opposite_direction"] is True
     assert recovery["success"] is True
     assert recovery["reason"] == "recovered"
     assert target_octave["octave_distance"] == 0
+    assert goal_direction["target_octave_distance"] == 0
     assert beat_class["is_onbeat"] is True
     assert beat_class["relative_pitch_class"] == 5
     assert step_balance["small_count"] == 1
@@ -115,14 +121,16 @@ def test_large_leap_recovery_failure_probe_row_records_penalty() -> None:
     assert row["reward"] == pytest.approx(1.9285714285714286)
     recovery = term_diagnostics(row, 2)["large_leap_recovery"]
     target_octave = term_diagnostics(row, 3)["target_octave_distance"]
-    beat_class = term_diagnostics(row, 4)["beat_class_pitch"]
-    step_balance = term_diagnostics(row, 5)["step_size_bin_balance"]
+    goal_direction = term_diagnostics(row, 4)["goal_octave_direction"]
+    beat_class = term_diagnostics(row, 5)["beat_class_pitch"]
+    step_balance = term_diagnostics(row, 6)["step_size_bin_balance"]
     assert recovery["previous_interval"] == 7
     assert recovery["current_action"] == 2
     assert recovery["opposite_direction"] is False
     assert recovery["success"] is False
     assert recovery["reason"] == "failed_recovery"
     assert target_octave["octave_distance"] == 0
+    assert goal_direction["target_octave_distance"] == 0
     assert beat_class["is_onbeat"] is True
     assert beat_class["relative_pitch_class"] == 9
     assert step_balance["small_count"] == 1

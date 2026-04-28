@@ -10,8 +10,11 @@ from tower.reward.factory import (
     Rank1RewardFunction,
     Rank2RewardFactoryConfig,
     Rank2RewardFunction,
+    Rank3RewardFactoryConfig,
+    Rank3RewardFunction,
     build_rank1_reward_fn,
     build_rank2_reward_fn,
+    build_rank3_reward_fn,
 )
 from tower.reward.result import TowerRewardResult
 from tower.window import build_window
@@ -364,3 +367,82 @@ def test_rank2_reward_factory_validates_config_values() -> None:
         Rank2RewardFactoryConfig(min_vertical_gap=0)
     with pytest.raises(ValueError, match="target_vertical_interval must be non-negative"):
         Rank2RewardFactoryConfig(target_vertical_interval=-1)
+
+
+def test_build_rank3_reward_fn_returns_reward_result() -> None:
+    reward_fn = build_rank3_reward_fn()
+
+    result = reward_fn(
+        make_context(
+            history=((65, 72, 81), (67, 74, 83)),
+            action=(-7, -7, -7),
+            rank=3,
+            target_root_octave=4,
+        )
+    )
+
+    assert isinstance(reward_fn, Rank3RewardFunction)
+    assert isinstance(result, TowerRewardResult)
+
+
+def test_rank3_reward_factory_combines_success_triad_spacing_and_endpoint_terms() -> None:
+    reward_fn = build_rank3_reward_fn(
+        terminal_cadence_reward=10.0,
+        triad_consonance_weight=2.0,
+        min_adjacent_gap=3,
+        max_outer_span=16,
+        adjacent_spacing_reward=0.25,
+        outer_span_reward=0.5,
+        cadence_endpoint_weight=2.0,
+    )
+
+    result = reward_fn(
+        TowerRewardContext(
+            rank=3,
+            step_index=3,
+            source=(67, 74, 83),
+            target=(60, 67, 76),
+            action=(-7, -7, -7),
+            window=build_window(
+                history=((65, 72, 81), (66, 73, 82)),
+                step_index=3,
+                measure_size=4,
+                context_measures=2,
+            ),
+            measure_size=4,
+            key_pitch_class=0,
+            target_root_octave=4,
+            is_final_step=True,
+        )
+    )
+
+    assert result.is_terminal_success is True
+    child_results = result.diagnostics["terms"]
+    assert child_results[0]["reward"] == 10.0
+    assert child_results[2]["reward"] == pytest.approx(1.0)
+    assert child_results[3]["reward"] == 2.0
+    assert result.diagnostics["kind"] == "rank3_reward"
+
+
+def test_rank3_reward_factory_rejects_non_rank_3_context() -> None:
+    reward_fn = build_rank3_reward_fn()
+
+    with pytest.raises(ValueError, match="requires rank 3 context"):
+        reward_fn(make_context())
+
+
+def test_rank3_reward_factory_validates_config_values() -> None:
+    with pytest.raises(ValueError, match="key_pitch_class must be in"):
+        Rank3RewardFactoryConfig(key_pitch_class=12)
+    with pytest.raises(TypeError, match="terminal_cadence_reward must be"):
+        Rank3RewardFactoryConfig(terminal_cadence_reward=True)
+    with pytest.raises(ValueError, match="target_root_octave must be in"):
+        Rank3RewardFactoryConfig(target_root_octave=10)
+    with pytest.raises(TypeError, match="use_context_target_root_octave must be"):
+        Rank3RewardFactoryConfig(use_context_target_root_octave=1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="triad_consonance_weight must be"):
+        Rank3RewardFactoryConfig(triad_consonance_weight=True)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="min_adjacent_gap must be at least 1"):
+        Rank3RewardFactoryConfig(min_adjacent_gap=0)
+    with pytest.raises(ValueError, match="max_outer_span must be at least 1"):
+        Rank3RewardFactoryConfig(max_outer_span=0)

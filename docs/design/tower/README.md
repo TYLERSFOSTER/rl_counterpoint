@@ -27,3 +27,8 @@ Current documents:
 - [system_design.md](/Users/foster/rl_counterpoint/docs/design/tower/system_design.md)
 - [rank1_projection_pruning_correction.md](/Users/foster/rl_counterpoint/docs/design/tower/rank1_projection_pruning_correction.md)
 - [induced_rank1_graph_artifact_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/induced_rank1_graph_artifact_contract.md)
+- [final_rank_graph_construction_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/final_rank_graph_construction_contract.md)
+- [rank3_preflight_design_decisions.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_preflight_design_decisions.md)
+- [rank3_node_edge_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_node_edge_contract.md)
+- [rank3_success_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_success_contract.md)
+- [rank3_reward_slice_a_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_reward_slice_a_contract.md)

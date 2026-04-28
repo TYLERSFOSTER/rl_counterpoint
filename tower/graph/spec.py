@@ -33,21 +33,23 @@ class TowerGraphSpec:
         if self.max_step_size < 1:
             raise ValueError("max_step_size must be at least 1")
         if self.induced_node_image is not None:
-            if self.rank != 1:
-                raise ValueError("induced_node_image currently requires rank 1")
+            if self.rank not in {1, 2}:
+                raise ValueError("induced_node_image currently requires rank 1 or rank 2")
             for state in self.induced_node_image:
-                if not isinstance(state, tuple) or len(state) != 1:
-                    raise ValueError("induced_node_image entries must be rank-1 tuples")
+                if not isinstance(state, tuple) or len(state) != self.rank:
+                    raise ValueError(
+                        "induced_node_image entries must be tuples matching spec rank"
+                    )
         if self.induced_edge_image is not None:
-            if self.rank != 1:
-                raise ValueError("induced_edge_image currently requires rank 1")
+            if self.rank not in {1, 2}:
+                raise ValueError("induced_edge_image currently requires rank 1 or rank 2")
             for source, target in self.induced_edge_image:
                 if (
                     not isinstance(source, tuple)
                     or not isinstance(target, tuple)
-                    or len(source) != 1
-                    or len(target) != 1
+                    or len(source) != self.rank
+                    or len(target) != self.rank
                 ):
                     raise ValueError(
-                        "induced_edge_image entries must be pairs of rank-1 tuples"
+                        "induced_edge_image entries must be pairs of tuples matching spec rank"
                     )

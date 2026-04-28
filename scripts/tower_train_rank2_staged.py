@@ -13,13 +13,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.tower_train_rank2 import _load_parent_policy
-from tower.graph.spec import TowerGraphSpec
 from tower.reward.factory import build_rank2_reward_fn
 from tower.train.checkpoint import load_latest_checkpoint
 from tower.train.runner import (
     TowerRunnerConfig,
     _build_optimizer,
     _build_rank2_policy,
+    _graph_spec_from_config,
     run_rank2_training,
 )
 
@@ -43,6 +43,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-step-size", type=int, default=7)
     parser.add_argument("--pitch-min", type=int, default=36)
     parser.add_argument("--pitch-max", type=int, default=84)
+    parser.add_argument("--final-rank", type=int, default=2)
+    parser.add_argument("--induced-rank3-pitch-min", type=int, default=36)
+    parser.add_argument("--induced-rank3-pitch-max", type=int, default=84)
+    parser.add_argument("--induced-rank3-max-step-size", type=int, default=7)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-parent-pitch", type=int, default=64)
     parser.add_argument("--initial-child-pitch", type=int, default=68)
@@ -155,6 +159,10 @@ def _graph_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "pitch_min": args.pitch_min,
         "pitch_max": args.pitch_max,
+        "final_rank": args.final_rank,
+        "induced_rank3_pitch_min": args.induced_rank3_pitch_min,
+        "induced_rank3_pitch_max": args.induced_rank3_pitch_max,
+        "induced_rank3_max_step_size": args.induced_rank3_max_step_size,
     }
 
 
@@ -201,13 +209,6 @@ def main(argv: list[str] | None = None) -> int:
         reward_config = _reward_config_from_args(args)
         policy_config = _policy_config_from_args(args)
         graph_config = _graph_config_from_args(args)
-        graph_spec = TowerGraphSpec(
-            rank=2,
-            key_pitch_class=args.key_pitch_class,
-            pitch_min=args.pitch_min,
-            pitch_max=args.pitch_max,
-            max_step_size=args.max_step_size,
-        )
         reward_fn = build_rank2_reward_fn(
             key_pitch_class=args.key_pitch_class,
             target_root_octave=args.target_root_octave,
@@ -249,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
                 "sample_initial_parent_pitch_in_target_octave": True,
             },
         )
+        graph_spec = _graph_spec_from_config(stage1_config)
         stage1_child_policy = _build_rank2_policy(stage1_config)
         stage1_optimizer = _build_optimizer(
             policy=stage1_child_policy,

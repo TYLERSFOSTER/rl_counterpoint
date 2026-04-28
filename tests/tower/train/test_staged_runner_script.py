@@ -24,10 +24,14 @@ def test_tower_train_staged_parse_args_defaults() -> None:
     assert args.max_step_size == 7
     assert args.pitch_min == 0
     assert args.pitch_max == 127
+    assert args.final_rank == 1
     assert args.use_induced_rank1_graph is True
     assert args.induced_rank2_pitch_min == 0
     assert args.induced_rank2_pitch_max == 127
     assert args.induced_rank2_max_step_size == 7
+    assert args.induced_rank3_pitch_min == 0
+    assert args.induced_rank3_pitch_max == 127
+    assert args.induced_rank3_max_step_size == 7
     assert args.target_root_octave_choices == [2, 3, 4, 5]
     assert args.goal_octave_direction_weight == 0.5
     assert args.terminal_cadence_reward == 100.0
@@ -95,10 +99,14 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
     assert stage2_config["policy_config"]["d_model"] == 64
     assert stage2_config["graph_config"]["pitch_min"] == 0
     assert stage2_config["graph_config"]["pitch_max"] == 127
+    assert stage2_config["graph_config"]["final_rank"] == 1
     assert stage2_config["graph_config"]["use_induced_rank1_graph"] is False
     assert stage2_config["graph_config"]["induced_rank2_pitch_min"] == 0
     assert stage2_config["graph_config"]["induced_rank2_pitch_max"] == 127
     assert stage2_config["graph_config"]["induced_rank2_max_step_size"] == 7
+    assert stage2_config["graph_config"]["induced_rank3_pitch_min"] == 0
+    assert stage2_config["graph_config"]["induced_rank3_pitch_max"] == 127
+    assert stage2_config["graph_config"]["induced_rank3_max_step_size"] == 7
     assert stage2_config["policy_config"]["num_layers"] == 2
     assert stage2_config["policy_config"]["ff_dim"] == 128
     assert stage2_config["reward_config"]["terminal_cadence_reward"] == 100.0

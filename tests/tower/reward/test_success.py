@@ -9,6 +9,7 @@ from tower.reward.success import (
     SuccessResult,
     rank1_projected_cadence_success,
     rank2_lifted_cadence_success,
+    rank3_triadic_cadence_success,
 )
 from tower.window import build_window
 
@@ -37,8 +38,14 @@ def make_context(
         source = (67, 71) if source is None else source
         target = (60, 64) if target is None else target
         action = (-7, -7) if action is None else action
+    elif rank == 3:
+        if history is None:
+            history = ((67, 74, 83),)
+        source = (67, 74, 83) if source is None else source
+        target = (60, 67, 76) if target is None else target
+        action = (-7, -7, -7) if action is None else action
     else:
-        raise ValueError("test helper only supports rank 1 or 2")
+        raise ValueError("test helper only supports rank 1 or 2 or 3")
 
     return TowerRewardContext(
         rank=rank,
@@ -54,6 +61,7 @@ def make_context(
         ),
         measure_size=measure_size,
         key_pitch_class=key_pitch_class,
+        target_root_octave=4,
         is_final_step=is_final_step,
     )
 
@@ -249,3 +257,70 @@ def test_rank2_lifted_success_rejects_non_rank_2_context() -> None:
         match="rank2_lifted_cadence_success requires rank 2 context",
     ):
         rank2_lifted_cadence_success(make_context(rank=1))
+
+
+def test_rank3_triadic_success_requires_parent_success_pedal_octave_and_inner_voice() -> None:
+    result = rank3_triadic_cadence_success(
+        make_context(
+            rank=3,
+            history=((65, 72, 81), (66, 73, 82)),
+            source=(67, 74, 83),
+            target=(60, 67, 76),
+            action=(-7, -7, -7),
+            step_index=3,
+            measure_size=4,
+            key_pitch_class=0,
+            is_final_step=True,
+        )
+    )
+
+    assert result.success is True
+    assert result.diagnostics["reason"] == "success"
+    assert result.diagnostics["parent"]["reason"] == "success"
+    assert result.diagnostics["final_pedal_octave"] == 4
+    assert result.diagnostics["previous_inner_pitch_class"] == 2
+    assert result.diagnostics["final_inner_pitch_class"] == 7
+
+
+def test_rank3_triadic_success_rejects_wrong_pedal_octave() -> None:
+    result = rank3_triadic_cadence_success(
+        make_context(
+            rank=3,
+            source=(67, 74, 83),
+            target=(48, 55, 64),
+            action=(-19, -19, -19),
+            step_index=3,
+            measure_size=4,
+            key_pitch_class=0,
+            is_final_step=True,
+        )
+    )
+
+    assert result.success is False
+    assert result.diagnostics["reason"] == "wrong_pedal_octave"
+
+
+def test_rank3_triadic_success_rejects_wrong_inner_voice() -> None:
+    result = rank3_triadic_cadence_success(
+        make_context(
+            rank=3,
+            source=(67, 72, 83),
+            target=(60, 67, 76),
+            action=(-7, -5, -7),
+            step_index=3,
+            measure_size=4,
+            key_pitch_class=0,
+            is_final_step=True,
+        )
+    )
+
+    assert result.success is False
+    assert result.diagnostics["reason"] == "wrong_dominant_inner_voice"
+
+
+def test_rank3_triadic_success_rejects_non_rank_3_context() -> None:
+    with pytest.raises(
+        ValueError,
+        match="rank3_triadic_cadence_success requires rank 3 context",
+    ):
+        rank3_triadic_cadence_success(make_context(rank=2))

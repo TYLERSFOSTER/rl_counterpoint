@@ -133,6 +133,15 @@ This also keeps the lineage rule simple:
 
 - rank 3 depends on one accepted rank-2 parent artifact.
 
+Operational note:
+
+- at runtime, this means the frozen accepted **rank-2 parent stack**, not merely
+  an isolated rank-2 child policy tensor bundle
+- because rank 2 does not emit a full rank-2 action on its own; it emits the
+  newly introduced coordinate over a frozen rank-1 parent action
+- so rank-3 rollout must reconstruct parent rank-2 actions through the frozen
+  rank-1 + rank-2 pair from the same lineage
+
 ### 8. Single-Line Motion Bound
 
 Chosen:

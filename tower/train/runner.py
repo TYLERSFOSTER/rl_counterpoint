@@ -9,12 +9,16 @@ from typing import Mapping
 
 import torch
 
+from tower.action.assembly import assemble_action
 from tower.graph.actions import action_space, active_lift_choices
 from tower.graph.induced import (
     induced_rank1_graph_artifact_path,
+    induced_rank2_graph_artifact_path,
     write_induced_rank1_graph_artifact,
+    write_induced_rank2_graph_artifact,
 )
 from tower.graph.legality import is_valid_state, is_valid_transition
+from tower.graph.projection import project_state, project_window
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import RankPolicy
 from tower.policy.samplers import (
@@ -40,8 +44,9 @@ from tower.train.protocol import (
     TrainEpisodeResult,
     train_rank1_episode_with_artifacts,
     train_rank2_episode_with_artifacts,
+    train_rank3_episode_with_artifacts,
 )
-from tower.train.rollout import RewardFunction, rollout_rank1, rollout_rank2
+from tower.train.rollout import RewardFunction, rollout_rank1, rollout_rank2, rollout_rank3
 from tower.train.trajectory import TowerTrajectory
 
 TARGET_ROOT_OCTAVE_CHOICES = tuple(range(10))
@@ -173,6 +178,23 @@ class Rank2TrainingRunResult:
     config: TowerRunnerConfig
     rank_config: TowerRankConfig
     paths: TowerArtifactPaths
+    parent_policy: torch.nn.Module
+    child_policy: torch.nn.Module
+    episode_results: tuple[TrainEpisodeResult, ...]
+    final_inference: FinalInferenceResult
+    final_midi_path: Path | None
+    final_inferences: tuple[FinalInferenceResult, ...]
+    final_midi_paths: tuple[Path | None, ...]
+
+
+@dataclass(frozen=True)
+class Rank3TrainingRunResult:
+    """Artifacts and summaries from one rank-3 runner invocation."""
+
+    config: TowerRunnerConfig
+    rank_config: TowerRankConfig
+    paths: TowerArtifactPaths
+    grandparent_policy: torch.nn.Module
     parent_policy: torch.nn.Module
     child_policy: torch.nn.Module
     episode_results: tuple[TrainEpisodeResult, ...]
@@ -482,6 +504,167 @@ def run_rank2_training(
     )
 
 
+def run_rank3_training(
+    *,
+    config: TowerRunnerConfig,
+    grandparent_policy: torch.nn.Module,
+    parent_policy: torch.nn.Module,
+    initial_state: tuple[int, ...],
+    reward_fn: RewardFunction,
+    child_policy: torch.nn.Module | None = None,
+    child_optimizer: torch.optim.Optimizer | None = None,
+    graph_spec: TowerGraphSpec | None = None,
+) -> Rank3TrainingRunResult:
+    """Train rank 3 over one accepted rank-2 parent stack."""
+    if config.rank != 3:
+        raise ValueError("run_rank3_training requires rank-3 runner config")
+    if not hasattr(grandparent_policy, "rank") or grandparent_policy.rank != 1:
+        raise ValueError("rank-3 runner grandparent policy must have rank 1")
+    if not hasattr(parent_policy, "rank") or parent_policy.rank != 2:
+        raise ValueError("rank-3 runner parent policy must have rank 2")
+
+    active_child_policy = (
+        _build_rank3_policy(config) if child_policy is None else child_policy
+    )
+    if not hasattr(active_child_policy, "rank") or active_child_policy.rank != 3:
+        raise ValueError("rank-3 runner child policy must have rank 3")
+
+    active_child_optimizer = (
+        _build_optimizer(policy=active_child_policy, config=config)
+        if child_optimizer is None
+        else child_optimizer
+    )
+    paths = config.artifact_paths()
+    rank_config = config.to_rank_config()
+    spec = graph_spec if graph_spec is not None else _graph_spec_from_config(config)
+    if spec.rank != 3:
+        raise ValueError("rank-3 runner requires rank-3 graph spec")
+
+    generator = torch.Generator().manual_seed(config.seed)
+    key_pitch_class = _optional_reward_int(config, "key_pitch_class")
+    target_root_octave = _optional_reward_int(config, "target_root_octave")
+    episode_results = []
+    for episode_index in range(config.episode_count):
+        episode_target_root_octave = _rank3_episode_target_root_octave(
+            target_root_octave=target_root_octave,
+            config=config,
+            generator=generator,
+        )
+        episode_initial_state = _rank3_episode_initial_state(
+            initial_state=initial_state,
+            target_root_octave=episode_target_root_octave,
+            spec=spec,
+            config=config,
+            generator=generator,
+        )
+        episode_result = train_rank3_episode_with_artifacts(
+            grandparent_policy=grandparent_policy,  # type: ignore[arg-type]
+            parent_policy=parent_policy,  # type: ignore[arg-type]
+            child_policy=active_child_policy,  # type: ignore[arg-type]
+            child_optimizer=active_child_optimizer,
+            config=rank_config,
+            paths=paths,
+            initial_state=episode_initial_state,
+            reward_fn=reward_fn,
+            episode_index=episode_index,
+            graph_spec=spec,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=episode_target_root_octave,
+            generator=generator,
+        )
+        episode_results.append(episode_result)
+        if _training_bool(config, "log_reward_diagnostics", default=True):
+            append_reward_diagnostics(
+                paths=paths,
+                rows=reward_diagnostics_rows(
+                    trajectory=episode_result.trajectory,
+                    lineage_id=config.lineage_id,
+                    episode_index=episode_index,
+                    episode_kind="training",
+                ),
+            )
+        _maybe_print_episode_progress(
+            config=config,
+            episode_index=episode_index,
+            metrics=episode_result.metrics,
+        )
+
+    final_inferences: list[FinalInferenceResult] = []
+    final_midi_paths: list[Path | None] = []
+    max_steps = _training_int(config, "max_steps", default=1)
+    for final_inference_index in range(4):
+        final_target_root_octave = _rank3_episode_target_root_octave(
+            target_root_octave=target_root_octave,
+            config=config,
+            generator=generator,
+        )
+        final_initial_state = _rank3_episode_initial_state(
+            initial_state=initial_state,
+            target_root_octave=final_target_root_octave,
+            spec=spec,
+            config=config,
+            generator=generator,
+        )
+        final_inference = run_final_inference_episode(
+            policy=active_child_policy,  # type: ignore[arg-type]
+            parent_policy=parent_policy,  # type: ignore[arg-type]
+            grandparent_policy=grandparent_policy,  # type: ignore[arg-type]
+            initial_state=final_initial_state,
+            reward_fn=reward_fn,
+            max_steps=max_steps,
+            graph_spec=spec,
+            measure_size=config.measure_size,
+            context_measures=config.context_measures,
+            parent_top_m=config.parent_top_m,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=final_target_root_octave,
+            sampling_temperature=_training_float(
+                config,
+                "sampling_temperature",
+                default=1.0,
+            ),
+            sampling_uniform_mix=_training_float(
+                config,
+                "sampling_uniform_mix",
+                default=0.0,
+            ),
+            generator=generator,
+        )
+        final_midi_path = _write_final_midi(
+            config=config,
+            paths=paths,
+            final_inference=final_inference,
+            final_inference_index=final_inference_index,
+        )
+        _append_final_inference_artifacts(
+            paths=paths,
+            final_inference=final_inference,
+            lineage_id=config.lineage_id,
+            episode_index=config.episode_count + final_inference_index,
+            final_inference_index=final_inference_index,
+            final_midi_path=final_midi_path,
+        )
+        final_inferences.append(final_inference)
+        final_midi_paths.append(final_midi_path)
+
+    final_inference = final_inferences[0]
+    final_midi_path = final_midi_paths[0]
+
+    return Rank3TrainingRunResult(
+        config=config,
+        rank_config=rank_config,
+        paths=paths,
+        grandparent_policy=grandparent_policy,
+        parent_policy=parent_policy,
+        child_policy=active_child_policy,
+        episode_results=tuple(episode_results),
+        final_inference=final_inference,
+        final_midi_path=final_midi_path,
+        final_inferences=tuple(final_inferences),
+        final_midi_paths=tuple(final_midi_paths),
+    )
+
+
 def run_final_inference_episode(
     *,
     policy: RankPolicy,
@@ -492,6 +675,7 @@ def run_final_inference_episode(
     measure_size: int = 4,
     context_measures: int = 2,
     parent_policy: RankPolicy | None = None,
+    grandparent_policy: RankPolicy | None = None,
     parent_top_m: int = 1,
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
@@ -510,8 +694,8 @@ def run_final_inference_episode(
         raise ValueError("parent_top_m must be at least 1")
 
     rank = policy.rank
-    if rank not in {1, 2}:
-        raise ValueError("final inference currently supports rank 1 or rank 2")
+    if rank not in {1, 2, 3}:
+        raise ValueError("final inference currently supports rank 1, rank 2, or rank 3")
 
     spec = TowerGraphSpec(rank=rank) if graph_spec is None else graph_spec
     if spec.rank != rank:
@@ -520,11 +704,15 @@ def run_final_inference_episode(
     _eval_if_module(policy)
     if parent_policy is not None:
         _eval_if_module(parent_policy)
+    if grandparent_policy is not None:
+        _eval_if_module(grandparent_policy)
 
     with torch.no_grad():
         if rank == 1:
             if parent_policy is not None:
                 raise ValueError("rank 1 final inference must not set parent_policy")
+            if grandparent_policy is not None:
+                raise ValueError("rank 1 final inference must not set grandparent_policy")
             trajectory = _run_rank1_final_inference(
                 policy=policy,
                 initial_state=initial_state,
@@ -539,12 +727,40 @@ def run_final_inference_episode(
                 sampling_uniform_mix=sampling_uniform_mix,
                 generator=generator,
             )
-        else:
+        elif rank == 2:
             if parent_policy is None:
                 raise ValueError("rank 2 final inference requires parent_policy")
             if parent_policy.rank != 1:
                 raise ValueError("rank 2 final inference requires rank-1 parent policy")
+            if grandparent_policy is not None:
+                raise ValueError("rank 2 final inference must not set grandparent_policy")
             trajectory = _run_rank2_final_inference(
+                parent_policy=parent_policy,
+                child_policy=policy,
+                initial_state=initial_state,
+                reward_fn=reward_fn,
+                max_steps=max_steps,
+                graph_spec=spec,
+                measure_size=measure_size,
+                context_measures=context_measures,
+                parent_top_m=parent_top_m,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
+                sampling_temperature=sampling_temperature,
+                sampling_uniform_mix=sampling_uniform_mix,
+                generator=generator,
+            )
+        else:
+            if parent_policy is None:
+                raise ValueError("rank 3 final inference requires parent_policy")
+            if parent_policy.rank != 2:
+                raise ValueError("rank 3 final inference requires rank-2 parent policy")
+            if grandparent_policy is None:
+                raise ValueError("rank 3 final inference requires grandparent_policy")
+            if grandparent_policy.rank != 1:
+                raise ValueError("rank 3 final inference requires rank-1 grandparent policy")
+            trajectory = _run_rank3_final_inference(
+                grandparent_policy=grandparent_policy,
                 parent_policy=parent_policy,
                 child_policy=policy,
                 initial_state=initial_state,
@@ -741,6 +957,26 @@ def _rank2_episode_target_root_octave(
     return choices[choice_index]
 
 
+def _rank3_episode_target_root_octave(
+    *,
+    target_root_octave: int | None,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> int | None:
+    if not _training_bool(config, "sample_target_root_octave", default=False):
+        return target_root_octave
+    choices = _target_root_octave_choices(config)
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(choices),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return choices[choice_index]
+
+
 def _target_root_octave_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
     raw_choices = config.training_config.get("target_root_octave_choices")
     if raw_choices is None:
@@ -813,6 +1049,74 @@ def _rank2_episode_initial_state(
     ]
     if not eligible_states:
         raise ValueError("no legal rank-2 initial states satisfy the requested sampling constraints")
+
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(eligible_states),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return eligible_states[choice_index]
+
+
+def _rank3_episode_initial_state(
+    *,
+    initial_state: tuple[int, ...],
+    target_root_octave: int | None,
+    spec: TowerGraphSpec,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> tuple[int, ...]:
+    if not _training_bool(config, "sample_initial_state", default=False):
+        return initial_state
+
+    lower_pitch_min = _training_int(
+        config,
+        "initial_parent_pitch_min",
+        default=spec.pitch_min,
+    )
+    lower_pitch_max = _training_int(
+        config,
+        "initial_parent_pitch_max",
+        default=spec.pitch_max,
+    )
+    lower_pitch_min = max(spec.pitch_min, lower_pitch_min)
+    lower_pitch_max = min(spec.pitch_max, lower_pitch_max)
+
+    sample_lower_in_target_octave = _training_bool(
+        config,
+        "sample_initial_parent_pitch_in_target_octave",
+        default=False,
+    )
+    octave_pitch_min: int | None = None
+    octave_pitch_max: int | None = None
+    if sample_lower_in_target_octave:
+        if target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required to sample rank-3 pedal pitch in target octave"
+            )
+        octave_pitch_min = 12 * (target_root_octave + 1)
+        octave_pitch_max = octave_pitch_min + 11
+        lower_pitch_min = max(lower_pitch_min, octave_pitch_min)
+        lower_pitch_max = min(lower_pitch_max, octave_pitch_max)
+
+    if lower_pitch_min > lower_pitch_max:
+        raise ValueError("rank-3 initial pedal pitch sampling range must not be empty")
+
+    eligible_states = [
+        (lower, middle, upper)
+        for lower in range(lower_pitch_min, lower_pitch_max + 1)
+        for middle in range(lower + 1, spec.pitch_max)
+        for upper in range(middle + 1, spec.pitch_max + 1)
+        if (
+            (octave_pitch_min is None or octave_pitch_min <= lower <= octave_pitch_max)
+            and is_valid_state((lower, middle, upper), spec)
+        )
+    ]
+    if not eligible_states:
+        raise ValueError("no legal rank-3 initial states satisfy the requested sampling constraints")
 
     choice_index = int(
         torch.randint(
@@ -916,6 +1220,196 @@ def _run_rank2_final_inference(
         )
 
     return rollout_rank2(
+        initial_state=initial_state,
+        max_steps=max_steps,
+        parent_sampler=parent_sampler,
+        active_sampler=active_sampler,
+        reward_fn=reward_fn,
+        graph_spec=graph_spec,
+        measure_size=measure_size,
+        context_measures=context_measures,
+        key_pitch_class=key_pitch_class,
+        target_root_octave=target_root_octave,
+    )
+
+
+def _run_rank3_final_inference(
+    *,
+    grandparent_policy: RankPolicy,
+    parent_policy: RankPolicy,
+    child_policy: RankPolicy,
+    initial_state: tuple[int, ...],
+    reward_fn: RewardFunction,
+    max_steps: int,
+    graph_spec: TowerGraphSpec,
+    measure_size: int,
+    context_measures: int,
+    parent_top_m: int,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
+    sampling_temperature: float,
+    sampling_uniform_mix: float,
+    generator: torch.Generator | None,
+) -> TowerTrajectory:
+    grandparent_spec = TowerGraphSpec(
+        rank=1,
+        pitch_min=graph_spec.pitch_min,
+        pitch_max=graph_spec.pitch_max,
+        max_step_size=graph_spec.max_step_size,
+    )
+    parent_spec = TowerGraphSpec(
+        rank=2,
+        pitch_min=graph_spec.pitch_min,
+        pitch_max=graph_spec.pitch_max,
+        max_step_size=graph_spec.max_step_size,
+    )
+
+    def parent_sampler(**kwargs: object):
+        parent_state = kwargs["state"]  # type: ignore[assignment]
+        full_state = kwargs["full_state"]  # type: ignore[assignment]
+        parent_window = kwargs["window"]  # type: ignore[assignment]
+        grandparent_state = project_state(parent_state)  # type: ignore[arg-type]
+        grandparent_window = project_window(parent_window)  # type: ignore[arg-type]
+
+        def child_feasible_parent_choices(grandparent_action: tuple[int, ...]) -> tuple[int, ...]:
+            raw_choices = active_lift_choices(
+                state=parent_state,  # type: ignore[arg-type]
+                parent_action=grandparent_action,
+                spec=parent_spec,
+            )
+            return tuple(
+                choice
+                for choice in raw_choices
+                if active_lift_choices(
+                    state=full_state,  # type: ignore[arg-type]
+                    parent_action=assemble_action(
+                        rank=2,
+                        parent_action=grandparent_action,
+                        new_action=choice,
+                    ),
+                    spec=graph_spec,
+                )
+            )
+
+        grandparent_actions = tuple(
+            action
+            for action in action_space(
+                rank=1,
+                max_step_size=grandparent_spec.max_step_size,
+            )
+            if is_valid_transition(grandparent_state, action, grandparent_spec)  # type: ignore[arg-type]
+        )
+        feasible_grandparent_actions = tuple(
+            action
+            for action in grandparent_actions
+            if child_feasible_parent_choices(action)
+        )
+        sampled_grandparent = sample_parent_top_m_from_policy(
+            policy=grandparent_policy,
+            state=grandparent_state,  # type: ignore[arg-type]
+            window=grandparent_window,  # type: ignore[arg-type]
+            parent_actions=(
+                feasible_grandparent_actions
+                if feasible_grandparent_actions
+                else grandparent_actions
+            ),
+            measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=grandparent_spec.max_step_size,
+            top_m=parent_top_m,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
+            generator=generator,
+        )
+        grandparent_action = sampled_grandparent.choice
+        raw_parent_choices = active_lift_choices(
+            state=parent_state,  # type: ignore[arg-type]
+            parent_action=grandparent_action,
+            spec=parent_spec,
+        )
+        feasible_parent_choices = child_feasible_parent_choices(grandparent_action)
+        if not raw_parent_choices:
+            return SamplerResult(
+                choice=(0, 0),
+                logprob=sampled_grandparent.logprob,
+                diagnostics={
+                    "grandparent_sampler": {
+                        **sampled_grandparent.diagnostics,
+                        "unfiltered_parent_actions": grandparent_actions,
+                        "feasible_parent_actions": feasible_grandparent_actions,
+                        "parent_feasibility_filter_applied": (
+                            feasible_grandparent_actions != grandparent_actions
+                        ),
+                    },
+                    "parent_active_choices": raw_parent_choices,
+                    "feasible_parent_active_choices": feasible_parent_choices,
+                    "empty_parent_lift_fiber": True,
+                },
+            )
+
+        sampled_parent_active = sample_active_choice_from_policy(
+            policy=parent_policy,
+            state=parent_state,  # type: ignore[arg-type]
+            window=parent_window,  # type: ignore[arg-type]
+            active_choices=(
+                feasible_parent_choices
+                if feasible_parent_choices
+                else raw_parent_choices
+            ),
+            measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=parent_spec.max_step_size,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
+            generator=generator,
+        )
+        parent_action = assemble_action(
+            rank=2,
+            parent_action=grandparent_action,
+            new_action=sampled_parent_active.choice,
+        )
+        return SamplerResult(
+            choice=parent_action,
+            logprob=_sum_logprobs(
+                sampled_grandparent.logprob,
+                sampled_parent_active.logprob,
+            ),
+            diagnostics={
+                "grandparent_sampler": {
+                    **sampled_grandparent.diagnostics,
+                    "unfiltered_parent_actions": grandparent_actions,
+                    "feasible_parent_actions": feasible_grandparent_actions,
+                    "parent_feasibility_filter_applied": (
+                        feasible_grandparent_actions != grandparent_actions
+                    ),
+                },
+                "parent_sampler": sampled_parent_active.diagnostics,
+                "parent_active_choices": raw_parent_choices,
+                "feasible_parent_active_choices": feasible_parent_choices,
+                "child_feasibility_filter_applied": (
+                    feasible_parent_choices != raw_parent_choices
+                ),
+            },
+        )
+
+    def active_sampler(**kwargs: object):
+        return sample_active_choice_from_policy(
+            policy=child_policy,
+            state=kwargs["state"],  # type: ignore[arg-type]
+            window=kwargs["window"],  # type: ignore[arg-type]
+            active_choices=kwargs["active_choices"],  # type: ignore[arg-type]
+            measure_size=measure_size,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+            max_step_size=graph_spec.max_step_size,
+            temperature=sampling_temperature,
+            uniform_mix=sampling_uniform_mix,
+            generator=generator,
+        )
+
+    return rollout_rank3(
         initial_state=initial_state,
         max_steps=max_steps,
         parent_sampler=parent_sampler,
@@ -1066,6 +1560,27 @@ def _build_rank2_policy(config: TowerRunnerConfig) -> TowerTransformerPolicy:
     )
 
 
+def _build_rank3_policy(config: TowerRunnerConfig) -> TowerTransformerPolicy:
+    policy_config = dict(config.policy_config)
+    return TowerTransformerPolicy(
+        TowerTransformerPolicyConfig(
+            rank=3,
+            input_feature_dim=_policy_input_feature_dim(config, default_rank=3),
+            action_dim=_policy_int(
+                policy_config,
+                "action_dim",
+                default=2 * config.max_step_size + 1,
+            ),
+            max_window_len=config.measure_size * config.context_measures,
+            d_model=_policy_int(policy_config, "d_model", default=32),
+            num_layers=_policy_int(policy_config, "num_layers", default=1),
+            num_heads=_policy_int(policy_config, "num_heads", default=4),
+            ff_dim=_policy_int(policy_config, "ff_dim", default=64),
+            dropout=_policy_float(policy_config, "dropout", default=0.0),
+        )
+    )
+
+
 def _build_optimizer(
     *,
     policy: torch.nn.Module,
@@ -1082,6 +1597,26 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
     key_pitch_class = _optional_reward_int(config, "key_pitch_class")
     pitch_min = _mapping_int(graph_config, "pitch_min", default=0)
     requested_pitch_max = _mapping_int(graph_config, "pitch_max", default=127)
+    final_rank = _mapping_int(graph_config, "final_rank", default=config.rank)
+
+    if final_rank == 3 and config.rank in {1, 2}:
+        induced_rank2_spec = _induced_rank2_spec_from_rank3_config(
+            graph_config=graph_config,
+            artifact_root=config.artifact_root,
+            key_pitch_class=0 if key_pitch_class is None else key_pitch_class,
+            default_pitch_min=pitch_min,
+            default_pitch_max=requested_pitch_max,
+            default_max_step_size=config.max_step_size,
+        )
+        if config.rank == 2:
+            return induced_rank2_spec
+        return _induced_rank1_spec_from_rank2_spec(
+            source_spec=induced_rank2_spec,
+            artifact_root=config.artifact_root,
+            key_pitch_class=0 if key_pitch_class is None else key_pitch_class,
+            max_step_size=config.max_step_size,
+        )
+
     if (
         config.rank == 1
         and _mapping_bool(graph_config, "use_induced_rank1_graph", default=True)
@@ -1105,46 +1640,11 @@ def _graph_spec_from_config(config: TowerRunnerConfig) -> TowerGraphSpec:
                 default=config.max_step_size,
             ),
         )
-        artifact_path = induced_rank1_graph_artifact_path(
+        return _induced_rank1_spec_from_rank2_spec(
             source_spec=source_spec,
             artifact_root=config.artifact_root,
-        )
-        if not artifact_path.exists():
-            write_induced_rank1_graph_artifact(
-                source_spec=source_spec,
-                artifact_root=config.artifact_root,
-            )
-        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            raise TypeError("induced rank1 graph artifact must contain an object")
-        node_payload = payload.get("node_image")
-        edge_payload = payload.get("edge_image")
-        if not isinstance(node_payload, list):
-            raise TypeError("induced rank1 graph node_image must be a list")
-        if not isinstance(edge_payload, list):
-            raise TypeError("induced rank1 graph edge_image must be a list")
-        induced_node_image = frozenset(
-            tuple(_coerce_rank1_state(node))
-            for node in node_payload
-        )
-        induced_edge_image = frozenset(
-            _coerce_rank1_edge(edge)
-            for edge in edge_payload
-        )
-        if not induced_node_image:
-            raise ValueError("induced rank1 graph node_image must not be empty")
-        if not induced_edge_image:
-            raise ValueError("induced rank1 graph edge_image must not be empty")
-        induced_pitch_min = min(state[0] for state in induced_node_image)
-        induced_pitch_max = max(state[0] for state in induced_node_image)
-        return TowerGraphSpec(
-            rank=1,
             key_pitch_class=0 if key_pitch_class is None else key_pitch_class,
-            pitch_min=induced_pitch_min,
-            pitch_max=induced_pitch_max,
             max_step_size=config.max_step_size,
-            induced_node_image=induced_node_image,
-            induced_edge_image=induced_edge_image,
         )
     effective_pitch_max = _effective_pitch_max_for_rank(
         rank=config.rank,
@@ -1177,6 +1677,143 @@ def _coerce_rank1_edge(value: object) -> tuple[tuple[int], tuple[int]]:
     return (
         _coerce_rank1_state(value["source"]),
         _coerce_rank1_state(value["target"]),
+    )
+
+
+def _induced_rank2_spec_from_rank3_config(
+    *,
+    graph_config: Mapping[str, object],
+    artifact_root: Path,
+    key_pitch_class: int,
+    default_pitch_min: int,
+    default_pitch_max: int,
+    default_max_step_size: int,
+) -> TowerGraphSpec:
+    source_spec = TowerGraphSpec(
+        rank=3,
+        key_pitch_class=key_pitch_class,
+        pitch_min=_mapping_int(graph_config, "induced_rank3_pitch_min", default=default_pitch_min),
+        pitch_max=_mapping_int(graph_config, "induced_rank3_pitch_max", default=default_pitch_max),
+        max_step_size=_mapping_int(
+            graph_config,
+            "induced_rank3_max_step_size",
+            default=default_max_step_size,
+        ),
+    )
+    artifact_path = induced_rank2_graph_artifact_path(
+        source_spec=source_spec,
+        artifact_root=artifact_root,
+    )
+    if not artifact_path.exists():
+        write_induced_rank2_graph_artifact(
+            source_spec=source_spec,
+            artifact_root=artifact_root,
+        )
+    payload = _read_induced_graph_payload(
+        artifact_path=artifact_path,
+        rank_label="rank2",
+    )
+    induced_node_image = frozenset(
+        _coerce_rank2_state(node)
+        for node in _payload_list(payload, "node_image", "induced rank2 graph")
+    )
+    induced_edge_image = frozenset(
+        _coerce_rank2_edge(edge)
+        for edge in _payload_list(payload, "edge_image", "induced rank2 graph")
+    )
+    if not induced_node_image:
+        raise ValueError("induced rank2 graph node_image must not be empty")
+    if not induced_edge_image:
+        raise ValueError("induced rank2 graph edge_image must not be empty")
+    induced_pitch_min = min(pitch for state in induced_node_image for pitch in state)
+    induced_pitch_max = max(pitch for state in induced_node_image for pitch in state)
+    return TowerGraphSpec(
+        rank=2,
+        key_pitch_class=key_pitch_class,
+        pitch_min=induced_pitch_min,
+        pitch_max=induced_pitch_max,
+        max_step_size=default_max_step_size,
+        induced_node_image=induced_node_image,
+        induced_edge_image=induced_edge_image,
+    )
+
+
+def _induced_rank1_spec_from_rank2_spec(
+    *,
+    source_spec: TowerGraphSpec,
+    artifact_root: Path,
+    key_pitch_class: int,
+    max_step_size: int,
+) -> TowerGraphSpec:
+    artifact_path = induced_rank1_graph_artifact_path(
+        source_spec=source_spec,
+        artifact_root=artifact_root,
+    )
+    if not artifact_path.exists():
+        write_induced_rank1_graph_artifact(
+            source_spec=source_spec,
+            artifact_root=artifact_root,
+        )
+    payload = _read_induced_graph_payload(
+        artifact_path=artifact_path,
+        rank_label="rank1",
+    )
+    induced_node_image = frozenset(
+        _coerce_rank1_state(node)
+        for node in _payload_list(payload, "node_image", "induced rank1 graph")
+    )
+    induced_edge_image = frozenset(
+        _coerce_rank1_edge(edge)
+        for edge in _payload_list(payload, "edge_image", "induced rank1 graph")
+    )
+    if not induced_node_image:
+        raise ValueError("induced rank1 graph node_image must not be empty")
+    if not induced_edge_image:
+        raise ValueError("induced rank1 graph edge_image must not be empty")
+    induced_pitch_min = min(state[0] for state in induced_node_image)
+    induced_pitch_max = max(state[0] for state in induced_node_image)
+    return TowerGraphSpec(
+        rank=1,
+        key_pitch_class=key_pitch_class,
+        pitch_min=induced_pitch_min,
+        pitch_max=induced_pitch_max,
+        max_step_size=max_step_size,
+        induced_node_image=induced_node_image,
+        induced_edge_image=induced_edge_image,
+    )
+
+
+def _read_induced_graph_payload(*, artifact_path: Path, rank_label: str) -> dict[str, object]:
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(f"induced {rank_label} graph artifact must contain an object")
+    return payload
+
+
+def _payload_list(payload: Mapping[str, object], key: str, label: str) -> list[object]:
+    value = payload.get(key)
+    if not isinstance(value, list):
+        raise TypeError(f"{label} {key} must be a list")
+    return value
+
+
+def _coerce_rank2_state(value: object) -> tuple[int, int]:
+    if not isinstance(value, list):
+        raise TypeError("induced rank2 graph state entries must be lists")
+    if len(value) != 2:
+        raise ValueError("induced rank2 graph states must have length 2")
+    left, right = value
+    if not isinstance(left, int) or not isinstance(right, int):
+        raise TypeError("induced rank2 graph pitches must be ints")
+    return (left, right)
+
+
+def _coerce_rank2_edge(value: object) -> tuple[tuple[int, int], tuple[int, int]]:
+    if not isinstance(value, dict):
+        raise TypeError("induced rank2 graph edge entries must be objects")
+    return (
+        _coerce_rank2_state(value["source"]),
+        _coerce_rank2_state(value["target"]),
     )
 
 
@@ -1346,6 +1983,17 @@ def _mapping_int(
     if not isinstance(value, int):
         raise TypeError(f"{key} must be an int")
     return value
+
+
+def _sum_logprobs(
+    left: float | torch.Tensor | None,
+    right: float | torch.Tensor | None,
+) -> float | torch.Tensor | None:
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left + right
 
 
 def _mapping_bool(

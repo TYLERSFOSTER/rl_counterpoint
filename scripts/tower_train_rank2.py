@@ -10,7 +10,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tower.graph.spec import TowerGraphSpec
 from tower.policy.transformer import TowerTransformerPolicy
 from tower.reward.factory import build_rank2_reward_fn
 from tower.train.checkpoint import (
@@ -22,6 +21,7 @@ from tower.train.config import TowerRankConfig
 from tower.train.runner import (
     TowerRunnerConfig,
     _build_rank1_policy,
+    _graph_spec_from_config,
     run_rank2_training,
 )
 
@@ -43,6 +43,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-step-size", type=int, default=1)
     parser.add_argument("--pitch-min", type=int, default=36)
     parser.add_argument("--pitch-max", type=int, default=84)
+    parser.add_argument("--final-rank", type=int, default=2)
+    parser.add_argument("--induced-rank3-pitch-min", type=int, default=36)
+    parser.add_argument("--induced-rank3-pitch-max", type=int, default=84)
+    parser.add_argument("--induced-rank3-max-step-size", type=int, default=1)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-parent-pitch", type=int, default=64)
     parser.add_argument("--initial-child-pitch", type=int, default=68)
@@ -124,6 +128,10 @@ def _graph_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "pitch_min": args.pitch_min,
         "pitch_max": args.pitch_max,
+        "final_rank": args.final_rank,
+        "induced_rank3_pitch_min": args.induced_rank3_pitch_min,
+        "induced_rank3_pitch_max": args.induced_rank3_pitch_max,
+        "induced_rank3_max_step_size": args.induced_rank3_max_step_size,
     }
 
 
@@ -215,13 +223,7 @@ def main(argv: list[str] | None = None) -> int:
             target_vertical_interval=args.target_vertical_interval,
             target_vertical_interval_weight=args.target_vertical_interval_weight,
         ),
-        graph_spec=TowerGraphSpec(
-            rank=2,
-            key_pitch_class=args.key_pitch_class,
-            pitch_min=args.pitch_min,
-            pitch_max=args.pitch_max,
-            max_step_size=args.max_step_size,
-        ),
+        graph_spec=_graph_spec_from_config(config),
     )
 
     print(f"run_dir: {result.paths.rank_dir}")

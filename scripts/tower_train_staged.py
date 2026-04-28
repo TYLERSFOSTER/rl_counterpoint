@@ -42,6 +42,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-step-size", type=int, default=7)
     parser.add_argument("--pitch-min", type=int, default=0)
     parser.add_argument("--pitch-max", type=int, default=127)
+    parser.add_argument("--final-rank", type=int, default=1)
     parser.add_argument(
         "--use-induced-rank1-graph",
         action=argparse.BooleanOptionalAction,
@@ -50,6 +51,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--induced-rank2-pitch-min", type=int, default=0)
     parser.add_argument("--induced-rank2-pitch-max", type=int, default=127)
     parser.add_argument("--induced-rank2-max-step-size", type=int, default=7)
+    parser.add_argument("--induced-rank3-pitch-min", type=int, default=0)
+    parser.add_argument("--induced-rank3-pitch-max", type=int, default=127)
+    parser.add_argument("--induced-rank3-max-step-size", type=int, default=7)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-pitch", type=int, default=60)
     parser.add_argument("--initial-pitch-min", type=int, default=36)
@@ -174,10 +178,14 @@ def _graph_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "pitch_min": args.pitch_min,
         "pitch_max": args.pitch_max,
+        "final_rank": args.final_rank,
         "use_induced_rank1_graph": args.use_induced_rank1_graph,
         "induced_rank2_pitch_min": args.induced_rank2_pitch_min,
         "induced_rank2_pitch_max": args.induced_rank2_pitch_max,
         "induced_rank2_max_step_size": args.induced_rank2_max_step_size,
+        "induced_rank3_pitch_min": args.induced_rank3_pitch_min,
+        "induced_rank3_pitch_max": args.induced_rank3_pitch_max,
+        "induced_rank3_max_step_size": args.induced_rank3_max_step_size,
     }
 
 

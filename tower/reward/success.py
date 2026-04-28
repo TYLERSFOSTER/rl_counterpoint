@@ -7,6 +7,7 @@ from typing import Mapping
 
 from tower.graph.projection import project_action, project_state, project_window
 from tower.reward.context import TowerRewardContext
+from tower.reward.melody import midi_to_octave
 from tower.state_action import TowerState
 
 
@@ -129,6 +130,62 @@ def rank2_lifted_cadence_success(
     )
 
 
+def rank3_triadic_cadence_success(
+    context: TowerRewardContext,
+) -> SuccessResult:
+    """Return whether a rank-3 window realizes the accepted triadic cadence."""
+    if context.rank != 3:
+        raise ValueError("rank3_triadic_cadence_success requires rank 3 context")
+
+    diagnostics: dict[str, object] = {
+        "rank": context.rank,
+        "kind": "rank3_triadic_cadence_success",
+    }
+
+    parent_context = _project_rank3_context(context)
+    parent_result = rank2_lifted_cadence_success(parent_context)
+    diagnostics["parent"] = parent_result.diagnostics
+    if not parent_result.success:
+        return _failure(diagnostics, reason="parent_success_failed")
+
+    if context.target_root_octave is None:
+        return _failure(diagnostics, reason="missing_target_root_octave")
+    if context.key_pitch_class is None:
+        return _failure(diagnostics, reason="missing_key_pitch_class")
+
+    final_pedal_octave = midi_to_octave(context.target[0])
+    diagnostics["final_pedal_octave"] = final_pedal_octave
+    diagnostics["target_root_octave"] = context.target_root_octave
+    if final_pedal_octave != context.target_root_octave:
+        return _failure(diagnostics, reason="wrong_pedal_octave")
+
+    dominant_inner_pitch_class = (context.key_pitch_class + 2) % 12
+    tonic_inner_pitch_class = (context.key_pitch_class + 7) % 12
+    previous_inner_pitch_class = context.source[1] % 12
+    final_inner_pitch_class = context.target[1] % 12
+    diagnostics.update(
+        {
+            "previous_inner_pitch_class": previous_inner_pitch_class,
+            "final_inner_pitch_class": final_inner_pitch_class,
+            "dominant_inner_pitch_class": dominant_inner_pitch_class,
+            "tonic_inner_pitch_class": tonic_inner_pitch_class,
+        }
+    )
+
+    if previous_inner_pitch_class != dominant_inner_pitch_class:
+        return _failure(diagnostics, reason="wrong_dominant_inner_voice")
+    if final_inner_pitch_class != tonic_inner_pitch_class:
+        return _failure(diagnostics, reason="wrong_tonic_inner_voice")
+
+    return SuccessResult(
+        success=True,
+        diagnostics={
+            **diagnostics,
+            "reason": "success",
+        },
+    )
+
+
 def _valid_window_states(context: TowerRewardContext) -> tuple[TowerState, ...]:
     return tuple(
         state
@@ -144,6 +201,26 @@ def _valid_window_states(context: TowerRewardContext) -> tuple[TowerState, ...]:
 def _project_rank2_context(context: TowerRewardContext) -> TowerRewardContext:
     return TowerRewardContext(
         rank=1,
+        step_index=context.step_index,
+        source=project_state(context.source),
+        target=project_state(context.target),
+        action=project_action(context.action),
+        window=project_window(context.window),
+        measure_size=context.measure_size,
+        max_steps=context.max_steps,
+        max_step_size=context.max_step_size,
+        key_pitch_class=context.key_pitch_class,
+        target_root_octave=context.target_root_octave,
+        is_final_step=context.is_final_step,
+        diagnostics={
+            "projected_from_rank": context.rank,
+        },
+    )
+
+
+def _project_rank3_context(context: TowerRewardContext) -> TowerRewardContext:
+    return TowerRewardContext(
+        rank=2,
         step_index=context.step_index,
         source=project_state(context.source),
         target=project_state(context.target),
