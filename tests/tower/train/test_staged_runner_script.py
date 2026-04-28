@@ -41,6 +41,8 @@ def test_tower_train_staged_parse_args_defaults() -> None:
     assert args.progress_every == 250
     assert args.sampling_temperature == 1.5
     assert args.sampling_uniform_mix == 0.15
+    assert args.final_inference_sample_target_root_octave is True
+    assert args.final_inference_sample_initial_state is True
     assert args.log_reward_diagnostics is False
 
 
@@ -115,6 +117,13 @@ def test_tower_train_staged_main_runs_tiny_two_stage_job(
     assert stage2_config["training_config"]["progress_every"] == 1
     assert stage2_config["training_config"]["sampling_temperature"] == 1.5
     assert stage2_config["training_config"]["sampling_uniform_mix"] == 0.15
+    assert (
+        stage2_config["training_config"]["final_inference_sample_target_root_octave"]
+        is True
+    )
+    assert (
+        stage2_config["training_config"]["final_inference_sample_initial_state"] is True
+    )
 
 
 def test_tower_train_staged_script_runs_by_file_path(tmp_path: Path) -> None:

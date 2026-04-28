@@ -23,12 +23,14 @@ TRAJECTORY_OUTCOME_VALID = "valid"
 TRAJECTORY_OUTCOME_INVALID_EXTENSION = "invalid_extension"
 TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER = "empty_lift_fiber"
 TRAJECTORY_OUTCOME_PARENT_FAILURE = "parent_failure"
+TRAJECTORY_OUTCOME_TAIL_STAGNATION = "tail_stagnation"
 
 TrajectoryOutcome: TypeAlias = Literal[
     "valid",
     "invalid_extension",
     "empty_lift_fiber",
     "parent_failure",
+    "tail_stagnation",
 ]
 
 
@@ -90,6 +92,7 @@ class TowerTrajectoryStep:
             TRAJECTORY_OUTCOME_INVALID_EXTENSION,
             TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER,
             TRAJECTORY_OUTCOME_PARENT_FAILURE,
+            TRAJECTORY_OUTCOME_TAIL_STAGNATION,
         }:
             raise ValueError("outcome is not a recognized trajectory outcome")
 
@@ -163,4 +166,3 @@ def _validate_logprob(value: LogProb | None, *, field_name: str) -> None:
             raise ValueError(f"{field_name} tensor must be scalar")
         return
     raise TypeError(f"{field_name} must be a float, scalar tensor, or None")
-

@@ -52,6 +52,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--initial-child-pitch", type=int, default=68)
     parser.add_argument("--key-pitch-class", type=int, default=0)
     parser.add_argument("--target-root-octave", type=int, default=4)
+    parser.add_argument(
+        "--sample-target-root-octave",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
+        "--target-root-octave-choices",
+        type=_parse_int_choices,
+        default=[2, 3, 4, 5],
+    )
     parser.add_argument("--parent-top-m", type=int, default=3)
     parser.add_argument("--terminal-cadence-reward", type=float, default=10.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
@@ -77,11 +87,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sampling-temperature", type=float, default=1.5)
     parser.add_argument("--sampling-uniform-mix", type=float, default=0.15)
     parser.add_argument(
+        "--final-inference-sample-target-root-octave",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--final-inference-sample-initial-state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
         "--log-reward-diagnostics",
         action=argparse.BooleanOptionalAction,
         default=True,
     )
     return parser.parse_args(argv)
+
+
+def _parse_int_choices(value: str) -> list[int]:
+    try:
+        choices = [int(part.strip()) for part in value.split(",") if part.strip()]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "target octave choices must be comma-separated integers"
+        ) from exc
+    if not choices:
+        raise argparse.ArgumentTypeError("target octave choices must not be empty")
+    return choices
 
 
 def _reward_config_from_args(args: argparse.Namespace) -> dict[str, object]:
@@ -118,8 +150,16 @@ def _training_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "max_steps": args.max_steps,
         "learning_rate": args.learning_rate,
+        "sample_target_root_octave": args.sample_target_root_octave,
+        "target_root_octave_choices": args.target_root_octave_choices,
         "sampling_temperature": args.sampling_temperature,
         "sampling_uniform_mix": args.sampling_uniform_mix,
+        "final_inference_sample_target_root_octave": (
+            args.final_inference_sample_target_root_octave
+        ),
+        "final_inference_sample_initial_state": (
+            args.final_inference_sample_initial_state
+        ),
         "log_reward_diagnostics": args.log_reward_diagnostics,
     }
 

@@ -853,6 +853,9 @@ def _episode_metrics(
         "parent_failure_count": sum(
             1 for step in trajectory.steps if step.outcome == "parent_failure"
         ),
+        "tail_stagnation_count": sum(
+            1 for step in trajectory.steps if step.outcome == "tail_stagnation"
+        ),
         "terminal_success": any(
             step.reward.is_terminal_success for step in trajectory.steps
         ),

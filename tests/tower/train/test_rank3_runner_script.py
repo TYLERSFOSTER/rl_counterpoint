@@ -82,6 +82,7 @@ def test_tower_train_rank3_parse_args_defaults() -> None:
     assert args.target_root_octave == 4
     assert args.parent_top_m == 3
     assert args.sample_target_root_octave is False
+    assert args.target_root_octave_choices == [2, 3, 4, 5]
     assert args.terminal_cadence_reward == 10.0
     assert args.cadence_failure_reward == 0.0
     assert args.triad_consonance_weight == 1.0
@@ -100,6 +101,8 @@ def test_tower_train_rank3_parse_args_defaults() -> None:
     assert args.dropout == 0.0
     assert args.sampling_temperature == 1.5
     assert args.sampling_uniform_mix == 0.15
+    assert args.final_inference_sample_target_root_octave is True
+    assert args.final_inference_sample_initial_state is True
     assert args.log_reward_diagnostics is True
 
 
@@ -176,6 +179,10 @@ def test_tower_train_rank3_main_runs_tiny_job(
     assert config["policy_config"]["ff_dim"] == 64
     assert config["training_config"]["sampling_temperature"] == 1.5
     assert config["training_config"]["sampling_uniform_mix"] == 0.15
+    assert config["training_config"]["sample_target_root_octave"] is False
+    assert config["training_config"]["target_root_octave_choices"] == [2, 3, 4, 5]
+    assert config["training_config"]["final_inference_sample_target_root_octave"] is True
+    assert config["training_config"]["final_inference_sample_initial_state"] is True
     assert config["training_config"]["log_reward_diagnostics"] is True
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 5
@@ -218,6 +225,8 @@ def test_tower_train_rank3_main_can_disable_training_reward_diagnostics(
     run_dir = tmp_path / "lineage-a" / "rank_3"
     config = json.loads((run_dir / "config.json").read_text())
     assert config["training_config"]["log_reward_diagnostics"] is False
+    assert config["training_config"]["final_inference_sample_target_root_octave"] is True
+    assert config["training_config"]["final_inference_sample_initial_state"] is True
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 4
 

@@ -16,6 +16,7 @@ from tower.train.trajectory import (
     TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER,
     TRAJECTORY_OUTCOME_INVALID_EXTENSION,
     TRAJECTORY_OUTCOME_PARENT_FAILURE,
+    TRAJECTORY_OUTCOME_TAIL_STAGNATION,
     TRAJECTORY_OUTCOME_VALID,
 )
 
@@ -168,6 +169,26 @@ def test_rollout_rank1_rejects_invalid_active_choice() -> None:
             active_sampler=ScriptedSampler(script=(3,)),
             reward_fn=lambda context: TowerRewardResult(reward=0.0),
         )
+
+
+def test_rollout_rank1_tail_stagnation_truncates_inside_terminal_regime() -> None:
+    trajectory = rollout_rank1(
+        initial_state=(55,),
+        max_steps=8,
+        graph_spec=TowerGraphSpec(rank=1, max_step_size=7),
+        active_sampler=ScriptedSampler(script=(7, 2, -2, 2)),
+        reward_fn=lambda context: TowerRewardResult(reward=0.0),
+        measure_size=2,
+        context_measures=1,
+        target_root_octave=4,
+        tail_stagnation_patience=3,
+    )
+
+    assert trajectory.steps[-1].outcome == TRAJECTORY_OUTCOME_TAIL_STAGNATION
+    assert trajectory.steps[-1].truncated
+    assert not trajectory.steps[-1].terminated
+    assert trajectory.steps[-1].reward.reward == -1.0
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_detected"] is True
 
 
 def test_rollout_rank1_rejects_non_rank_1_spec() -> None:
@@ -505,6 +526,28 @@ def test_rollout_rank2_projected_parent_data_recoverable_on_demand() -> None:
     assert parent_window.bar_positions == step.window.bar_positions
 
 
+def test_rollout_rank2_tail_stagnation_truncates_inside_terminal_regime() -> None:
+    trajectory = rollout_rank2(
+        initial_state=(59, 66),
+        max_steps=8,
+        graph_spec=TowerGraphSpec(rank=2, max_step_size=2),
+        parent_sampler=ScriptedSampler(script=((1,), (-1,), (1,), (-1,))),
+        active_sampler=ScriptedSampler(script=(-2, 2, -2, 2)),
+        reward_fn=lambda context: TowerRewardResult(reward=0.0),
+        measure_size=2,
+        context_measures=1,
+        target_root_octave=4,
+        tail_stagnation_patience=3,
+    )
+
+    assert trajectory.steps[-1].outcome == TRAJECTORY_OUTCOME_TAIL_STAGNATION
+    assert trajectory.steps[-1].truncated
+    assert not trajectory.steps[-1].terminated
+    assert trajectory.steps[-1].reward.reward == -1.0
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_detected"] is True
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_kind"] == "two_cycle"
+
+
 def test_rollout_rank3_one_step_happy_path() -> None:
     rewards = []
 
@@ -671,3 +714,51 @@ def test_rollout_rank3_projected_parent_data_recoverable_on_demand() -> None:
     assert parent_window.states[-1] == step.parent_state
     assert parent_window.valid_mask == step.window.valid_mask
     assert parent_window.bar_positions == step.window.bar_positions
+
+
+def test_rollout_rank3_tail_stagnation_truncates_inside_terminal_regime() -> None:
+    trajectory = rollout_rank3(
+        initial_state=(59, 63, 67),
+        max_steps=8,
+        graph_spec=TowerGraphSpec(rank=3, max_step_size=2),
+        parent_sampler=ScriptedSampler(
+            script=((1, 1), (-1, -1), (1, 1), (-1, -1))
+        ),
+        active_sampler=ScriptedSampler(script=(1, -1, 1, -1)),
+        reward_fn=lambda context: TowerRewardResult(reward=0.0),
+        measure_size=2,
+        context_measures=1,
+        target_root_octave=4,
+        tail_stagnation_patience=3,
+    )
+
+    assert trajectory.steps[-1].outcome == TRAJECTORY_OUTCOME_TAIL_STAGNATION
+    assert trajectory.steps[-1].truncated
+    assert not trajectory.steps[-1].terminated
+    assert trajectory.steps[-1].reward.reward == -1.0
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_detected"] is True
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_kind"] == "two_cycle"
+
+
+def test_rollout_rank3_three_cycle_tail_stagnation_detected() -> None:
+    trajectory = rollout_rank3(
+        initial_state=(59, 63, 67),
+        max_steps=10,
+        graph_spec=TowerGraphSpec(rank=3, max_step_size=3),
+        parent_sampler=ScriptedSampler(
+            script=((1, 1), (2, 1), (-3, -2), (1, 1), (2, 1), (-3, -2))
+        ),
+        active_sampler=ScriptedSampler(script=(1, 1, -2, 1, 1, -2)),
+        reward_fn=lambda context: TowerRewardResult(reward=0.0),
+        measure_size=4,
+        context_measures=1,
+        target_root_octave=4,
+        tail_stagnation_patience=3,
+    )
+
+    assert trajectory.steps[-1].outcome == TRAJECTORY_OUTCOME_TAIL_STAGNATION
+    assert trajectory.steps[-1].truncated
+    assert not trajectory.steps[-1].terminated
+    assert trajectory.steps[-1].reward.reward == -1.0
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_detected"] is True
+    assert trajectory.steps[-1].diagnostics["tail_stagnation_kind"] == "three_cycle"

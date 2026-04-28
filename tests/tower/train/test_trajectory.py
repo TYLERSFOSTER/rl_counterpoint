@@ -10,6 +10,7 @@ from tower.train.trajectory import (
     TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER,
     TRAJECTORY_OUTCOME_INVALID_EXTENSION,
     TRAJECTORY_OUTCOME_PARENT_FAILURE,
+    TRAJECTORY_OUTCOME_TAIL_STAGNATION,
     TRAJECTORY_OUTCOME_VALID,
     TowerTrajectory,
     TowerTrajectoryStep,
@@ -195,6 +196,10 @@ def test_step_accepts_slice_4_outcome_labels() -> None:
     assert (
         make_step(outcome=TRAJECTORY_OUTCOME_PARENT_FAILURE).outcome
         == TRAJECTORY_OUTCOME_PARENT_FAILURE
+    )
+    assert (
+        make_step(outcome=TRAJECTORY_OUTCOME_TAIL_STAGNATION).outcome
+        == TRAJECTORY_OUTCOME_TAIL_STAGNATION
     )
 
 

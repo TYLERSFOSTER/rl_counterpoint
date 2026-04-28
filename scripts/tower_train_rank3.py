@@ -72,7 +72,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--target-root-octave-choices",
         type=_parse_int_choices,
-        default=None,
+        default=[2, 3, 4, 5],
     )
     parser.add_argument("--terminal-cadence-reward", type=float, default=10.0)
     parser.add_argument("--cadence-failure-reward", type=float, default=0.0)
@@ -92,6 +92,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--dropout", type=float, default=0.0)
     parser.add_argument("--sampling-temperature", type=float, default=1.5)
     parser.add_argument("--sampling-uniform-mix", type=float, default=0.15)
+    parser.add_argument(
+        "--final-inference-sample-target-root-octave",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--final-inference-sample-initial-state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument(
         "--log-reward-diagnostics",
         action=argparse.BooleanOptionalAction,
@@ -153,6 +163,12 @@ def _training_config_from_args(args: argparse.Namespace) -> dict[str, object]:
             args.sample_initial_parent_pitch_in_target_octave
         ),
         "sample_target_root_octave": args.sample_target_root_octave,
+        "final_inference_sample_target_root_octave": (
+            args.final_inference_sample_target_root_octave
+        ),
+        "final_inference_sample_initial_state": (
+            args.final_inference_sample_initial_state
+        ),
         "sampling_temperature": args.sampling_temperature,
         "sampling_uniform_mix": args.sampling_uniform_mix,
         "log_reward_diagnostics": args.log_reward_diagnostics,

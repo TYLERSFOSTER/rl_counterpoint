@@ -17,6 +17,7 @@ from tower.train.trajectory import (
     TRAJECTORY_OUTCOME_EMPTY_LIFT_FIBER,
     TRAJECTORY_OUTCOME_INVALID_EXTENSION,
     TRAJECTORY_OUTCOME_PARENT_FAILURE,
+    TRAJECTORY_OUTCOME_TAIL_STAGNATION,
     TRAJECTORY_OUTCOME_VALID,
     TowerTrajectory,
     TowerTrajectoryStep,
@@ -40,6 +41,8 @@ def rollout_rank1(
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
     goal_octave_cadence_window_measures: int | None = 2,
+    tail_stagnation_patience: int = 4,
+    tail_stagnation_reward: TowerRewardResult | None = None,
 ) -> TowerTrajectory:
     """Roll out a rank-1 trajectory under an active sampler."""
     spec = TowerGraphSpec(rank=1) if graph_spec is None else graph_spec
@@ -52,6 +55,8 @@ def rollout_rank1(
         and goal_octave_cadence_window_measures < 1
     ):
         raise ValueError("goal_octave_cadence_window_measures must be at least 1")
+    if tail_stagnation_patience < 2:
+        raise ValueError("tail_stagnation_patience must be at least 2")
     validate_state(initial_state, rank=1)
 
     history = [initial_state]
@@ -103,6 +108,24 @@ def rollout_rank1(
             measure_size=measure_size,
             goal_octave_cadence_window_measures=goal_octave_cadence_window_measures,
         )
+        tail_progress_score = _rank1_terminal_progress_score(
+            state=realized_next_state,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+        )
+        tail_stagnation_detected, tail_stagnation_kind = _detect_tail_stagnation(
+            state_history=tuple(history) + (realized_next_state,),
+            progress_score_fn=lambda state: _rank1_terminal_progress_score(
+                state=state,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
+            ),
+            goal_octave_entry_step_index=goal_octave_entry_step_index,
+            current_step_index=step_index,
+            tail_stagnation_patience=tail_stagnation_patience,
+            detect_two_cycle=False,
+            detect_three_cycle=False,
+        )
         cadence_check_step = (
             goal_octave_entry_step_index is not None
             and step_index % measure_size == measure_size - 1
@@ -119,6 +142,7 @@ def rollout_rank1(
             step_index == max_steps - 1
             or cadence_check_step
             or goal_window_deadline_step
+            or tail_stagnation_detected
         )
         reward = reward_fn(
             TowerRewardContext(
@@ -147,16 +171,30 @@ def rollout_rank1(
                     "entered_goal_octave": entered_goal_octave,
                     "cadence_check_step": cadence_check_step,
                     "goal_octave_deadline_step": goal_window_deadline_step,
+                    "terminal_regime_active": goal_octave_entry_step_index is not None,
+                    "tail_progress_score": tail_progress_score,
+                    "tail_stagnation_detected": tail_stagnation_detected,
+                    "tail_stagnation_kind": tail_stagnation_kind,
                 },
             )
         )
         if not isinstance(reward, TowerRewardResult):
             raise TypeError("reward_fn must return a TowerRewardResult")
 
+        outcome = TRAJECTORY_OUTCOME_VALID
+        if tail_stagnation_detected and not reward.is_terminal_success:
+            reward = _default_outcome_reward(
+                provided=tail_stagnation_reward,
+                outcome=TRAJECTORY_OUTCOME_TAIL_STAGNATION,
+            )
+            outcome = TRAJECTORY_OUTCOME_TAIL_STAGNATION
+
         terminated = reward.is_terminal_success
         goal_window_expired = goal_window_deadline_step
         truncated = not terminated and (
-            step_index == max_steps - 1 or goal_window_expired
+            step_index == max_steps - 1
+            or goal_window_expired
+            or tail_stagnation_detected
         )
         step = TowerTrajectoryStep(
             rank=1,
@@ -174,7 +212,7 @@ def rollout_rank1(
             reward=reward,
             terminated=terminated,
             truncated=truncated,
-            outcome=TRAJECTORY_OUTCOME_VALID,
+            outcome=outcome,
             diagnostics={
                 "active_choices": choices,
                 "active_sampler": active_result.diagnostics,
@@ -184,6 +222,10 @@ def rollout_rank1(
                 "entered_goal_octave": entered_goal_octave,
                 "cadence_check_step": cadence_check_step,
                 "goal_octave_deadline_step": goal_window_deadline_step,
+                "terminal_regime_active": goal_octave_entry_step_index is not None,
+                "tail_progress_score": tail_progress_score,
+                "tail_stagnation_detected": tail_stagnation_detected,
+                "tail_stagnation_kind": tail_stagnation_kind,
             },
         )
         steps.append(step)
@@ -238,9 +280,12 @@ def rollout_rank2(
     context_measures: int = 2,
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
+    goal_octave_cadence_window_measures: int | None = 2,
+    tail_stagnation_patience: int = 4,
     invalid_extension_reward: TowerRewardResult | None = None,
     empty_lift_fiber_reward: TowerRewardResult | None = None,
     parent_failure_reward: TowerRewardResult | None = None,
+    tail_stagnation_reward: TowerRewardResult | None = None,
 ) -> TowerTrajectory:
     """Roll out a rank-2 trajectory under scripted happy-path samplers."""
     spec = TowerGraphSpec(rank=2) if graph_spec is None else graph_spec
@@ -248,10 +293,18 @@ def rollout_rank2(
         raise ValueError("rollout_rank2 requires a rank-2 graph spec")
     if max_steps < 1:
         raise ValueError("max_steps must be at least 1")
+    if (
+        goal_octave_cadence_window_measures is not None
+        and goal_octave_cadence_window_measures < 1
+    ):
+        raise ValueError("goal_octave_cadence_window_measures must be at least 1")
+    if tail_stagnation_patience < 2:
+        raise ValueError("tail_stagnation_patience must be at least 2")
     validate_state(initial_state, rank=2)
 
     history = [initial_state]
     steps: list[TowerTrajectoryStep] = []
+    goal_octave_entry_step_index: int | None = None
 
     for step_index in range(max_steps):
         source_state = history[-1]
@@ -415,6 +468,47 @@ def rollout_rank2(
 
         attempted_target_state = apply_action(source_state, assembled_action)
         realized_next_state = attempted_target_state
+        entered_goal_octave = (
+            not _state_is_in_target_octave(source_state, target_root_octave)
+            and _state_is_in_target_octave(realized_next_state, target_root_octave)
+        )
+        if goal_octave_entry_step_index is None and entered_goal_octave:
+            goal_octave_entry_step_index = step_index
+        goal_deadline_step_index = _goal_octave_deadline_step_index(
+            goal_octave_entry_step_index=goal_octave_entry_step_index,
+            measure_size=measure_size,
+            goal_octave_cadence_window_measures=goal_octave_cadence_window_measures,
+        )
+        tail_progress_score = _rank2_terminal_progress_score(
+            state=realized_next_state,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+        )
+        tail_stagnation_detected, tail_stagnation_kind = _detect_tail_stagnation(
+            state_history=tuple(history) + (realized_next_state,),
+            progress_score_fn=lambda state: _rank2_terminal_progress_score(
+                state=state,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
+            ),
+            goal_octave_entry_step_index=goal_octave_entry_step_index,
+            current_step_index=step_index,
+            tail_stagnation_patience=tail_stagnation_patience,
+            detect_two_cycle=True,
+            detect_three_cycle=True,
+        )
+        cadence_check_step = (
+            goal_octave_entry_step_index is not None
+            and step_index % measure_size == measure_size - 1
+            and (
+                goal_deadline_step_index is None
+                or step_index <= goal_deadline_step_index
+            )
+        )
+        goal_window_deadline_step = (
+            goal_deadline_step_index is not None
+            and step_index >= goal_deadline_step_index
+        )
         reward = reward_fn(
             TowerRewardContext(
                 rank=2,
@@ -428,18 +522,49 @@ def rollout_rank2(
                 max_step_size=spec.max_step_size,
                 key_pitch_class=key_pitch_class,
                 target_root_octave=target_root_octave,
-                is_final_step=step_index == max_steps - 1,
+                is_final_step=(
+                    step_index == max_steps - 1
+                    or cadence_check_step
+                    or goal_window_deadline_step
+                    or tail_stagnation_detected
+                ),
                 new_facts=NewFacts(
                     new_voice_index=new_voice_index(rank=2),
                     new_action=active_choice,
                 ),
+                diagnostics={
+                    "goal_octave_entry_step_index": goal_octave_entry_step_index,
+                    "goal_octave_deadline_step_index": goal_deadline_step_index,
+                    "goal_octave_cadence_window_measures": (
+                        goal_octave_cadence_window_measures
+                    ),
+                    "entered_goal_octave": entered_goal_octave,
+                    "cadence_check_step": cadence_check_step,
+                    "goal_octave_deadline_step": goal_window_deadline_step,
+                    "terminal_regime_active": goal_octave_entry_step_index is not None,
+                    "tail_progress_score": tail_progress_score,
+                    "tail_stagnation_detected": tail_stagnation_detected,
+                    "tail_stagnation_kind": tail_stagnation_kind,
+                },
             )
         )
         if not isinstance(reward, TowerRewardResult):
             raise TypeError("reward_fn must return a TowerRewardResult")
 
+        outcome = TRAJECTORY_OUTCOME_VALID
+        if tail_stagnation_detected and not reward.is_terminal_success:
+            reward = _default_outcome_reward(
+                provided=tail_stagnation_reward,
+                outcome=TRAJECTORY_OUTCOME_TAIL_STAGNATION,
+            )
+            outcome = TRAJECTORY_OUTCOME_TAIL_STAGNATION
+
         terminated = reward.is_terminal_success
-        truncated = not terminated and step_index == max_steps - 1
+        truncated = not terminated and (
+            step_index == max_steps - 1
+            or goal_window_deadline_step
+            or tail_stagnation_detected
+        )
         step = TowerTrajectoryStep(
             rank=2,
             step_index=step_index,
@@ -456,11 +581,21 @@ def rollout_rank2(
             reward=reward,
             terminated=terminated,
             truncated=truncated,
-            outcome=TRAJECTORY_OUTCOME_VALID,
+            outcome=outcome,
             diagnostics={
                 "active_choices": choices,
                 "parent_sampler": parent_result.diagnostics,
                 "active_sampler": active_result.diagnostics,
+                "goal_octave_entry_step_index": goal_octave_entry_step_index,
+                "goal_octave_deadline_step_index": goal_deadline_step_index,
+                "goal_octave_window_expired": goal_window_deadline_step,
+                "entered_goal_octave": entered_goal_octave,
+                "cadence_check_step": cadence_check_step,
+                "goal_octave_deadline_step": goal_window_deadline_step,
+                "terminal_regime_active": goal_octave_entry_step_index is not None,
+                "tail_progress_score": tail_progress_score,
+                "tail_stagnation_detected": tail_stagnation_detected,
+                "tail_stagnation_kind": tail_stagnation_kind,
             },
         )
         steps.append(step)
@@ -484,9 +619,12 @@ def rollout_rank3(
     context_measures: int = 2,
     key_pitch_class: int | None = None,
     target_root_octave: int | None = None,
+    goal_octave_cadence_window_measures: int | None = 2,
+    tail_stagnation_patience: int = 4,
     invalid_extension_reward: TowerRewardResult | None = None,
     empty_lift_fiber_reward: TowerRewardResult | None = None,
     parent_failure_reward: TowerRewardResult | None = None,
+    tail_stagnation_reward: TowerRewardResult | None = None,
 ) -> TowerTrajectory:
     """Roll out a rank-3 trajectory over a scripted rank-2 parent action stream."""
     spec = TowerGraphSpec(rank=3) if graph_spec is None else graph_spec
@@ -494,10 +632,18 @@ def rollout_rank3(
         raise ValueError("rollout_rank3 requires a rank-3 graph spec")
     if max_steps < 1:
         raise ValueError("max_steps must be at least 1")
+    if (
+        goal_octave_cadence_window_measures is not None
+        and goal_octave_cadence_window_measures < 1
+    ):
+        raise ValueError("goal_octave_cadence_window_measures must be at least 1")
+    if tail_stagnation_patience < 2:
+        raise ValueError("tail_stagnation_patience must be at least 2")
     validate_state(initial_state, rank=3)
 
     history = [initial_state]
     steps: list[TowerTrajectoryStep] = []
+    goal_octave_entry_step_index: int | None = None
 
     for step_index in range(max_steps):
         source_state = history[-1]
@@ -661,6 +807,47 @@ def rollout_rank3(
 
         attempted_target_state = apply_action(source_state, assembled_action)
         realized_next_state = attempted_target_state
+        entered_goal_octave = (
+            not _state_is_in_target_octave(source_state, target_root_octave)
+            and _state_is_in_target_octave(realized_next_state, target_root_octave)
+        )
+        if goal_octave_entry_step_index is None and entered_goal_octave:
+            goal_octave_entry_step_index = step_index
+        goal_deadline_step_index = _goal_octave_deadline_step_index(
+            goal_octave_entry_step_index=goal_octave_entry_step_index,
+            measure_size=measure_size,
+            goal_octave_cadence_window_measures=goal_octave_cadence_window_measures,
+        )
+        tail_progress_score = _rank3_terminal_progress_score(
+            state=realized_next_state,
+            key_pitch_class=key_pitch_class,
+            target_root_octave=target_root_octave,
+        )
+        tail_stagnation_detected, tail_stagnation_kind = _detect_tail_stagnation(
+            state_history=tuple(history) + (realized_next_state,),
+            progress_score_fn=lambda state: _rank3_terminal_progress_score(
+                state=state,
+                key_pitch_class=key_pitch_class,
+                target_root_octave=target_root_octave,
+            ),
+            goal_octave_entry_step_index=goal_octave_entry_step_index,
+            current_step_index=step_index,
+            tail_stagnation_patience=tail_stagnation_patience,
+            detect_two_cycle=True,
+            detect_three_cycle=True,
+        )
+        cadence_check_step = (
+            goal_octave_entry_step_index is not None
+            and step_index % measure_size == measure_size - 1
+            and (
+                goal_deadline_step_index is None
+                or step_index <= goal_deadline_step_index
+            )
+        )
+        goal_window_deadline_step = (
+            goal_deadline_step_index is not None
+            and step_index >= goal_deadline_step_index
+        )
         reward = reward_fn(
             TowerRewardContext(
                 rank=3,
@@ -674,19 +861,50 @@ def rollout_rank3(
                 max_step_size=spec.max_step_size,
                 key_pitch_class=key_pitch_class,
                 target_root_octave=target_root_octave,
-                is_final_step=step_index == max_steps - 1,
+                is_final_step=(
+                    step_index == max_steps - 1
+                    or cadence_check_step
+                    or goal_window_deadline_step
+                    or tail_stagnation_detected
+                ),
                 new_facts=NewFacts(
                     new_voice_index=new_voice_index(rank=3),
                     new_action=active_choice,
                     full_sonority_used=True,
                 ),
+                diagnostics={
+                    "goal_octave_entry_step_index": goal_octave_entry_step_index,
+                    "goal_octave_deadline_step_index": goal_deadline_step_index,
+                    "goal_octave_cadence_window_measures": (
+                        goal_octave_cadence_window_measures
+                    ),
+                    "entered_goal_octave": entered_goal_octave,
+                    "cadence_check_step": cadence_check_step,
+                    "goal_octave_deadline_step": goal_window_deadline_step,
+                    "terminal_regime_active": goal_octave_entry_step_index is not None,
+                    "tail_progress_score": tail_progress_score,
+                    "tail_stagnation_detected": tail_stagnation_detected,
+                    "tail_stagnation_kind": tail_stagnation_kind,
+                },
             )
         )
         if not isinstance(reward, TowerRewardResult):
             raise TypeError("reward_fn must return a TowerRewardResult")
 
+        outcome = TRAJECTORY_OUTCOME_VALID
+        if tail_stagnation_detected and not reward.is_terminal_success:
+            reward = _default_outcome_reward(
+                provided=tail_stagnation_reward,
+                outcome=TRAJECTORY_OUTCOME_TAIL_STAGNATION,
+            )
+            outcome = TRAJECTORY_OUTCOME_TAIL_STAGNATION
+
         terminated = reward.is_terminal_success
-        truncated = not terminated and step_index == max_steps - 1
+        truncated = not terminated and (
+            step_index == max_steps - 1
+            or goal_window_deadline_step
+            or tail_stagnation_detected
+        )
         step = TowerTrajectoryStep(
             rank=3,
             step_index=step_index,
@@ -703,11 +921,21 @@ def rollout_rank3(
             reward=reward,
             terminated=terminated,
             truncated=truncated,
-            outcome=TRAJECTORY_OUTCOME_VALID,
+            outcome=outcome,
             diagnostics={
                 "active_choices": choices,
                 "parent_sampler": parent_result.diagnostics,
                 "active_sampler": active_result.diagnostics,
+                "goal_octave_entry_step_index": goal_octave_entry_step_index,
+                "goal_octave_deadline_step_index": goal_deadline_step_index,
+                "goal_octave_window_expired": goal_window_deadline_step,
+                "entered_goal_octave": entered_goal_octave,
+                "cadence_check_step": cadence_check_step,
+                "goal_octave_deadline_step": goal_window_deadline_step,
+                "terminal_regime_active": goal_octave_entry_step_index is not None,
+                "tail_progress_score": tail_progress_score,
+                "tail_stagnation_detected": tail_stagnation_detected,
+                "tail_stagnation_kind": tail_stagnation_kind,
             },
         )
         steps.append(step)
@@ -719,6 +947,117 @@ def rollout_rank3(
     return TowerTrajectory(steps=tuple(steps))
 
 
+def _rank1_terminal_progress_score(
+    *,
+    state: TowerState,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
+) -> int:
+    if key_pitch_class is None or target_root_octave is None:
+        return 0
+    score = 0
+    if state[0] % 12 == key_pitch_class % 12:
+        score += 1
+    if _state_is_in_target_octave(state, target_root_octave):
+        score += 1
+    return score
+
+
+def _rank2_terminal_progress_score(
+    *,
+    state: TowerState,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
+) -> int:
+    if key_pitch_class is None or target_root_octave is None:
+        return 0
+    tonic_pitch_class = key_pitch_class % 12
+    tonic_third_pitch_class = (key_pitch_class + 4) % 12
+    score = 0
+    if state[0] % 12 == tonic_pitch_class:
+        score += 1
+    if state[1] % 12 == tonic_third_pitch_class:
+        score += 1
+    if _state_is_in_target_octave(state, target_root_octave):
+        score += 1
+    return score
+
+
+def _rank3_terminal_progress_score(
+    *,
+    state: TowerState,
+    key_pitch_class: int | None,
+    target_root_octave: int | None,
+) -> int:
+    if key_pitch_class is None or target_root_octave is None:
+        return 0
+    tonic_pitch_class = key_pitch_class % 12
+    tonic_inner_pitch_class = (key_pitch_class + 7) % 12
+    tonic_outer_pitch_class = (key_pitch_class + 4) % 12
+    score = 0
+    if state[0] % 12 == tonic_pitch_class:
+        score += 1
+    if state[1] % 12 == tonic_inner_pitch_class:
+        score += 1
+    if state[2] % 12 == tonic_outer_pitch_class:
+        score += 1
+    if _state_is_in_target_octave(state, target_root_octave):
+        score += 1
+    return score
+
+
+def _detect_tail_stagnation(
+    *,
+    state_history: tuple[TowerState, ...],
+    progress_score_fn: Callable[[TowerState], int],
+    goal_octave_entry_step_index: int | None,
+    current_step_index: int,
+    tail_stagnation_patience: int,
+    detect_two_cycle: bool,
+    detect_three_cycle: bool,
+) -> tuple[bool, str | None]:
+    if goal_octave_entry_step_index is None:
+        return False, None
+    steps_since_entry = current_step_index - goal_octave_entry_step_index + 1
+    if steps_since_entry < tail_stagnation_patience:
+        return False, None
+
+    terminal_states = state_history[goal_octave_entry_step_index + 1 :]
+    if len(terminal_states) < tail_stagnation_patience:
+        return False, None
+
+    if detect_two_cycle and len(terminal_states) >= 3:
+        cycle2_states = terminal_states[-3:]
+        cycle2_scores = tuple(progress_score_fn(state) for state in cycle2_states)
+        if (
+            cycle2_states[0] == cycle2_states[2]
+            and cycle2_states[0] != cycle2_states[1]
+            and max(cycle2_scores) <= cycle2_scores[0]
+        ):
+            return True, "two_cycle"
+
+    if detect_three_cycle and len(terminal_states) >= 6:
+        cycle3_states = terminal_states[-6:]
+        cycle3_scores = tuple(progress_score_fn(state) for state in cycle3_states)
+        if (
+            cycle3_states[0] == cycle3_states[3]
+            and cycle3_states[1] == cycle3_states[4]
+            and cycle3_states[2] == cycle3_states[5]
+            and len({cycle3_states[0], cycle3_states[1], cycle3_states[2]}) == 3
+            and max(cycle3_scores) <= cycle3_scores[0]
+        ):
+            return True, "three_cycle"
+
+    recent_states = terminal_states[-tail_stagnation_patience:]
+    recent_scores = tuple(progress_score_fn(state) for state in recent_states)
+    repeated_full_state = recent_states[-1] in recent_states[:-1]
+    no_progress = max(recent_scores) <= recent_scores[0]
+    if repeated_full_state and no_progress:
+        return True, "repeat_no_progress"
+
+    return False, None
+
+
 def _default_outcome_reward(
     *,
     provided: TowerRewardResult | None,
@@ -726,6 +1065,13 @@ def _default_outcome_reward(
 ) -> TowerRewardResult:
     if provided is not None:
         return provided
+    if outcome == TRAJECTORY_OUTCOME_TAIL_STAGNATION:
+        return TowerRewardResult(
+            reward=-1.0,
+            hard_violation=False,
+            is_terminal_success=False,
+            diagnostics={"outcome": outcome},
+        )
     return TowerRewardResult(
         reward=0.0,
         hard_violation=False,

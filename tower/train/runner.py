@@ -281,11 +281,22 @@ def run_rank1_training(
     final_inferences: list[FinalInferenceResult] = []
     final_midi_paths: list[Path | None] = []
     max_steps = _training_int(config, "max_steps", default=1)
+    final_inference_sample_target_root_octave = _training_bool(
+        config,
+        "final_inference_sample_target_root_octave",
+        default=_training_bool(config, "sample_target_root_octave", default=False),
+    )
+    final_inference_sample_initial_state = _training_bool(
+        config,
+        "final_inference_sample_initial_state",
+        default=_training_bool(config, "sample_initial_pitch", default=False),
+    )
     for final_inference_index in range(4):
         final_target_root_octave = _rank1_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
             generator=generator,
+            force_sample=final_inference_sample_target_root_octave,
         )
         final_initial_state = _rank1_episode_initial_state(
             initial_state=initial_state,
@@ -293,6 +304,7 @@ def run_rank1_training(
             spec=spec,
             config=config,
             generator=generator,
+            force_sample=final_inference_sample_initial_state,
         )
         final_inference = run_final_inference_episode(
             policy=active_policy,  # type: ignore[arg-type]
@@ -433,11 +445,22 @@ def run_rank2_training(
     final_inferences = []
     final_midi_paths = []
     max_steps = _training_int(config, "max_steps", default=1)
+    final_inference_sample_target_root_octave = _training_bool(
+        config,
+        "final_inference_sample_target_root_octave",
+        default=_training_bool(config, "sample_target_root_octave", default=False),
+    )
+    final_inference_sample_initial_state = _training_bool(
+        config,
+        "final_inference_sample_initial_state",
+        default=_training_bool(config, "sample_initial_state", default=False),
+    )
     for final_inference_index in range(4):
         final_target_root_octave = _rank2_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
             generator=generator,
+            force_sample=final_inference_sample_target_root_octave,
         )
         final_initial_state = _rank2_episode_initial_state(
             initial_state=initial_state,
@@ -445,6 +468,7 @@ def run_rank2_training(
             spec=spec,
             config=config,
             generator=generator,
+            force_sample=final_inference_sample_initial_state,
         )
         final_inference = run_final_inference_episode(
             policy=active_child_policy,  # type: ignore[arg-type]
@@ -592,11 +616,22 @@ def run_rank3_training(
     final_inferences: list[FinalInferenceResult] = []
     final_midi_paths: list[Path | None] = []
     max_steps = _training_int(config, "max_steps", default=1)
+    final_inference_sample_target_root_octave = _training_bool(
+        config,
+        "final_inference_sample_target_root_octave",
+        default=_training_bool(config, "sample_target_root_octave", default=False),
+    )
+    final_inference_sample_initial_state = _training_bool(
+        config,
+        "final_inference_sample_initial_state",
+        default=_training_bool(config, "sample_initial_state", default=False),
+    )
     for final_inference_index in range(4):
         final_target_root_octave = _rank3_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
             generator=generator,
+            force_sample=final_inference_sample_target_root_octave,
         )
         final_initial_state = _rank3_episode_initial_state(
             initial_state=initial_state,
@@ -604,6 +639,7 @@ def run_rank3_training(
             spec=spec,
             config=config,
             generator=generator,
+            force_sample=final_inference_sample_initial_state,
         )
         final_inference = run_final_inference_episode(
             policy=active_child_policy,  # type: ignore[arg-type]
@@ -837,8 +873,11 @@ def _rank1_episode_initial_state(
     spec: TowerGraphSpec,
     config: TowerRunnerConfig,
     generator: torch.Generator,
+    force_sample: bool = False,
 ) -> tuple[int, ...]:
-    if not _training_bool(config, "sample_initial_pitch", default=False):
+    if not force_sample and not _training_bool(
+        config, "sample_initial_pitch", default=False
+    ):
         return initial_state
 
     pitch_min = _training_int(
@@ -921,8 +960,11 @@ def _rank1_episode_target_root_octave(
     target_root_octave: int | None,
     config: TowerRunnerConfig,
     generator: torch.Generator,
+    force_sample: bool = False,
 ) -> int | None:
-    if not _training_bool(config, "sample_target_root_octave", default=False):
+    if not force_sample and not _training_bool(
+        config, "sample_target_root_octave", default=False
+    ):
         return target_root_octave
 
     choices = _target_root_octave_choices(config)
@@ -942,8 +984,11 @@ def _rank2_episode_target_root_octave(
     target_root_octave: int | None,
     config: TowerRunnerConfig,
     generator: torch.Generator,
+    force_sample: bool = False,
 ) -> int | None:
-    if not _training_bool(config, "sample_target_root_octave", default=False):
+    if not force_sample and not _training_bool(
+        config, "sample_target_root_octave", default=False
+    ):
         return target_root_octave
     choices = _target_root_octave_choices(config)
     choice_index = int(
@@ -962,8 +1007,11 @@ def _rank3_episode_target_root_octave(
     target_root_octave: int | None,
     config: TowerRunnerConfig,
     generator: torch.Generator,
+    force_sample: bool = False,
 ) -> int | None:
-    if not _training_bool(config, "sample_target_root_octave", default=False):
+    if not force_sample and not _training_bool(
+        config, "sample_target_root_octave", default=False
+    ):
         return target_root_octave
     choices = _target_root_octave_choices(config)
     choice_index = int(
@@ -1001,8 +1049,11 @@ def _rank2_episode_initial_state(
     spec: TowerGraphSpec,
     config: TowerRunnerConfig,
     generator: torch.Generator,
+    force_sample: bool = False,
 ) -> tuple[int, ...]:
-    if not _training_bool(config, "sample_initial_state", default=False):
+    if not force_sample and not _training_bool(
+        config, "sample_initial_state", default=False
+    ):
         return initial_state
 
     parent_pitch_min = _training_int(
@@ -1068,8 +1119,11 @@ def _rank3_episode_initial_state(
     spec: TowerGraphSpec,
     config: TowerRunnerConfig,
     generator: torch.Generator,
+    force_sample: bool = False,
 ) -> tuple[int, ...]:
-    if not _training_bool(config, "sample_initial_state", default=False):
+    if not force_sample and not _training_bool(
+        config, "sample_initial_state", default=False
+    ):
         return initial_state
 
     lower_pitch_min = _training_int(
@@ -1512,6 +1566,9 @@ def _final_inference_metrics(
         ),
         "parent_failure_count": sum(
             1 for step in trajectory.steps if step.outcome == "parent_failure"
+        ),
+        "tail_stagnation_count": sum(
+            1 for step in trajectory.steps if step.outcome == "tail_stagnation"
         ),
         "final_state": trajectory.final_state,
         "final_inference": True,
