@@ -1,14 +1,19 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/rules/images/triadic_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/rules/images/triadic_light.png">
+  <img src="assets/rules/images/triadic_light.png" alt="Triadic voiceleading illustration" width="auto">
+</picture>
+
 # RL Counterpoint
 
 **Project Owner (PO):** Tyler Foster
 
-## About RL Counterpoint
 `rl_counterpoint` is a research repo for [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) based [counterpoint](https://en.wikipedia.org/wiki/Counterpoint) generation. The long-term goal is to train an RL agent, equipped with a tranformer-driven policy function, to generate "good" counterpoint passages, and to be able to modify the flavor/feel/vibe of these voiceleading passages by modifying the agent's reward functions.
 
 The repo currently contains two systems:
 
-1. `rl_counterpoint/`: the legacy flat-graph project, kept as a frozen reference and baseline
-2. `tower/`: the active hierarchical redesign, where training proceeds rank by rank through a tower of graph problems
+1. [`rl_counterpoint/`](/rl_counterpoint/): the legacy flat-graph project, kept as a frozen reference and baseline
+2. [`tower/`](/tower/): the active hierarchical redesign, where training proceeds rank by rank through a tower of graph problems
 
 Right now, `tower` is the central product in this repo.
 
@@ -16,8 +21,8 @@ Right now, `tower` is the central product in this repo.
 
 ## Key PO Design & Engineering Insights
 
-### **INSIGHT 1:** *The book [Tonal Counterpoint for the 21-st Century Musician](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is accidentially written for RL training pipelines.*
-One of the most useful desgin discoveries made by the PO in this repo is that the music textbook [Tonal Counterpoint for the 21st Century Musician (TC21M)](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is , accidentally, a very good specification source for reward design. Its rules already come in the right shape for reinforcement learning:
+### **INSIGHT 1:** *The book [Tonal Counterpoint for the 21st-Century Musician](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is accidentially written for RL training pipelines.*
+One of the most useful desgin discoveries made by the PO in this repo is that the music textbook [Tonal Counterpoint for the 21st-Century Musician (TC21M)](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is , accidentally, a very good specification source for reward design. Its rules already come in the right shape for reinforcement learning:
 - local motion preferences
 - recovery and resolution patterns over time
 - beat-sensitive structural rules
@@ -26,21 +31,31 @@ One of the most useful desgin discoveries made by the PO in this repo is that th
 
 In other words, the book naturally separates musical behavior into the same kinds of objects an RL system needs to reason about. That said, the repo does **not** treat the book as executable code in prose form. The engineering pattern weve used designing and developing the present repo is:
 
-1. extract the musical rules into a structured note set in [`assets/rules/tc21m_rules.md`](assets/rules/tc21m_rules.md)
-2. map those rules into computational categories
-3. preserve a stable reward protocol boundary
-4. implement narrow, testable reward slices rather than trying to import the whole grammar at once
+1. Extract the musical rules into a structured note set:
+    - *Notes summarizing TC21M*: [`assets/rules/tc21m_rules.md`](assets/rules/tc21m_rules.md)
+2. Map those rules into computational categories:
+    - *Reward spec*: [`docs/design/tower/rank_local_reward_spec.md`](/docs/design/tower/rank_local_reward_spec.md) 
+    -  *Initiates reward probe artifacts*: [`scripts/tower_reward_probe.py`](/scripts/tower_reward_probe.py)
+3. Preserve a stable reward protocol boundary:
+    - *Environment interface contract*: [`rl_counterpoint/reward/protocol.py`](/rl_counterpoint/reward/protocol.py)
+    - *Reward context contracts*: [`tower/reward/context.py`](/tower/reward/context.py)
+    - *Structured reward outputs*: [`tower/reward/result.py`](/tower/reward/result.py)
+4. Implement narrow, testable reward slices rather than trying to import the whole grammar at once:
+    - *Tower training entrypoint (rank-1)*: [`scripts/tower_train.py`](/scripts/tower_train.py)
+    - *Rank-2 training entrypoint*: [`scripts/tower_train_rank2.py`](/scripts/tower_train_rank2.py)
+    - *Rank-3 training entrypoint*: [`scripts/tower_train_rank3.py`](/scripts/tower_train_rank3.py)
+    - *Reward probe artifacts*: [`scripts/tower_reward_probe.py`](/scripts/tower_reward_probe.py)
 
-This matters because it lets the project use a real contrapuntal reference manual without blocking all infrastructure work on perfect music-theory formalization up front. The book gives us the vocabulary of what should matter musically; the repo then turns that vocabulary into reward terms, pruning rules, and cadence logic in small executable pieces.
+This approach lets the project use a real contrapuntal reference manual without blocking all infrastructure work on perfect music theory formalization up front. The book provides one particular vocabulary of something like an informal spec for what should matter musically in Western counterpoint, and then the present repo turns that vocabulary into reward terms, pruning rules, and cadence logic that can all be implemented in small executable pieces.
 
 ### **INSIGHT 2.** *Counterpoint is naturally a problem in [Hierarchical RL](https://arxiv.org/pdf/2506.14045).*
-The ***second*** key technical insigth about how to do this that we implement in the present repo is:
+The ***second*** key technical insigth about how to do this that we implement in the present repo is that:
 > The probelm of generating counterpoint passages is naturally hierarchical. For instance, 3-part voiceleading naturally reduces to an inner-voice problem *over* a simpler 2-part voice leading problem, itself natrually reducing to an upper-voice problem *over* a simpler 1-voice pedal problem.
 
-From an engineering perspective, this means a hierarchical system of agents with interrelated, but separate policy models, trained as follows:
-- rank 1: learn how to generate a good pedal line
-- rank 2: add the top voice over a frozen rank-1 (pedal) scaffold
-- rank 3+: add further interior voices over lower-rank scaffolds and under upper-voice.
+From an engineering perspective, this means our agent should actually be a composite agent, formed from a hierarchical system of individual agents with interrelated but separate policy models, trained as follows:
+  - *Rank-1 agent*: Learn how to generate a good pedal line
+  - *Rank-2 agent*: Add the top voice over a frozen rank-1 (pedal) scaffold
+  - *Rank-3+ agents*: Add further interior voices over lower-rank scaffolds and under upper-voice.
 
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/images/hrl_dark.png">
@@ -48,14 +63,10 @@ From an engineering perspective, this means a hierarchical system of agents with
     <img src="assets/images/hrl_light.png" alt="Hierarchy of voiceleading ranks: rank 1 learns the pedal, rank 2 learns an added outer voice over the frozen pedal, and rank 3 learns an interior voice over the frozen lower scaffold." width="900">
   </picture>
 
-The design lives in `tower/` and is documented in `docs/design/tower/`.
-
-An important reward-design reference for this repo is [docs/design/tower/rank_local_reward_spec.md](/Users/foster/rl_counterpoint/docs/design/tower/rank_local_reward_spec.md), which is built from the TC21M notes in `assets/rules/tc21m_rules.md`.
-
-The insight in using that book as a reference manual is not "copy the prose directly into code." It is to use the book as a structured source of musically meaningful reward ideas: which intervals are stable or unstable, which motions want recovery or resolution, which beat positions matter structurally, and which cadential shapes should count as successful endings. In other words, the book is valuable here as a guide for building reward terms and pruning ideas that reflect real contrapuntal practice.
+The design lives in [`tower/`](/tower/) and is documented in [`docs/design/tower/`](/docs/design/tower/).
 
 
-## Current Status
+## Current Project Status
 
 ### Legacy system: `rl_counterpoint/`
 
@@ -209,15 +220,15 @@ Most important folders:
 
 Good starting points:
 
-- [docs/design/tower/README.md](/Users/foster/rl_counterpoint/docs/design/tower/README.md)
-- [docs/design/tower/system_design.md](/Users/foster/rl_counterpoint/docs/design/tower/system_design.md)
-- [docs/design/tower/training_protocol.md](/Users/foster/rl_counterpoint/docs/design/tower/training_protocol.md)
-- [docs/design/tower/post_slice_8_phase_stage_action_plan.md](/Users/foster/rl_counterpoint/docs/design/tower/post_slice_8_phase_stage_action_plan.md)
+- [docs/design/tower/README.md](/docs/design/tower/README.md)
+- [docs/design/tower/system_design.md](/docs/design/tower/system_design.md)
+- [docs/design/tower/training_protocol.md](/docs/design/tower/training_protocol.md)
+- [docs/design/tower/post_slice_8_phase_stage_action_plan.md](/docs/design/tower/post_slice_8_phase_stage_action_plan.md)
 
 ## Development Notes
 
 - Python requirement: `>=3.13`
-- dependencies live in [pyproject.toml](/Users/foster/rl_counterpoint/pyproject.toml)
+- dependencies live in [pyproject.toml](/pyproject.toml)
 - pytest uses `--import-mode=importlib` to avoid duplicate test-module name collisions
 - artifact directories can get large during training; long runs often disable training reward diagnostics to keep disk usage sane
 
