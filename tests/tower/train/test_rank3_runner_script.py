@@ -56,6 +56,8 @@ def _prepare_rank2_parent_stack(*, tmp_path: Path) -> None:
             "69",
             "--parent-top-m",
             "1",
+            "--no-sample-initial-state",
+            "--no-sample-target-root-octave",
         ]
     )
     assert exit_code == 0
@@ -74,14 +76,14 @@ def test_tower_train_rank3_parse_args_defaults() -> None:
     assert args.initial_pedal_pitch == 62
     assert args.initial_middle_pitch == 65
     assert args.initial_top_pitch == 69
-    assert args.sample_initial_state is False
+    assert args.sample_initial_state is True
     assert args.initial_parent_pitch_min == 36
     assert args.initial_parent_pitch_max == 84
     assert args.sample_initial_parent_pitch_in_target_octave is False
     assert args.key_pitch_class == 0
     assert args.target_root_octave == 4
     assert args.parent_top_m == 3
-    assert args.sample_target_root_octave is False
+    assert args.sample_target_root_octave is True
     assert args.target_root_octave_choices == [2, 3, 4, 5]
     assert args.terminal_cadence_reward == 10.0
     assert args.cadence_failure_reward == 0.0
@@ -135,6 +137,8 @@ def test_tower_train_rank3_main_runs_tiny_job(
             "69",
             "--parent-top-m",
             "1",
+            "--no-sample-initial-state",
+            "--no-sample-target-root-octave",
         ]
     )
     output = capsys.readouterr().out
@@ -179,6 +183,13 @@ def test_tower_train_rank3_main_runs_tiny_job(
     assert config["policy_config"]["ff_dim"] == 64
     assert config["training_config"]["sampling_temperature"] == 1.5
     assert config["training_config"]["sampling_uniform_mix"] == 0.15
+    assert config["training_config"]["sample_initial_state"] is False
+    assert config["training_config"]["initial_parent_pitch_min"] == 36
+    assert config["training_config"]["initial_parent_pitch_max"] == 84
+    assert (
+        config["training_config"]["sample_initial_parent_pitch_in_target_octave"]
+        is False
+    )
     assert config["training_config"]["sample_target_root_octave"] is False
     assert config["training_config"]["target_root_octave_choices"] == [2, 3, 4, 5]
     assert config["training_config"]["final_inference_sample_target_root_octave"] is True
@@ -217,6 +228,8 @@ def test_tower_train_rank3_main_can_disable_training_reward_diagnostics(
             "69",
             "--parent-top-m",
             "1",
+            "--no-sample-initial-state",
+            "--no-sample-target-root-octave",
             "--no-log-reward-diagnostics",
         ]
     )
@@ -225,6 +238,8 @@ def test_tower_train_rank3_main_can_disable_training_reward_diagnostics(
     run_dir = tmp_path / "lineage-a" / "rank_3"
     config = json.loads((run_dir / "config.json").read_text())
     assert config["training_config"]["log_reward_diagnostics"] is False
+    assert config["training_config"]["sample_initial_state"] is False
+    assert config["training_config"]["sample_target_root_octave"] is False
     assert config["training_config"]["final_inference_sample_target_root_octave"] is True
     assert config["training_config"]["final_inference_sample_initial_state"] is True
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()

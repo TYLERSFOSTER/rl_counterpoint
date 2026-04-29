@@ -50,12 +50,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--initial-parent-pitch", type=int, default=64)
     parser.add_argument("--initial-child-pitch", type=int, default=68)
+    parser.add_argument(
+        "--sample-initial-state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--initial-parent-pitch-min", type=int, default=36)
+    parser.add_argument("--initial-parent-pitch-max", type=int, default=84)
+    parser.add_argument(
+        "--sample-initial-parent-pitch-in-target-octave",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
     parser.add_argument("--key-pitch-class", type=int, default=0)
     parser.add_argument("--target-root-octave", type=int, default=4)
     parser.add_argument(
         "--sample-target-root-octave",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
     )
     parser.add_argument(
         "--target-root-octave-choices",
@@ -150,6 +162,12 @@ def _training_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "max_steps": args.max_steps,
         "learning_rate": args.learning_rate,
+        "sample_initial_state": args.sample_initial_state,
+        "initial_parent_pitch_min": args.initial_parent_pitch_min,
+        "initial_parent_pitch_max": args.initial_parent_pitch_max,
+        "sample_initial_parent_pitch_in_target_octave": (
+            args.sample_initial_parent_pitch_in_target_octave
+        ),
         "sample_target_root_octave": args.sample_target_root_octave,
         "target_root_octave_choices": args.target_root_octave_choices,
         "sampling_temperature": args.sampling_temperature,
