@@ -1,6 +1,5 @@
 # RL Counterpoint
-
-`rl_counterpoint` is a research repo for [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) based [counterpoint](https://en.wikipedia.org/wiki/Counterpoint) generation. 
+`rl_counterpoint` is a research repo for [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) based [counterpoint](https://en.wikipedia.org/wiki/Counterpoint) generation. The long-term goal is to train an RL agent, equipped with a tranformer-driven policy function, to generate "good" counterpoint passages, and to be able to modify the flavor/feel/vibe of these voiceleading passages by modifying the agent's reward functions.
 
 The repo currently contains two systems:
 
@@ -9,9 +8,15 @@ The repo currently contains two systems:
 
 Right now, `tower` is the central product in this repo.
 
-## What This Repo Is For
 
-The long-term goal is to train an RL agent, equipped with a tranformer-driven policy function, to generate "good" counterpoint passage. The key technical insigth about how to do this that we implement in the present repo is:
+
+## Key PM Engineering Insights
+
+### **Insight 1.** *The book [Tonal Counterpoint for the 21st Century Musician](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is accidentially written for RL training pipelines.*
+A
+
+### Counterpoint is naturally a problem in [Hierarchical RL](https://arxiv.org/pdf/2506.14045)
+The ***second*** key technical insigth about how to do this that we implement in the present repo is:
 > The probelm of generating counterpoint passages is naturally hierarchical. For instance, 3-part voiceleading naturally reduces to an inner-voice problem *over* a simpler 2-part voice leading problem, itself natrually reducing to an upper-voice problem *over* a simpler 1-voice pedal problem.
 
 From an engineering perspective, this means a hierarchical system of agents with interrelated, but separate policy models, trained as follows:
@@ -19,13 +24,17 @@ From an engineering perspective, this means a hierarchical system of agents with
 - rank 2: add the top voice over a frozen rank-1 (pedal) scaffold
 - rank 3+: add further interior voices over lower-rank scaffolds and under upper-voice.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/images/hrl_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/images/hrl_light.png">
-  <img src="assets/images/hrl_light.png" alt="Hierarchy of voiceleading ranks: rank 1 learns the pedal, rank 2 learns an added outer voice over the frozen pedal, and rank 3 learns an interior voice over the frozen lower scaffold." width="900">
-</picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/images/hrl_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/images/hrl_light.png">
+    <img src="assets/images/hrl_light.png" alt="Hierarchy of voiceleading ranks: rank 1 learns the pedal, rank 2 learns an added outer voice over the frozen pedal, and rank 3 learns an interior voice over the frozen lower scaffold." width="900">
+  </picture>
 
 The design lives in `tower/` and is documented in `docs/design/tower/`.
+
+An important reward-design reference for this repo is [docs/design/tower/rank_local_reward_spec.md](/Users/foster/rl_counterpoint/docs/design/tower/rank_local_reward_spec.md), which is built from the TC21M notes in `assets/rules/tc21m_rules.md`.
+
+The insight in using that book as a reference manual is not "copy the prose directly into code." It is to use the book as a structured source of musically meaningful reward ideas: which intervals are stable or unstable, which motions want recovery or resolution, which beat positions matter structurally, and which cadential shapes should count as successful endings. In other words, the book is valuable here as a guide for building reward terms and pruning ideas that reflect real contrapuntal practice.
 
 
 ## Current Status
