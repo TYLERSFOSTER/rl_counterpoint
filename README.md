@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/rules/images/triadic_dark.png">
   <source media="(prefers-color-scheme: light)" srcset="assets/rules/images/triadic_light.png">
-  <img src="assets/rules/images/triadic_light.png" alt="Triadic voiceleading illustration" width="auto">
+  <img src="assets/rules/images/triadic_light.png" alt="Triadic voiceleading illustration" width="250">
 </picture>
 
 # RL Counterpoint
