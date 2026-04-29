@@ -68,7 +68,7 @@ The design lives in [`tower/`](/tower/) and is documented in [`docs/design/tower
 
 ## Current Project Status
 
-### Legacy system: `rl_counterpoint/`
+### Legacy system: [`rl_counterpoint/`](/rl_counterpoint/)
 
 This subproject is frozen. It still matters because it provides:
 
@@ -79,7 +79,7 @@ This subproject is frozen. It still matters because it provides:
 
 You should think of it as historical ground truth, not the active destination.
 
-### Active system: `tower/`
+### Active system: [`tower/`](/tower/)
 
 This is the current build target. It already includes:
 
@@ -88,7 +88,10 @@ This is the current build target. It already includes:
 - artifact-backed rank-local training runs
 - staged rank-1 training
 - rank-2 training over accepted rank-1 parent checkpoints
+- staged rank-2 training
+- rank-3 training over frozen lower-rank parent scaffolds
 - reward diagnostics, checkpoints, metrics, and MIDI artifact writing
+- final-rank-aware lower-tier graph rebuilding for the active tower
 - tests covering graph, reward, rollout, runner, scripts, and protocol behavior
 
 Implemented slices are still intentionally incomplete from a musical point of view, but the engineering substrate is real and actively used.
@@ -108,7 +111,7 @@ rl_counterpoint/
 └── README.md
 ```
 
-### Active `tower/` package
+### Active [`tower/`](/tower/) package
 
 ```text
 tower/
@@ -122,17 +125,21 @@ tower/
 
 ### Key scripts
 
-- `scripts/tower_train.py`
+- [`scripts/tower_train.py`](/scripts/tower_train.py)
   - single rank-1 training run
-- `scripts/tower_train_staged.py`
+- [`scripts/tower_train_staged.py`](/scripts/tower_train_staged.py)
   - staged rank-1 curriculum, typically coupled start/target then decoupled continuation
-- `scripts/tower_train_rank2.py`
+- [`scripts/tower_train_rank2.py`](/scripts/tower_train_rank2.py)
   - rank-2 training against an accepted rank-1 parent checkpoint
-- `scripts/tower_reward_probe.py`
+- [`scripts/tower_train_rank2_staged.py`](/scripts/tower_train_rank2_staged.py)
+  - staged rank-2 curriculum
+- [`scripts/tower_train_rank3.py`](/scripts/tower_train_rank3.py)
+  - rank-3 training against a frozen lower-rank parent stack
+- [`scripts/tower_reward_probe.py`](/scripts/tower_reward_probe.py)
   - quick reward probing for tower slices
-- `scripts/train_reinforce.py`
+- [`scripts/train_reinforce.py`](/scripts/train_reinforce.py)
   - legacy flat-system training entrypoint
-- `scripts/smoke_*.py`
+- [`scripts/smoke_*.py`](/scripts/smoke_*.py)
   - small sanity scripts for the legacy baseline
 
 ## Installation
@@ -184,6 +191,25 @@ uv run python scripts/tower_train_rank2.py \
   --episodes 5000
 ```
 
+Staged curriculum:
+
+```bash
+uv run python scripts/tower_train_rank2_staged.py \
+  --lineage-id my-rank2-lineage \
+  --stage1-episodes 5000 \
+  --stage2-episodes 5000
+```
+
+### Rank-3 tower training
+
+This assumes the lineage already has an accepted lower-rank parent stack.
+
+```bash
+uv run python scripts/tower_train_rank3.py \
+  --lineage-id my-rank2-lineage \
+  --episodes 5000
+```
+
 ## Artifacts
 
 Training runs write under `artifacts/`.
@@ -194,6 +220,7 @@ Typical tower lineage layout:
 artifacts/tower/<lineage-id>-stage1/rank_1/
 artifacts/tower/<lineage-id>/rank_1/
 artifacts/tower/<lineage-id>/rank_2/
+artifacts/tower/<lineage-id>/rank_3/
 ```
 
 Common outputs include:
@@ -207,15 +234,15 @@ Common outputs include:
 
 ## Documentation
 
-The repo has a lot of project memory in `docs/`.
+The repo has a lot of project memory in [`docs/`](/docs/).
 
 Most important folders:
 
-- `docs/design/tower/`
+- [`docs/design/tower/`](/docs/design/tower/)
   - system design, rollout semantics, training protocol, reward contracts, build plans
-- `docs/engineer_continuity/`
+- [`docs/engineer_continuity/`](/docs/engineer_continuity/)
   - session handoff reports and implementation continuity
-- `docs/prime_directive/`
+- [`docs/prime_directive/`](/docs/prime_directive/)
   - operating instructions for the engineering agent working in this repo
 
 Good starting points:
@@ -232,10 +259,3 @@ Good starting points:
 - pytest uses `--import-mode=importlib` to avoid duplicate test-module name collisions
 - artifact directories can get large during training; long runs often disable training reward diagnostics to keep disk usage sane
 
-## Honest Snapshot
-
-This is an active research codebase with real infrastructure and moving musical targets.
-
-The old flat system still works and is useful as reference. The new `tower` system is where current implementation effort goes. Rank-1 training is much more mature than rank-2 training, and higher ranks are still ahead of us.
-
-So the repo is not "finished," but it is no longer a sketch either. It contains a working experimental ladder from legacy baseline to hierarchical training.
