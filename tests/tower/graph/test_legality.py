@@ -30,6 +30,14 @@ def test_rank_2_perfect_fourth_vertical_interval_false() -> None:
     assert not is_valid_state((63, 68), TowerGraphSpec(rank=2))
 
 
+def test_rank_2_tritone_vertical_interval_true() -> None:
+    assert is_valid_state((60, 66), TowerGraphSpec(rank=2))
+
+
+def test_rank_2_minor_seventh_vertical_interval_true() -> None:
+    assert is_valid_state((60, 70), TowerGraphSpec(rank=2))
+
+
 def test_rank_2_octave_vertical_interval_false() -> None:
     assert not is_valid_state((60, 72), TowerGraphSpec(rank=2))
 
@@ -116,6 +124,10 @@ def test_rank_3_outer_pair_must_project_to_valid_rank_2_state() -> None:
 
 def test_rank_3_adjacent_interval_must_be_allowed() -> None:
     assert not is_valid_state((60, 65, 68), TowerGraphSpec(rank=3, key_pitch_class=0))
+
+
+def test_rank_3_outer_interval_class_set_is_separate_and_allows_new_projected_rank_2_spans() -> None:
+    assert is_valid_state((60, 63, 66), TowerGraphSpec(rank=3, key_pitch_class=0))
 
 
 def test_rank_3_outer_width_must_be_bounded() -> None:

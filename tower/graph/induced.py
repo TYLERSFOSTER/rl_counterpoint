@@ -17,8 +17,8 @@ INDUCED_GRAPH_ARTIFACT_SCHEMA_VERSION: Final[int] = 2
 INDUCED_RANK1_FROM_RANK2_KIND: Final[str] = "induced_rank1_graph"
 INDUCED_RANK2_FROM_RANK3_KIND: Final[str] = "induced_rank2_graph"
 PROJECTION_CONVENTION_VERSION: Final[str] = "tower.project_tuple.v1"
-RANK2_LEGALITY_CONTRACT_VERSION: Final[str] = "tower.rank2_legality.v4"
-RANK3_LEGALITY_CONTRACT_VERSION: Final[str] = "tower.rank3_legality.v1"
+RANK2_LEGALITY_CONTRACT_VERSION: Final[str] = "tower.rank2_legality.v5"
+RANK3_LEGALITY_CONTRACT_VERSION: Final[str] = "tower.rank3_legality.v2"
 
 
 def build_induced_rank1_graph_payload(

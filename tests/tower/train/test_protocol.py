@@ -34,6 +34,7 @@ from tower.train.protocol import (
     train_rank3_episode,
     train_rank3_episode_with_artifacts,
 )
+from tower.train.trajectory import TowerTrajectory, TowerTrajectoryStep
 from tower.window import TowerWindow
 
 
@@ -586,10 +587,10 @@ def test_train_rank2_episode_filters_parent_actions_to_nonempty_lifts() -> None:
 
     parent_sampler = result.trajectory.steps[0].diagnostics["parent_sampler"]
     assert parent_sampler["unfiltered_parent_actions"] == ((-2,), (1,))
-    assert parent_sampler["feasible_parent_actions"] == ((-2,),)
-    assert parent_sampler["parent_actions"] == ((-2,),)
-    assert parent_sampler["parent_feasibility_filter_applied"] is True
-    assert result.trajectory.steps[0].parent_action == (-2,)
+    assert parent_sampler["feasible_parent_actions"] == ((-2,), (1,))
+    assert parent_sampler["parent_actions"] == ((-2,), (1,))
+    assert parent_sampler["parent_feasibility_filter_applied"] is False
+    assert result.trajectory.steps[0].parent_action in parent_sampler["parent_actions"]
 
 
 def test_train_rank2_episode_loss_ignores_parent_logprob_gradient() -> None:
@@ -610,6 +611,63 @@ def test_train_rank2_episode_loss_ignores_parent_logprob_gradient() -> None:
 
     assert parent_policy.logits.grad is None
     assert child_policy.logits.grad is not None
+
+
+def test_train_rank2_episode_counts_no_child_gradient_without_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent_policy = TinyRank1Policy()
+    child_policy = TinyRank2Policy()
+    child_optimizer = torch.optim.SGD(child_policy.parameters(), lr=0.1)
+    child_before = child_policy.logits.detach().clone()
+
+    trajectory = TowerTrajectory(
+        steps=(
+            TowerTrajectoryStep(
+                rank=2,
+                step_index=0,
+                source_state=(60, 64),
+                window=TowerWindow(
+                    states=((60, 64),),
+                    bar_positions=(0,),
+                    valid_mask=(True,),
+                ),
+                parent_state=(60,),
+                parent_action=(2,),
+                active_choice=None,
+                assembled_action=(2, 1),
+                attempted_target_state=(62, 65),
+                realized_next_state=(62, 65),
+                active_logprob=None,
+                parent_logprob=None,
+                reward=TowerRewardResult(reward=1.0),
+                terminated=False,
+                truncated=True,
+                outcome="empty_lift_fiber",
+            ),
+        )
+    )
+
+    monkeypatch.setattr(
+        "tower.train.protocol.rollout_rank2",
+        lambda **kwargs: trajectory,
+    )
+
+    result = train_rank2_episode(
+        parent_policy=parent_policy,
+        child_policy=child_policy,
+        child_optimizer=child_optimizer,
+        initial_state=(60, 64),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(rank=2, pitch_min=60, pitch_max=65, max_step_size=2),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.metrics["no_child_gradient_count"] == 1
+    assert result.metrics["empty_lift_fiber_count"] == 1
+    assert child_policy.logits.grad is None
+    assert torch.allclose(child_policy.logits.detach(), child_before)
 
 
 def test_train_rank2_episode_rejects_wrong_policy_ranks() -> None:
@@ -783,11 +841,12 @@ def test_train_rank3_episode_filters_grandparent_actions_to_nonempty_parent_lift
     parent_sampler = result.trajectory.steps[0].diagnostics["parent_sampler"]
     grandparent_sampler = parent_sampler["grandparent_sampler"]
     assert grandparent_sampler["unfiltered_parent_actions"] == ((-2,), (2,))
-    assert grandparent_sampler["feasible_parent_actions"] == ((-2,),)
-    assert grandparent_sampler["parent_actions"] == ((-2,),)
-    assert grandparent_sampler["parent_feasibility_filter_applied"] is True
-    assert parent_sampler["parent_active_choices"] == (-1,)
-    assert result.trajectory.steps[0].parent_action == (-2, -1)
+    assert grandparent_sampler["feasible_parent_actions"] == ((-2,), (2,))
+    assert grandparent_sampler["parent_actions"] == ((-2,), (2,))
+    assert grandparent_sampler["parent_feasibility_filter_applied"] is False
+    assert set(parent_sampler["parent_active_choices"]) == {-1, 1}
+    assert result.trajectory.steps[0].parent_action[0] in {-2, 2}
+    assert result.trajectory.steps[0].parent_action[1] in parent_sampler["parent_active_choices"]
 
 
 def test_train_rank3_episode_rejects_wrong_policy_ranks() -> None:

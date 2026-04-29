@@ -98,7 +98,7 @@ def test_write_induced_rank1_graph_artifact_persists_payload(tmp_path: Path) -> 
     payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert payload["kind"] == "induced_rank1_graph"
     assert payload["artifact_schema_version"] == 2
-    assert payload["rank2_legality_contract_version"] == "tower.rank2_legality.v4"
+    assert payload["rank2_legality_contract_version"] == "tower.rank2_legality.v5"
     assert payload["node_image"] == [[64]]
 
 
@@ -115,7 +115,7 @@ def test_induced_rank2_payload_contains_only_projected_valid_rank3_nodes() -> No
 
     assert payload["source_rank"] == 3
     assert payload["target_rank"] == 2
-    assert payload["node_image"] == [[60, 67], [60, 68], [62, 69]]
+    assert payload["node_image"] == [[60, 66], [60, 67], [60, 68], [62, 68], [62, 69]]
 
 
 def test_induced_rank2_payload_contains_projected_valid_edges() -> None:
@@ -130,7 +130,11 @@ def test_induced_rank2_payload_contains_projected_valid_edges() -> None:
     )
 
     assert payload["edge_image"] == [
+        {"source": [60, 66], "target": [62, 68]},
+        {"source": [60, 67], "target": [62, 68]},
         {"source": [60, 68], "target": [62, 69]},
+        {"source": [62, 68], "target": [60, 66]},
+        {"source": [62, 68], "target": [60, 67]},
         {"source": [62, 69], "target": [60, 68]},
     ]
 
@@ -186,5 +190,5 @@ def test_write_induced_rank2_graph_artifact_persists_payload(tmp_path: Path) -> 
     payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert payload["kind"] == "induced_rank2_graph"
     assert payload["artifact_schema_version"] == 2
-    assert payload["rank3_legality_contract_version"] == "tower.rank3_legality.v1"
-    assert payload["node_image"] == [[60, 67], [60, 68], [62, 69]]
+    assert payload["rank3_legality_contract_version"] == "tower.rank3_legality.v2"
+    assert payload["node_image"] == [[60, 66], [60, 67], [60, 68], [62, 68], [62, 69]]

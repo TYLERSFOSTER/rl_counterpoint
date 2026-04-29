@@ -1118,6 +1118,61 @@ def _rank1_scaffold_state(
     return (_sample_sequence_choice(eligible_pitches, generator=generator),)
 
 
+def _rank1_scaffold_pitches(
+    *,
+    target_root_octave: int | None,
+    spec: TowerGraphSpec,
+    config: TowerRunnerConfig,
+) -> list[int]:
+    """Return legal rank-1 scaffold pitches under higher-rank initialization rules."""
+    pitch_min = _training_int(
+        config,
+        "initial_parent_pitch_min",
+        default=spec.pitch_min,
+    )
+    pitch_max = _training_int(
+        config,
+        "initial_parent_pitch_max",
+        default=spec.pitch_max,
+    )
+    pitch_min = max(spec.pitch_min, pitch_min)
+    pitch_max = min(spec.pitch_max, pitch_max)
+
+    sample_pitch_in_target_octave = _training_bool(
+        config,
+        "sample_initial_parent_pitch_in_target_octave",
+        default=False,
+    )
+    if sample_pitch_in_target_octave:
+        if target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required to sample scaffold pitch in target octave"
+            )
+        octave_pitch_min = 12 * (target_root_octave + 1)
+        octave_pitch_max = octave_pitch_min + 11
+        pitch_min = max(pitch_min, octave_pitch_min)
+        pitch_max = min(pitch_max, octave_pitch_max)
+
+    if pitch_min > pitch_max:
+        raise ValueError("scaffold pitch sampling range must not be empty")
+
+    rank1_spec = TowerGraphSpec(
+        rank=1,
+        key_pitch_class=spec.key_pitch_class,
+        pitch_min=spec.pitch_min,
+        pitch_max=spec.pitch_max,
+        max_step_size=spec.max_step_size,
+    )
+    eligible_pitches = [
+        pitch
+        for pitch in range(pitch_min, pitch_max + 1)
+        if is_valid_state((pitch,), rank1_spec)
+    ]
+    if not eligible_pitches:
+        raise ValueError("no legal scaffold pitches satisfy the requested sampling constraints")
+    return eligible_pitches
+
+
 def _rank2_episode_initial_state(
     *,
     initial_state: tuple[int, ...],
@@ -1132,12 +1187,21 @@ def _rank2_episode_initial_state(
     ):
         return initial_state
 
-    lower = _rank1_scaffold_state(
-        target_root_octave=target_root_octave,
-        spec=spec,
-        config=config,
-        generator=generator,
-    )[0]
+    eligible_lowers = [
+        lower
+        for lower in _rank1_scaffold_pitches(
+            target_root_octave=target_root_octave,
+            spec=spec,
+            config=config,
+        )
+        if any(
+            is_valid_state((lower, upper), spec)
+            for upper in range(lower + 1, spec.pitch_max + 1)
+        )
+    ]
+    if not eligible_lowers:
+        raise ValueError("no legal rank-2 scaffolds admit a valid higher-rank start")
+    lower = _sample_sequence_choice(eligible_lowers, generator=generator)
     eligible_uppers = [
         upper
         for upper in range(lower + 1, spec.pitch_max + 1)
@@ -1164,14 +1228,13 @@ def _rank3_episode_initial_state(
     ):
         return initial_state
 
-    lower = _rank1_scaffold_state(
-        target_root_octave=target_root_octave,
-        spec=spec,
-        config=config,
-        generator=generator,
-    )[0]
     eligible_outer_pairs = [
         (lower, upper)
+        for lower in _rank1_scaffold_pitches(
+            target_root_octave=target_root_octave,
+            spec=spec,
+            config=config,
+        )
         for upper in range(lower + 2, spec.pitch_max + 1)
         if any(
             is_valid_state((lower, middle, upper), spec)
@@ -1181,7 +1244,7 @@ def _rank3_episode_initial_state(
     if not eligible_outer_pairs:
         raise ValueError("no legal rank-3 outer scaffolds exist over the sampled pedal")
 
-    _, upper = _sample_sequence_choice(eligible_outer_pairs, generator=generator)
+    lower, upper = _sample_sequence_choice(eligible_outer_pairs, generator=generator)
     eligible_middles = [
         middle
         for middle in range(lower + 1, upper)

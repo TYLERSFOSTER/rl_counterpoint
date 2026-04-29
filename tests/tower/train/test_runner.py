@@ -339,9 +339,16 @@ def test_graph_spec_from_config_builds_induced_rank2_graph_from_rank3() -> None:
     assert spec.rank == 2
     assert spec.pitch_min == 60
     assert spec.pitch_max == 69
-    assert spec.induced_node_image == frozenset({(60, 67), (60, 68), (62, 69)})
+    assert spec.induced_node_image == frozenset({(60, 66), (60, 67), (60, 68), (62, 68), (62, 69)})
     assert spec.induced_edge_image == frozenset(
-        {((60, 68), (62, 69)), ((62, 69), (60, 68))}
+        {
+            ((60, 66), (62, 68)),
+            ((60, 67), (62, 68)),
+            ((60, 68), (62, 69)),
+            ((62, 68), (60, 66)),
+            ((62, 68), (60, 67)),
+            ((62, 69), (60, 68)),
+        }
     )
 
 
@@ -470,7 +477,7 @@ def test_rank3_episode_initial_state_samples_scaffold_first() -> None:
     )
 
     assert sampled[0] == 60
-    assert sampled[2] == 67
+    assert sampled[2] in {66, 67}
     assert sampled[1] in {63, 64}
     assert is_valid_state(sampled, spec)
 

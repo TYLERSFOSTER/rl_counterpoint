@@ -336,17 +336,23 @@ def train_rank2_episode(
     )
 
     child_optimizer.zero_grad()
-    loss.loss.backward()
-    child_optimizer.step()
+    no_child_gradient = (
+        int(loss.diagnostics.get("active_step_count", 0)) == 0
+    )
+    if not no_child_gradient:
+        loss.loss.backward()
+        child_optimizer.step()
 
+    metrics = _episode_metrics(
+        trajectory=trajectory,
+        rank=2,
+        loss_value=float(loss.loss.detach().cpu().item()),
+    )
+    metrics["no_child_gradient_count"] = 1 if no_child_gradient else 0
     return TrainEpisodeResult(
         trajectory=trajectory,
         loss=loss,
-        metrics=_episode_metrics(
-            trajectory=trajectory,
-            rank=2,
-            loss_value=float(loss.loss.detach().cpu().item()),
-        ),
+        metrics=metrics,
     )
 
 

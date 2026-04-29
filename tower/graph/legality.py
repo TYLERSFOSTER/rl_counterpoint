@@ -6,10 +6,11 @@ from tower.graph.spec import TowerGraphSpec
 from tower.graph.projection import project_action, project_state
 from tower.state_action import TowerAction, TowerState, apply_action, validate_action, validate_state
 
-RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
+RANK2_ALLOWED_VERTICAL_INTERVAL_CLASSES = frozenset({3, 4, 6, 7, 8, 9, 10})
 RANK2_MAX_VERTICAL_INTERVAL = 10
 RANK1_ALLOWED_DIATONIC_INTERVAL_CLASSES = frozenset({0, 2, 4, 5, 7, 9, 11})
-RANK3_ALLOWED_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
+RANK3_ALLOWED_ADJACENT_INTERVAL_CLASSES = frozenset({3, 4, 7, 8, 9})
+RANK3_ALLOWED_OUTER_INTERVAL_CLASSES = frozenset({6, 7, 8, 10})
 RANK3_MAX_OUTER_INTERVAL = 15
 
 
@@ -132,15 +133,15 @@ def is_valid_state(state: TowerState, spec: TowerGraphSpec) -> bool:
             return False
 
         lower_adjacent_interval, upper_adjacent_interval = _rank3_adjacent_intervals(state)
-        if lower_adjacent_interval % 12 not in RANK3_ALLOWED_INTERVAL_CLASSES:
+        if lower_adjacent_interval % 12 not in RANK3_ALLOWED_ADJACENT_INTERVAL_CLASSES:
             return False
-        if upper_adjacent_interval % 12 not in RANK3_ALLOWED_INTERVAL_CLASSES:
+        if upper_adjacent_interval % 12 not in RANK3_ALLOWED_ADJACENT_INTERVAL_CLASSES:
             return False
 
         outer_interval = _rank3_outer_interval(state)
         if outer_interval > RANK3_MAX_OUTER_INTERVAL:
             return False
-        if outer_interval % 12 not in RANK3_ALLOWED_INTERVAL_CLASSES:
+        if outer_interval % 12 not in RANK3_ALLOWED_OUTER_INTERVAL_CLASSES:
             return False
 
     return True
