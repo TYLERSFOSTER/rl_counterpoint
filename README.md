@@ -21,6 +21,28 @@ The key design idea is that higher-rank states and actions project to valid lowe
 
 That design lives in `tower/` and is documented in `docs/design/tower/`.
 
+## Voiceleading Hierarchy
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/images/hrl_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/images/hrl_light.png">
+  <img src="assets/images/hrl_light.png" alt="Hierarchy of voiceleading ranks: rank 1 learns the pedal, rank 2 learns an added outer voice over the frozen pedal, and rank 3 learns an interior voice over the frozen lower scaffold." width="900">
+</picture>
+
+### Project-Manager Insight
+
+One of the most important organizing ideas in this project is that the hierarchy is not just an implementation convenience. It is the product insight.
+
+The project manager framing is:
+
+- rank 1 should learn the pedal line
+- rank 2 should learn only the added outer voice over a frozen pedal
+- rank 3 should learn only the inserted interior voice over a frozen lower scaffold
+
+That means higher tiers are not supposed to relearn the whole sonority from scratch. They are supposed to contribute one new layer of musical responsibility while respecting the structure learned below.
+
+In practical terms, this is why the repo keeps returning to projection, lift fibers, frozen parent checkpoints, and induced lower-rank graph pruning. The system is trying to make "voiceleading hierarchy" real in training, not just in notation.
+
 ## Current Status
 
 ### Legacy system: `rl_counterpoint/`
