@@ -8,9 +8,8 @@ from typing import Mapping
 import torch
 
 from tower.action.assembly import assemble_action
-from tower.graph.actions import action_space, active_lift_choices
+from tower.graph.actions import active_lift_choices, legal_actions_for_state
 from tower.graph.projection import project_state, project_window
-from tower.graph.legality import is_valid_transition
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import RankPolicy, freeze_parent_policy
 from tower.policy.samplers import (
@@ -254,13 +253,9 @@ def train_rank2_episode(
     def parent_sampler(**kwargs: object):
         parent_state = kwargs["state"]  # type: ignore[assignment]
         full_state = kwargs["full_state"]  # type: ignore[assignment]
-        parent_actions = tuple(
-            action
-            for action in action_space(
-                rank=1,
-                max_step_size=parent_spec.max_step_size,
-            )
-            if is_valid_transition(parent_state, action, parent_spec)  # type: ignore[arg-type]
+        parent_actions = legal_actions_for_state(
+            state=parent_state,  # type: ignore[arg-type]
+            spec=parent_spec,
         )
         feasible_parent_actions = tuple(
             action
@@ -433,13 +428,9 @@ def train_rank3_episode(
                 )
             )
 
-        grandparent_actions = tuple(
-            action
-            for action in action_space(
-                rank=1,
-                max_step_size=grandparent_spec.max_step_size,
-            )
-            if is_valid_transition(grandparent_state, action, grandparent_spec)  # type: ignore[arg-type]
+        grandparent_actions = legal_actions_for_state(
+            state=grandparent_state,  # type: ignore[arg-type]
+            spec=grandparent_spec,
         )
         feasible_grandparent_actions = tuple(
             action

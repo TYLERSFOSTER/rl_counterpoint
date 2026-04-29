@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Generic, Mapping, TypeVar, cast
 
 import torch
@@ -276,6 +277,25 @@ def _policy_output(
     target_root_octave: int | None,
     max_step_size: int | None,
 ) -> PolicyOutput:
+    if isinstance(policy, torch.nn.Module):
+        frozen_module = all(not parameter.requires_grad for parameter in policy.parameters())
+        if frozen_module:
+            with torch.inference_mode():
+                if isinstance(policy, TowerTransformerPolicy):
+                    return policy(
+                        encode_tower_window(
+                            window=window,
+                            measure_size=measure_size,
+                            rank=policy.rank,
+                            key_pitch_class=key_pitch_class,
+                            target_root_octave=target_root_octave,
+                            max_step_size=max_step_size,
+                        )
+                    )
+
+                legacy_policy = cast(LegacyRankPolicyCall, policy)
+                return legacy_policy(state=state, window=window)
+
     if isinstance(policy, TowerTransformerPolicy):
         return policy(
             encode_tower_window(
@@ -304,13 +324,10 @@ def _active_choice_logits(
     if max_step_size is None:
         raise ValueError("policy logits length must match active_choices")
 
-    indices = tuple(
-        _active_choice_index(
-            choice=choice,
-            policy_rank=policy_rank,
-            max_step_size=max_step_size,
-        )
-        for choice in active_choices
+    indices = _active_choice_indices(
+        active_choices=active_choices,
+        policy_rank=policy_rank,
+        max_step_size=max_step_size,
     )
     if max(indices) >= logits.shape[0]:
         raise ValueError("policy logits length must cover active_choices")
@@ -331,12 +348,9 @@ def _parent_action_logits(
     if policy_rank != 1:
         raise ValueError("full-lattice parent action logits require rank 1")
 
-    indices = tuple(
-        _rank1_nonzero_action_index(
-            choice=action[0],
-            max_step_size=max_step_size,
-        )
-        for action in parent_actions
+    indices = _parent_action_indices(
+        parent_actions=parent_actions,
+        max_step_size=max_step_size,
     )
     if max(indices) >= logits.shape[0]:
         raise ValueError("policy logits length must cover parent_actions")
@@ -371,3 +385,35 @@ def _rank1_nonzero_action_index(
     if choice < 0:
         return choice + max_step_size
     return choice + max_step_size - 1
+
+
+@lru_cache(maxsize=None)
+def _active_choice_indices(
+    *,
+    active_choices: tuple[int, ...],
+    policy_rank: int,
+    max_step_size: int,
+) -> tuple[int, ...]:
+    return tuple(
+        _active_choice_index(
+            choice=choice,
+            policy_rank=policy_rank,
+            max_step_size=max_step_size,
+        )
+        for choice in active_choices
+    )
+
+
+@lru_cache(maxsize=None)
+def _parent_action_indices(
+    *,
+    parent_actions: tuple[TowerAction, ...],
+    max_step_size: int,
+) -> tuple[int, ...]:
+    return tuple(
+        _rank1_nonzero_action_index(
+            choice=action[0],
+            max_step_size=max_step_size,
+        )
+        for action in parent_actions
+    )

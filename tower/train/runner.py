@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 from pathlib import Path
 from typing import Mapping
@@ -10,14 +11,14 @@ from typing import Mapping
 import torch
 
 from tower.action.assembly import assemble_action
-from tower.graph.actions import action_space, active_lift_choices
+from tower.graph.actions import active_lift_choices, legal_actions_for_state
 from tower.graph.induced import (
     induced_rank1_graph_artifact_path,
     induced_rank2_graph_artifact_path,
     write_induced_rank1_graph_artifact,
     write_induced_rank2_graph_artifact,
 )
-from tower.graph.legality import is_valid_state, is_valid_transition
+from tower.graph.legality import is_valid_state
 from tower.graph.projection import project_state, project_window
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import RankPolicy
@@ -1156,21 +1157,86 @@ def _rank1_scaffold_pitches(
     if pitch_min > pitch_max:
         raise ValueError("scaffold pitch sampling range must not be empty")
 
-    rank1_spec = TowerGraphSpec(
-        rank=1,
-        key_pitch_class=spec.key_pitch_class,
-        pitch_min=spec.pitch_min,
-        pitch_max=spec.pitch_max,
-        max_step_size=spec.max_step_size,
+    eligible_pitches = list(
+        _cached_rank1_scaffold_pitches(
+            key_pitch_class=spec.key_pitch_class,
+            pitch_min=spec.pitch_min,
+            pitch_max=spec.pitch_max,
+            max_step_size=spec.max_step_size,
+            requested_pitch_min=pitch_min,
+            requested_pitch_max=pitch_max,
+        )
     )
-    eligible_pitches = [
-        pitch
-        for pitch in range(pitch_min, pitch_max + 1)
-        if is_valid_state((pitch,), rank1_spec)
-    ]
     if not eligible_pitches:
         raise ValueError("no legal scaffold pitches satisfy the requested sampling constraints")
     return eligible_pitches
+
+
+@lru_cache(maxsize=None)
+def _cached_rank1_scaffold_pitches(
+    *,
+    key_pitch_class: int,
+    pitch_min: int,
+    pitch_max: int,
+    max_step_size: int,
+    requested_pitch_min: int,
+    requested_pitch_max: int,
+) -> tuple[int, ...]:
+    rank1_spec = TowerGraphSpec(
+        rank=1,
+        key_pitch_class=key_pitch_class,
+        pitch_min=pitch_min,
+        pitch_max=pitch_max,
+        max_step_size=max_step_size,
+    )
+    return tuple(
+        pitch
+        for pitch in range(requested_pitch_min, requested_pitch_max + 1)
+        if is_valid_state((pitch,), rank1_spec)
+    )
+
+
+@lru_cache(maxsize=None)
+def _cached_rank2_scaffold_extensions(
+    *,
+    lower: int,
+    spec: TowerGraphSpec,
+) -> tuple[int, ...]:
+    return tuple(
+        upper
+        for upper in range(lower + 1, spec.pitch_max + 1)
+        if is_valid_state((lower, upper), spec)
+    )
+
+
+@lru_cache(maxsize=None)
+def _cached_rank3_outer_scaffolds(
+    *,
+    lower: int,
+    spec: TowerGraphSpec,
+) -> tuple[tuple[int, int], ...]:
+    return tuple(
+        (lower, upper)
+        for upper in range(lower + 2, spec.pitch_max + 1)
+        if any(
+            is_valid_state((lower, middle, upper), spec)
+            for middle in range(lower + 1, upper)
+        )
+    )
+
+
+@lru_cache(maxsize=None)
+def _cached_rank3_middle_insertions(
+    *,
+    lower: int,
+    upper: int,
+    spec: TowerGraphSpec,
+) -> tuple[int, ...]:
+    return tuple(
+        middle
+        for middle in range(lower + 1, upper)
+        if is_valid_state((lower, middle, upper), spec)
+    )
 
 
 def _rank2_episode_initial_state(
@@ -1194,19 +1260,12 @@ def _rank2_episode_initial_state(
             spec=spec,
             config=config,
         )
-        if any(
-            is_valid_state((lower, upper), spec)
-            for upper in range(lower + 1, spec.pitch_max + 1)
-        )
+        if _cached_rank2_scaffold_extensions(lower=lower, spec=spec)
     ]
     if not eligible_lowers:
         raise ValueError("no legal rank-2 scaffolds admit a valid higher-rank start")
     lower = _sample_sequence_choice(eligible_lowers, generator=generator)
-    eligible_uppers = [
-        upper
-        for upper in range(lower + 1, spec.pitch_max + 1)
-        if is_valid_state((lower, upper), spec)
-    ]
+    eligible_uppers = list(_cached_rank2_scaffold_extensions(lower=lower, spec=spec))
     if not eligible_uppers:
         raise ValueError("no legal rank-2 extensions exist over the sampled scaffold")
 
@@ -1229,27 +1288,21 @@ def _rank3_episode_initial_state(
         return initial_state
 
     eligible_outer_pairs = [
-        (lower, upper)
+        outer_pair
         for lower in _rank1_scaffold_pitches(
             target_root_octave=target_root_octave,
             spec=spec,
             config=config,
         )
-        for upper in range(lower + 2, spec.pitch_max + 1)
-        if any(
-            is_valid_state((lower, middle, upper), spec)
-            for middle in range(lower + 1, upper)
-        )
+        for outer_pair in _cached_rank3_outer_scaffolds(lower=lower, spec=spec)
     ]
     if not eligible_outer_pairs:
         raise ValueError("no legal rank-3 outer scaffolds exist over the sampled pedal")
 
     lower, upper = _sample_sequence_choice(eligible_outer_pairs, generator=generator)
-    eligible_middles = [
-        middle
-        for middle in range(lower + 1, upper)
-        if is_valid_state((lower, middle, upper), spec)
-    ]
+    eligible_middles = list(
+        _cached_rank3_middle_insertions(lower=lower, upper=upper, spec=spec)
+    )
     if not eligible_middles:
         raise ValueError("no legal rank-3 interior insertions exist over the sampled scaffold")
 
@@ -1284,13 +1337,9 @@ def _run_rank2_final_inference(
     def parent_sampler(**kwargs: object):
         parent_state = kwargs["state"]  # type: ignore[assignment]
         full_state = kwargs["full_state"]  # type: ignore[assignment]
-        parent_actions = tuple(
-            action
-            for action in action_space(
-                rank=1,
-                max_step_size=parent_spec.max_step_size,
-            )
-            if is_valid_transition(parent_state, action, parent_spec)  # type: ignore[arg-type]
+        parent_actions = legal_actions_for_state(
+            state=parent_state,  # type: ignore[arg-type]
+            spec=parent_spec,
         )
         feasible_parent_actions = tuple(
             action
@@ -1419,13 +1468,9 @@ def _run_rank3_final_inference(
                 )
             )
 
-        grandparent_actions = tuple(
-            action
-            for action in action_space(
-                rank=1,
-                max_step_size=grandparent_spec.max_step_size,
-            )
-            if is_valid_transition(grandparent_state, action, grandparent_spec)  # type: ignore[arg-type]
+        grandparent_actions = legal_actions_for_state(
+            state=grandparent_state,  # type: ignore[arg-type]
+            spec=grandparent_spec,
         )
         feasible_grandparent_actions = tuple(
             action

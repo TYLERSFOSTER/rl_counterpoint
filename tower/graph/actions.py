@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from itertools import product
 
 from tower.action.assembly import new_voice_index
@@ -11,6 +12,7 @@ from tower.graph.spec import TowerGraphSpec
 from tower.state_action import TowerAction, validate_rank
 
 
+@lru_cache(maxsize=None)
 def action_space(*, rank: int, max_step_size: int) -> tuple[TowerAction, ...]:
     """Return the nonzero bounded action lattice for one tower rank."""
     validate_rank(rank)
@@ -26,6 +28,7 @@ def action_space(*, rank: int, max_step_size: int) -> tuple[TowerAction, ...]:
     )
 
 
+@lru_cache(maxsize=None)
 def lift_fiber_actions(
     *,
     state: tuple[int, ...],
@@ -48,6 +51,7 @@ def lift_fiber_actions(
     )
 
 
+@lru_cache(maxsize=None)
 def active_lift_choices(
     *,
     state: tuple[int, ...],
@@ -83,4 +87,21 @@ def has_empty_lift_fiber(
         state=state,
         parent_action=parent_action,
         spec=spec,
+    )
+
+
+@lru_cache(maxsize=None)
+def legal_actions_for_state(
+    *,
+    state: tuple[int, ...],
+    spec: TowerGraphSpec,
+) -> tuple[TowerAction, ...]:
+    """Return all legal non-self actions from one state under one graph spec."""
+    if not is_valid_state(state, spec):
+        raise ValueError("state must be valid for spec")
+
+    return tuple(
+        action
+        for action in action_space(rank=spec.rank, max_step_size=spec.max_step_size)
+        if is_valid_transition(state, action, spec)
     )

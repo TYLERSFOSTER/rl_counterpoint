@@ -279,7 +279,7 @@ def test_rollout_rank2_parent_sampler_called_before_active_sampler() -> None:
 
     assert calls == [
         ("parent", (60,)),
-        ("active", (-2, -1)),
+        ("active", (-2, -1, 1)),
     ]
 
 
@@ -318,7 +318,7 @@ def test_rollout_rank2_active_sampler_receives_active_choices_only() -> None:
         reward_fn=lambda context: TowerRewardResult(reward=0.0),
     )
 
-    assert observed[0]["active_choices"] == (-2, -1)
+    assert observed[0]["active_choices"] == (-2, -1, 1)
     assert "lift_fiber" not in observed[0]
 
 

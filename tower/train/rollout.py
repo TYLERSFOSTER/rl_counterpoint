@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from tower.action.assembly import assemble_action, new_voice_index
-from tower.graph.actions import action_space, active_lift_choices
+from tower.graph.actions import active_lift_choices, legal_actions_for_state
 from tower.graph.legality import is_valid_transition
 from tower.graph.projection import project_state, project_window
 from tower.graph.spec import TowerGraphSpec
@@ -71,11 +71,7 @@ def rollout_rank1(
             measure_size=measure_size,
             context_measures=context_measures,
         )
-        choices = tuple(
-            action[0]
-            for action in action_space(rank=1, max_step_size=spec.max_step_size)
-            if is_valid_transition(source_state, action, spec)
-        )
+        choices = tuple(action[0] for action in legal_actions_for_state(state=source_state, spec=spec))
         active_result = active_sampler(
             rank=1,
             step_index=step_index,
