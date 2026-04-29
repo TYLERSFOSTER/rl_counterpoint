@@ -204,7 +204,7 @@ terminal job:
 The first implementation should live beside the existing success helpers, likely
 in:
 
-- [tower/reward/success.py](/Users/foster/rl_counterpoint/tower/reward/success.py)
+- [tower/reward/success.py](../../../tower/reward/success.py)
 
 The implementation should expose a dedicated rank-3 predicate rather than
 trying to shoehorn this into the rank-2 lifted cadence helper.

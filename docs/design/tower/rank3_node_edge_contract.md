@@ -6,9 +6,9 @@ slice in `tower`.
 It turns the already accepted rank-3 design choices into an implementation target
 for:
 
-- [tower/graph/legality.py](/Users/foster/rl_counterpoint/tower/graph/legality.py)
-- [tower/graph/induced.py](/Users/foster/rl_counterpoint/tower/graph/induced.py)
-- [tower/train/runner.py](/Users/foster/rl_counterpoint/tower/train/runner.py)
+- [tower/graph/legality.py](../../../tower/graph/legality.py)
+- [tower/graph/induced.py](../../../tower/graph/induced.py)
+- [tower/train/runner.py](../../../tower/train/runner.py)
 
 The intended use is:
 
@@ -508,6 +508,6 @@ Those should be handled separately, after this contract is treated as authoritat
 
 After accepting this contract, the next implementation step should be:
 
-1. add rank-3 branches to [tower/graph/legality.py](/Users/foster/rl_counterpoint/tower/graph/legality.py)
-2. generalize [tower/graph/induced.py](/Users/foster/rl_counterpoint/tower/graph/induced.py) to support rank-3 -> rank-2 artifacts
+1. add rank-3 branches to [tower/graph/legality.py](../../../tower/graph/legality.py)
+2. generalize [tower/graph/induced.py](../../../tower/graph/induced.py) to support rank-3 -> rank-2 artifacts
 3. add graph tests before reward or runner work

@@ -36,7 +36,7 @@ The first implementation does not need more than this.
 
 Use the dedicated rank-3 success predicate from:
 
-- [rank3_success_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_success_contract.md)
+- [rank3_success_contract.md](./rank3_success_contract.md)
 
 with the same success/failure term pattern already used elsewhere:
 
@@ -197,9 +197,9 @@ Those may all become useful later, but slice A should stay compact.
 
 The first implementation should add:
 
-- rank-3 reward config in [tower/reward/factory.py](/Users/foster/rl_counterpoint/tower/reward/factory.py)
-- rank-3 harmonic terms in [tower/reward/harmony.py](/Users/foster/rl_counterpoint/tower/reward/harmony.py)
-- rank-3 success predicate hook in [tower/reward/success.py](/Users/foster/rl_counterpoint/tower/reward/success.py)
+- rank-3 reward config in [tower/reward/factory.py](../../../tower/reward/factory.py)
+- rank-3 harmonic terms in [tower/reward/harmony.py](../../../tower/reward/harmony.py)
+- rank-3 success predicate hook in [tower/reward/success.py](../../../tower/reward/success.py)
 
 The key discipline is:
 

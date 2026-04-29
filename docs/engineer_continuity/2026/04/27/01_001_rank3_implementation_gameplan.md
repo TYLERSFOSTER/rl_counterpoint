@@ -50,20 +50,20 @@ The highest-level implementation strategy is:
 The repo today has:
 
 - generic projection machinery that already supports rank 3:
-  - [tower/graph/projection.py](/Users/foster/rl_counterpoint/tower/graph/projection.py)
+  - [tower/graph/projection.py](../../../../../tower/graph/projection.py)
 - generic action assembly that already supports rank 3:
-  - [tower/action/assembly.py](/Users/foster/rl_counterpoint/tower/action/assembly.py)
+  - [tower/action/assembly.py](../../../../../tower/action/assembly.py)
 - generic action-space and lift-fiber helpers that can represent rank 3:
-  - [tower/graph/actions.py](/Users/foster/rl_counterpoint/tower/graph/actions.py)
+  - [tower/graph/actions.py](../../../../../tower/graph/actions.py)
 - rank-1 and rank-2 training infrastructure only:
-  - [tower/train/protocol.py](/Users/foster/rl_counterpoint/tower/train/protocol.py)
-  - [tower/train/runner.py](/Users/foster/rl_counterpoint/tower/train/runner.py)
+  - [tower/train/protocol.py](../../../../../tower/train/protocol.py)
+  - [tower/train/runner.py](../../../../../tower/train/runner.py)
 - rank-1 and rank-2 reward infrastructure only:
-  - [tower/reward/factory.py](/Users/foster/rl_counterpoint/tower/reward/factory.py)
-  - [tower/reward/melody.py](/Users/foster/rl_counterpoint/tower/reward/melody.py)
-  - [tower/reward/harmony.py](/Users/foster/rl_counterpoint/tower/reward/harmony.py)
+  - [tower/reward/factory.py](../../../../../tower/reward/factory.py)
+  - [tower/reward/melody.py](../../../../../tower/reward/melody.py)
+  - [tower/reward/harmony.py](../../../../../tower/reward/harmony.py)
 - rank-1 induced graph-from-rank-2 machinery:
-  - [tower/graph/induced.py](/Users/foster/rl_counterpoint/tower/graph/induced.py)
+  - [tower/graph/induced.py](../../../../../tower/graph/induced.py)
 
 What does **not** yet exist:
 
@@ -259,10 +259,10 @@ Goal:
 
 Primary files:
 
-- [tower/graph/legality.py](/Users/foster/rl_counterpoint/tower/graph/legality.py)
-- [tower/graph/spec.py](/Users/foster/rl_counterpoint/tower/graph/spec.py)
-- [tests/tower/graph/test_legality.py](/Users/foster/rl_counterpoint/tests/tower/graph/test_legality.py)
-- [tests/tower/graph/test_actions.py](/Users/foster/rl_counterpoint/tests/tower/graph/test_actions.py)
+- [tower/graph/legality.py](../../../../../tower/graph/legality.py)
+- [tower/graph/spec.py](../../../../../tower/graph/spec.py)
+- [tests/tower/graph/test_legality.py](../../../../../tests/tower/graph/test_legality.py)
+- [tests/tower/graph/test_actions.py](../../../../../tests/tower/graph/test_actions.py)
 
 Implementation tasks:
 
@@ -313,8 +313,8 @@ Goal:
 
 Primary files:
 
-- [tower/graph/induced.py](/Users/foster/rl_counterpoint/tower/graph/induced.py)
-- [tests/tower/graph/test_induced.py](/Users/foster/rl_counterpoint/tests/tower/graph/test_induced.py)
+- [tower/graph/induced.py](../../../../../tower/graph/induced.py)
+- [tests/tower/graph/test_induced.py](../../../../../tests/tower/graph/test_induced.py)
 
 Current state:
 
@@ -363,8 +363,8 @@ Goal:
 
 Primary files:
 
-- [tower/train/runner.py](/Users/foster/rl_counterpoint/tower/train/runner.py)
-- [tower/graph/spec.py](/Users/foster/rl_counterpoint/tower/graph/spec.py)
+- [tower/train/runner.py](../../../../../tower/train/runner.py)
+- [tower/graph/spec.py](../../../../../tower/graph/spec.py)
 
 Questions to operationalize:
 
@@ -388,11 +388,11 @@ Goal:
 
 Primary files:
 
-- [tower/reward/factory.py](/Users/foster/rl_counterpoint/tower/reward/factory.py)
-- [tower/reward/harmony.py](/Users/foster/rl_counterpoint/tower/reward/harmony.py)
-- [tower/reward/success.py](/Users/foster/rl_counterpoint/tower/reward/success.py)
+- [tower/reward/factory.py](../../../../../tower/reward/factory.py)
+- [tower/reward/harmony.py](../../../../../tower/reward/harmony.py)
+- [tower/reward/success.py](../../../../../tower/reward/success.py)
 - tests under:
-  - [tests/tower/reward/](/Users/foster/rl_counterpoint/tests/tower/reward)
+  - [tests/tower/reward/](../../../../../tests/tower/reward)
 
 Owner decision already made:
 
@@ -438,8 +438,8 @@ Goal:
 
 Primary files:
 
-- [tower/reward/success.py](/Users/foster/rl_counterpoint/tower/reward/success.py)
-- [tests/tower/reward/test_success.py](/Users/foster/rl_counterpoint/tests/tower/reward/test_success.py)
+- [tower/reward/success.py](../../../../../tower/reward/success.py)
+- [tests/tower/reward/test_success.py](../../../../../tests/tower/reward/test_success.py)
 
 Required work:
 
@@ -467,11 +467,11 @@ Goal:
 
 Primary files:
 
-- [tower/train/rollout.py](/Users/foster/rl_counterpoint/tower/train/rollout.py)
-- [tower/train/protocol.py](/Users/foster/rl_counterpoint/tower/train/protocol.py)
-- [tower/train/losses.py](/Users/foster/rl_counterpoint/tower/train/losses.py)
-- [tests/tower/train/test_rollout.py](/Users/foster/rl_counterpoint/tests/tower/train/test_rollout.py)
-- [tests/tower/train/test_protocol.py](/Users/foster/rl_counterpoint/tests/tower/train/test_protocol.py)
+- [tower/train/rollout.py](../../../../../tower/train/rollout.py)
+- [tower/train/protocol.py](../../../../../tower/train/protocol.py)
+- [tower/train/losses.py](../../../../../tower/train/losses.py)
+- [tests/tower/train/test_rollout.py](../../../../../tests/tower/train/test_rollout.py)
+- [tests/tower/train/test_protocol.py](../../../../../tests/tower/train/test_protocol.py)
 
 Current state:
 
@@ -519,8 +519,8 @@ Goal:
 
 Primary files:
 
-- [tower/train/runner.py](/Users/foster/rl_counterpoint/tower/train/runner.py)
-- [tests/tower/train/test_runner.py](/Users/foster/rl_counterpoint/tests/tower/train/test_runner.py)
+- [tower/train/runner.py](../../../../../tower/train/runner.py)
+- [tests/tower/train/test_runner.py](../../../../../tests/tower/train/test_runner.py)
 
 New needed entrypoint:
 

@@ -31,10 +31,10 @@ Action 2 exit criterion:
 
 This contract depends on:
 
-- [rank1_projection_pruning_correction.md](/Users/foster/rl_counterpoint/docs/design/tower/rank1_projection_pruning_correction.md)
-- [artifact_checkpoint_dependencies.md](/Users/foster/rl_counterpoint/docs/design/tower/artifact_checkpoint_dependencies.md)
-- [training_runner_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/training_runner_contract.md)
-- [system_design.md](/Users/foster/rl_counterpoint/docs/design/tower/system_design.md)
+- [rank1_projection_pruning_correction.md](./rank1_projection_pruning_correction.md)
+- [artifact_checkpoint_dependencies.md](./artifact_checkpoint_dependencies.md)
+- [training_runner_contract.md](./training_runner_contract.md)
+- [system_design.md](./system_design.md)
 
 ## Purpose Of The Artifact
 

@@ -20,11 +20,7 @@ can recover the session state without reading the full chat transcript.
 
 ## Project Grounding
 
-The project root is:
-
-```text
-/Users/foster/rl_counterpoint
-```
+The project root is the repository root.
 
 The old flat project lives under:
 

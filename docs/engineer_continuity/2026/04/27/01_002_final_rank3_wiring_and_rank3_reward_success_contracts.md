@@ -23,23 +23,23 @@ plumbing that rank-3 training will depend on.
 
 ### Graph legality / induction
 
-- [tower/graph/legality.py](/Users/foster/rl_counterpoint/tower/graph/legality.py)
-- [tower/graph/induced.py](/Users/foster/rl_counterpoint/tower/graph/induced.py)
-- [tower/graph/spec.py](/Users/foster/rl_counterpoint/tower/graph/spec.py)
+- [tower/graph/legality.py](../../../../../tower/graph/legality.py)
+- [tower/graph/induced.py](../../../../../tower/graph/induced.py)
+- [tower/graph/spec.py](../../../../../tower/graph/spec.py)
 
 ### Runner / script surface
 
-- [tower/train/runner.py](/Users/foster/rl_counterpoint/tower/train/runner.py)
-- [scripts/tower_train.py](/Users/foster/rl_counterpoint/scripts/tower_train.py)
-- [scripts/tower_train_staged.py](/Users/foster/rl_counterpoint/scripts/tower_train_staged.py)
-- [scripts/tower_train_rank2.py](/Users/foster/rl_counterpoint/scripts/tower_train_rank2.py)
-- [scripts/tower_train_rank2_staged.py](/Users/foster/rl_counterpoint/scripts/tower_train_rank2_staged.py)
+- [tower/train/runner.py](../../../../../tower/train/runner.py)
+- [scripts/tower_train.py](../../../../../scripts/tower_train.py)
+- [scripts/tower_train_staged.py](../../../../../scripts/tower_train_staged.py)
+- [scripts/tower_train_rank2.py](../../../../../scripts/tower_train_rank2.py)
+- [scripts/tower_train_rank2_staged.py](../../../../../scripts/tower_train_rank2_staged.py)
 
 ### Design docs added this round
 
-- [final_rank_graph_construction_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/final_rank_graph_construction_contract.md)
-- [rank3_success_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_success_contract.md)
-- [rank3_reward_slice_a_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_reward_slice_a_contract.md)
+- [final_rank_graph_construction_contract.md](../../../../../docs/design/tower/final_rank_graph_construction_contract.md)
+- [rank3_success_contract.md](../../../../../docs/design/tower/rank3_success_contract.md)
+- [rank3_reward_slice_a_contract.md](../../../../../docs/design/tower/rank3_reward_slice_a_contract.md)
 
 ## Operational Ground Truth
 
@@ -83,7 +83,7 @@ Two new docs should be treated as the source of truth for the next slice:
 
 ### Rank-3 success
 
-- [rank3_success_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_success_contract.md)
+- [rank3_success_contract.md](../../../../../docs/design/tower/rank3_success_contract.md)
 
 Current accepted first-slice rule:
 
@@ -96,7 +96,7 @@ Current accepted first-slice rule:
 
 ### Rank-3 reward slice A
 
-- [rank3_reward_slice_a_contract.md](/Users/foster/rl_counterpoint/docs/design/tower/rank3_reward_slice_a_contract.md)
+- [rank3_reward_slice_a_contract.md](../../../../../docs/design/tower/rank3_reward_slice_a_contract.md)
 
 Current accepted first-slice reward shape:
 

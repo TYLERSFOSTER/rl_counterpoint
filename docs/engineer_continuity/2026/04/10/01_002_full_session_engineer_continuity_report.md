@@ -352,7 +352,7 @@ uv run python scripts/train_reinforce.py
 
 The observed output showed:
 
-- `run_dir: /Users/foster/rl_counterpoint/artifacts/train_reinforce`
+- `run_dir: artifacts/train_reinforce`
 - `measure_size: 4`
 - `episode_measures: 8`
 - `max_steps: 32`

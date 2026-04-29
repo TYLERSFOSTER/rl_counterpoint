@@ -205,8 +205,8 @@ Legacy `G(n)_0` is not a permissive pitch box. It is a trimmed node set defined 
 
 See:
 
-- [rl_counterpoint/graph/graph_spec.py](/Users/foster/rl_counterpoint/rl_counterpoint/graph/graph_spec.py)
-- [rl_counterpoint/graph/state_space.py](/Users/foster/rl_counterpoint/rl_counterpoint/graph/state_space.py)
+- [rl_counterpoint/graph/graph_spec.py](../../../rl_counterpoint/graph/graph_spec.py)
+- [rl_counterpoint/graph/state_space.py](../../../rl_counterpoint/graph/state_space.py)
 
 This strongly suggests the following rank-3 design decision is already implicit:
 
@@ -259,7 +259,7 @@ should almost certainly be part of `G(3)_0` legality, not merely reward shaping.
 
 Legacy edge legality forbids voice crossing by default:
 
-- [rl_counterpoint/graph/non_crossing.py](/Users/foster/rl_counterpoint/rl_counterpoint/graph/non_crossing.py)
+- [rl_counterpoint/graph/non_crossing.py](../../../rl_counterpoint/graph/non_crossing.py)
 
 That answer clearly ports:
 
@@ -342,8 +342,8 @@ The projection/assembly code already implies the new rank-3 coordinate is insert
 
 See:
 
-- [tower/action/assembly.py](/Users/foster/rl_counterpoint/tower/action/assembly.py)
-- [tower/graph/projection.py](/Users/foster/rl_counterpoint/tower/graph/projection.py)
+- [tower/action/assembly.py](../../../tower/action/assembly.py)
+- [tower/graph/projection.py](../../../tower/graph/projection.py)
 
 So the implicit mathematical choice is:
 

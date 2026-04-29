@@ -2,7 +2,7 @@
 
 Date: 2026-04-08  
 Session role: LLM consultant / assistant engineer under Project Owner direction  
-Repository: `/Users/foster/rl_counterpoint`
+Repository: repo root
 
 ## Scope Of This Session
 
@@ -14,8 +14,8 @@ The Project Owner emphasized that this is not an agent independently building th
 
 The session began by reading:
 
-- `/Users/foster/rl_counterpoint/docs/prime_directive/prime_directive.md`
-- `/Users/foster/rl_counterpoint/docs/prime_directive/common_failure_mode_001.md`
+- `docs/prime_directive/prime_directive.md`
+- `docs/prime_directive/common_failure_mode_001.md`
 
 Key operational constraints taken into account:
 
@@ -29,8 +29,8 @@ Key operational constraints taken into account:
 
 Two previous continuity docs were read:
 
-- `/Users/foster/rl_counterpoint/docs/engineer_continuity/2026/04/07/01_001_rl_counterpoint_modern_rl_baseline.md`
-- `/Users/foster/rl_counterpoint/docs/engineer_continuity/2026/04/07/01_002_counterpoint_rl_notes_from_attachment.md`
+- `docs/engineer_continuity/2026/04/07/01_001_rl_counterpoint_modern_rl_baseline.md`
+- `docs/engineer_continuity/2026/04/07/01_002_counterpoint_rl_notes_from_attachment.md`
 
 Important inherited framing:
 
@@ -91,7 +91,7 @@ The following empty script/module placeholders exist for future work:
 
 The project gameplan was first created and then renamed by the Project Owner to:
 
-- `/Users/foster/rl_counterpoint/docs/design/project_gameplan_001.md`
+- `docs/design/project_gameplan_001.md`
 
 It lays out provisional phases:
 
@@ -109,7 +109,7 @@ Important project decision captured there: reward internals should not block env
 
 The graph design spec was created at:
 
-- `/Users/foster/rl_counterpoint/docs/design/graph_spec_001.md`
+- `docs/design/graph_spec_001.md`
 
 It defines the current mathematical contract for \(G(n)\):
 
@@ -140,7 +140,7 @@ Important note: the single-line edge trim currently caps upward motion only, not
 
 A design script exists at:
 
-- `/Users/foster/rl_counterpoint/docs/design/count_gn_sparsity.py`
+- `docs/design/count_gn_sparsity.py`
 
 It evaluates formula / finite-sum counts over gap vectors, not full graph materialization. It requires a tonic:
 
@@ -158,7 +158,7 @@ There was also a file disappearance incident: the source file vanished while the
 
 File:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/graph/graph_spec.py`
+- `rl_counterpoint/graph/graph_spec.py`
 
 Defines:
 
@@ -197,7 +197,7 @@ The class is a frozen dataclass. The generated `__init__` is provided by `@datac
 
 File:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/graph/state_space.py`
+- `rl_counterpoint/graph/state_space.py`
 
 Defines:
 
@@ -222,7 +222,7 @@ Design decision: the graph is currently implicit/predicate-defined. There is no 
 
 File:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/graph/non_crossing.py`
+- `rl_counterpoint/graph/non_crossing.py`
 
 Defines:
 
@@ -246,7 +246,7 @@ Parallel fifth detection ranges over all voice pairs, not just adjacent pairs.
 
 File:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/graph/actions.py`
+- `rl_counterpoint/graph/actions.py`
 
 Defines a minimal direct-next-state action representation:
 
@@ -264,7 +264,7 @@ Important later design discussion: the direct next-state representation is good 
 
 File:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/reward/protocol.py`
+- `rl_counterpoint/reward/protocol.py`
 
 Defines:
 
@@ -278,7 +278,7 @@ The reward protocol is intended as the stable interface between future environme
 
 File:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/reward/black_box.py`
+- `rl_counterpoint/reward/black_box.py`
 
 Defines:
 
@@ -301,10 +301,10 @@ This was needed because `uv run pytest -q tests/graph` initially failed to impor
 
 Files:
 
-- `/Users/foster/rl_counterpoint/tests/graph/test_graph_spec.py`
-- `/Users/foster/rl_counterpoint/tests/graph/test_state_space.py`
-- `/Users/foster/rl_counterpoint/tests/graph/test_non_crossing.py`
-- `/Users/foster/rl_counterpoint/tests/graph/test_actions.py`
+- `tests/graph/test_graph_spec.py`
+- `tests/graph/test_state_space.py`
+- `tests/graph/test_non_crossing.py`
+- `tests/graph/test_actions.py`
 
 The test files include module-level preambles and function-level docstrings.
 
@@ -326,8 +326,8 @@ Current graph test coverage:
 
 Files:
 
-- `/Users/foster/rl_counterpoint/tests/reward/test_protocol.py`
-- `/Users/foster/rl_counterpoint/tests/reward/test_black_box.py`
+- `tests/reward/test_protocol.py`
+- `tests/reward/test_black_box.py`
 
 Current reward test coverage:
 
@@ -358,9 +358,9 @@ The environment layer has been discussed but not implemented.
 
 Current intended files:
 
-- `/Users/foster/rl_counterpoint/rl_counterpoint/envs/counterpoint_env.py`
-- `/Users/foster/rl_counterpoint/rl_counterpoint/envs/observation.py`
-- `/Users/foster/rl_counterpoint/rl_counterpoint/envs/termination.py`
+- `rl_counterpoint/envs/counterpoint_env.py`
+- `rl_counterpoint/envs/observation.py`
+- `rl_counterpoint/envs/termination.py`
 
 Current conceptual split:
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 LINEAGE=rank1-rank2-rank3-5k-20260429
-ROOT=/Users/foster/rl_counterpoint
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ART="$ROOT/artifacts/tower"
 LOG="$ART/logs/$LINEAGE.log"
 
