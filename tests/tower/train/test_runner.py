@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from tower.graph.legality import is_valid_state
 from tower.graph.spec import TowerGraphSpec
 from tower.policy.base import PolicyOutput
 from tower.reward.factory import build_rank1_reward_fn
@@ -32,6 +33,8 @@ from tower.train.runner import (
     TowerRunnerConfig,
     _graph_spec_from_config,
     _rank1_episode_initial_state,
+    _rank2_episode_initial_state,
+    _rank3_episode_initial_state,
     _build_rank3_policy,
     run_rank1_training,
     run_rank2_training,
@@ -401,6 +404,75 @@ def test_rank1_episode_initial_state_samples_from_induced_node_image() -> None:
 
     assert sampled in {(60,), (72,)}
     assert sampled != (61,)
+
+
+def test_rank2_episode_initial_state_samples_scaffold_first() -> None:
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=2,
+        episode_count=1,
+        seed=123,
+        parent_checkpoint="rank_1/checkpoint_latest.pt",
+        training_config={
+            "sample_initial_state": True,
+            "initial_parent_pitch_min": 60,
+            "initial_parent_pitch_max": 60,
+        },
+    )
+    spec = TowerGraphSpec(
+        rank=2,
+        key_pitch_class=0,
+        pitch_min=36,
+        pitch_max=64,
+        max_step_size=7,
+    )
+
+    sampled = _rank2_episode_initial_state(
+        initial_state=(60, 64),
+        target_root_octave=4,
+        spec=spec,
+        config=config,
+        generator=torch.Generator().manual_seed(123),
+    )
+
+    assert sampled[0] == 60
+    assert sampled[1] in {63, 64}
+    assert is_valid_state(sampled, spec)
+
+
+def test_rank3_episode_initial_state_samples_scaffold_first() -> None:
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=3,
+        episode_count=1,
+        seed=123,
+        parent_checkpoint="rank_2/checkpoint_latest.pt",
+        training_config={
+            "sample_initial_state": True,
+            "initial_parent_pitch_min": 60,
+            "initial_parent_pitch_max": 60,
+        },
+    )
+    spec = TowerGraphSpec(
+        rank=3,
+        key_pitch_class=0,
+        pitch_min=36,
+        pitch_max=67,
+        max_step_size=7,
+    )
+
+    sampled = _rank3_episode_initial_state(
+        initial_state=(60, 64, 67),
+        target_root_octave=4,
+        spec=spec,
+        config=config,
+        generator=torch.Generator().manual_seed(123),
+    )
+
+    assert sampled[0] == 60
+    assert sampled[2] == 67
+    assert sampled[1] in {63, 64}
+    assert is_valid_state(sampled, spec)
 
 
 def test_rank_2_runner_config_requires_parent_checkpoint() -> None:

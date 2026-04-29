@@ -70,6 +70,10 @@ def test_tower_train_rank2_staged_main_runs_tiny_job(
             "36",
             "--pitch-max",
             "48",
+            "--initial-parent-pitch",
+            "40",
+            "--initial-child-pitch",
+            "43",
             "--initial-parent-pitch-min",
             "40",
             "--initial-parent-pitch-max",
@@ -91,7 +95,7 @@ def test_tower_train_rank2_staged_main_runs_tiny_job(
     assert (stage2_dir / "config.json").exists()
     assert (stage2_dir / "example_episode.mid").exists()
     config = json.loads((stage2_dir / "config.json").read_text())
-    assert config["training_config"]["sample_initial_state"] is True
+    assert config["training_config"]["sample_initial_state"] is False
     assert config["training_config"]["sample_initial_parent_pitch_in_target_octave"] is False
     assert config["training_config"]["sample_target_root_octave"] is True
     assert config["training_config"]["target_root_octave_choices"] == [2]

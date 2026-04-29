@@ -1042,6 +1042,82 @@ def _target_root_octave_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
     return choices
 
 
+def _sample_sequence_choice[T](
+    choices: list[T],
+    *,
+    generator: torch.Generator,
+) -> T:
+    """Return one uniformly sampled element from a nonempty list."""
+    if not choices:
+        raise ValueError("choices must not be empty")
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(choices),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return choices[choice_index]
+
+
+def _rank1_scaffold_state(
+    *,
+    target_root_octave: int | None,
+    spec: TowerGraphSpec,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+) -> tuple[int, ...]:
+    """Sample a legal rank-1 scaffold state under higher-rank initialization rules."""
+    pitch_min = _training_int(
+        config,
+        "initial_parent_pitch_min",
+        default=spec.pitch_min,
+    )
+    pitch_max = _training_int(
+        config,
+        "initial_parent_pitch_max",
+        default=spec.pitch_max,
+    )
+    pitch_min = max(spec.pitch_min, pitch_min)
+    pitch_max = min(spec.pitch_max, pitch_max)
+
+    sample_pitch_in_target_octave = _training_bool(
+        config,
+        "sample_initial_parent_pitch_in_target_octave",
+        default=False,
+    )
+    if sample_pitch_in_target_octave:
+        if target_root_octave is None:
+            raise ValueError(
+                "target_root_octave is required to sample scaffold pitch in target octave"
+            )
+        octave_pitch_min = 12 * (target_root_octave + 1)
+        octave_pitch_max = octave_pitch_min + 11
+        pitch_min = max(pitch_min, octave_pitch_min)
+        pitch_max = min(pitch_max, octave_pitch_max)
+
+    if pitch_min > pitch_max:
+        raise ValueError("scaffold pitch sampling range must not be empty")
+
+    rank1_spec = TowerGraphSpec(
+        rank=1,
+        key_pitch_class=spec.key_pitch_class,
+        pitch_min=spec.pitch_min,
+        pitch_max=spec.pitch_max,
+        max_step_size=spec.max_step_size,
+    )
+    eligible_pitches = [
+        pitch
+        for pitch in range(pitch_min, pitch_max + 1)
+        if is_valid_state((pitch,), rank1_spec)
+    ]
+    if not eligible_pitches:
+        raise ValueError("no legal scaffold pitches satisfy the requested sampling constraints")
+
+    return (_sample_sequence_choice(eligible_pitches, generator=generator),)
+
+
 def _rank2_episode_initial_state(
     *,
     initial_state: tuple[int, ...],
@@ -1056,60 +1132,22 @@ def _rank2_episode_initial_state(
     ):
         return initial_state
 
-    parent_pitch_min = _training_int(
-        config,
-        "initial_parent_pitch_min",
-        default=spec.pitch_min,
-    )
-    parent_pitch_max = _training_int(
-        config,
-        "initial_parent_pitch_max",
-        default=spec.pitch_max,
-    )
-    parent_pitch_min = max(spec.pitch_min, parent_pitch_min)
-    parent_pitch_max = min(spec.pitch_max, parent_pitch_max)
-
-    sample_parent_in_target_octave = _training_bool(
-        config,
-        "sample_initial_parent_pitch_in_target_octave",
-        default=False,
-    )
-    octave_pitch_min: int | None = None
-    octave_pitch_max: int | None = None
-    if sample_parent_in_target_octave:
-        if target_root_octave is None:
-            raise ValueError(
-                "target_root_octave is required to sample rank-2 parent pitch in target octave"
-            )
-        octave_pitch_min = 12 * (target_root_octave + 1)
-        octave_pitch_max = octave_pitch_min + 11
-        parent_pitch_min = max(parent_pitch_min, octave_pitch_min)
-        parent_pitch_max = min(parent_pitch_max, octave_pitch_max)
-
-    if parent_pitch_min > parent_pitch_max:
-        raise ValueError("rank-2 initial parent pitch sampling range must not be empty")
-
-    eligible_states = [
-        (lower, upper)
-        for lower in range(parent_pitch_min, parent_pitch_max + 1)
+    lower = _rank1_scaffold_state(
+        target_root_octave=target_root_octave,
+        spec=spec,
+        config=config,
+        generator=generator,
+    )[0]
+    eligible_uppers = [
+        upper
         for upper in range(lower + 1, spec.pitch_max + 1)
-        if (
-            (octave_pitch_min is None or octave_pitch_min <= lower <= octave_pitch_max)
-            and is_valid_state((lower, upper), spec)
-        )
+        if is_valid_state((lower, upper), spec)
     ]
-    if not eligible_states:
-        raise ValueError("no legal rank-2 initial states satisfy the requested sampling constraints")
+    if not eligible_uppers:
+        raise ValueError("no legal rank-2 extensions exist over the sampled scaffold")
 
-    choice_index = int(
-        torch.randint(
-            low=0,
-            high=len(eligible_states),
-            size=(1,),
-            generator=generator,
-        ).item()
-    )
-    return eligible_states[choice_index]
+    upper = _sample_sequence_choice(eligible_uppers, generator=generator)
+    return (lower, upper)
 
 
 def _rank3_episode_initial_state(
@@ -1126,61 +1164,34 @@ def _rank3_episode_initial_state(
     ):
         return initial_state
 
-    lower_pitch_min = _training_int(
-        config,
-        "initial_parent_pitch_min",
-        default=spec.pitch_min,
-    )
-    lower_pitch_max = _training_int(
-        config,
-        "initial_parent_pitch_max",
-        default=spec.pitch_max,
-    )
-    lower_pitch_min = max(spec.pitch_min, lower_pitch_min)
-    lower_pitch_max = min(spec.pitch_max, lower_pitch_max)
-
-    sample_lower_in_target_octave = _training_bool(
-        config,
-        "sample_initial_parent_pitch_in_target_octave",
-        default=False,
-    )
-    octave_pitch_min: int | None = None
-    octave_pitch_max: int | None = None
-    if sample_lower_in_target_octave:
-        if target_root_octave is None:
-            raise ValueError(
-                "target_root_octave is required to sample rank-3 pedal pitch in target octave"
-            )
-        octave_pitch_min = 12 * (target_root_octave + 1)
-        octave_pitch_max = octave_pitch_min + 11
-        lower_pitch_min = max(lower_pitch_min, octave_pitch_min)
-        lower_pitch_max = min(lower_pitch_max, octave_pitch_max)
-
-    if lower_pitch_min > lower_pitch_max:
-        raise ValueError("rank-3 initial pedal pitch sampling range must not be empty")
-
-    eligible_states = [
-        (lower, middle, upper)
-        for lower in range(lower_pitch_min, lower_pitch_max + 1)
-        for middle in range(lower + 1, spec.pitch_max)
-        for upper in range(middle + 1, spec.pitch_max + 1)
-        if (
-            (octave_pitch_min is None or octave_pitch_min <= lower <= octave_pitch_max)
-            and is_valid_state((lower, middle, upper), spec)
+    lower = _rank1_scaffold_state(
+        target_root_octave=target_root_octave,
+        spec=spec,
+        config=config,
+        generator=generator,
+    )[0]
+    eligible_outer_pairs = [
+        (lower, upper)
+        for upper in range(lower + 2, spec.pitch_max + 1)
+        if any(
+            is_valid_state((lower, middle, upper), spec)
+            for middle in range(lower + 1, upper)
         )
     ]
-    if not eligible_states:
-        raise ValueError("no legal rank-3 initial states satisfy the requested sampling constraints")
+    if not eligible_outer_pairs:
+        raise ValueError("no legal rank-3 outer scaffolds exist over the sampled pedal")
 
-    choice_index = int(
-        torch.randint(
-            low=0,
-            high=len(eligible_states),
-            size=(1,),
-            generator=generator,
-        ).item()
-    )
-    return eligible_states[choice_index]
+    _, upper = _sample_sequence_choice(eligible_outer_pairs, generator=generator)
+    eligible_middles = [
+        middle
+        for middle in range(lower + 1, upper)
+        if is_valid_state((lower, middle, upper), spec)
+    ]
+    if not eligible_middles:
+        raise ValueError("no legal rank-3 interior insertions exist over the sampled scaffold")
+
+    middle = _sample_sequence_choice(eligible_middles, generator=generator)
+    return (lower, middle, upper)
 
 
 def _run_rank2_final_inference(

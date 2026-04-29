@@ -76,9 +76,9 @@ As of this document:
 
 What does **not** yet exist:
 
-- operational rank-3 training,
-- automatic final-rank propagation from a rank-3 runner, because no rank-3 runner
-  exists yet.
+- fully mature rank-3 training behavior,
+- automatic final-rank propagation from a rank-3 runner without explicit runner
+  or script configuration.
 
 So this contract is already active for lower-tier construction, but only through
 the runner and script surfaces that explicitly set `final_rank`.

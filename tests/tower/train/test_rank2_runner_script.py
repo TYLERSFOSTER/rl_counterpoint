@@ -47,7 +47,7 @@ def test_tower_train_rank2_parse_args_defaults() -> None:
     assert args.pitch_max == 84
     assert args.initial_parent_pitch == 64
     assert args.initial_child_pitch == 68
-    assert args.sample_initial_state is True
+    assert args.sample_initial_state is False
     assert args.initial_parent_pitch_min == 36
     assert args.initial_parent_pitch_max == 84
     assert args.sample_initial_parent_pitch_in_target_octave is False

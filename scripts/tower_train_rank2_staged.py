@@ -149,7 +149,7 @@ def _base_training_config_from_args(args: argparse.Namespace) -> dict[str, objec
         "progress_every": args.progress_every,
         "sample_target_root_octave": args.sample_target_root_octave,
         "target_root_octave_choices": args.target_root_octave_choices,
-        "sample_initial_state": True,
+        "sample_initial_state": False,
         "initial_parent_pitch_min": args.initial_parent_pitch_min,
         "initial_parent_pitch_max": args.initial_parent_pitch_max,
     }
