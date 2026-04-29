@@ -1,27 +1,23 @@
-# rl_counterpoint
+# RL Counterpoint
 
-`rl_counterpoint` is a research repo for reinforcement-learning-based counterpoint generation.
+`rl_counterpoint` is a research repo for [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) based [counterpoint](https://en.wikipedia.org/wiki/Counterpoint) generation. 
 
 The repo currently contains two systems:
 
 1. `rl_counterpoint/`: the legacy flat-graph project, kept as a frozen reference and baseline
 2. `tower/`: the active hierarchical redesign, where training proceeds rank by rank through a tower of graph problems
 
-At this point, `tower` is the center of gravity of the repo.
+Right now, `tower` is the central product in this repo.
 
 ## What This Repo Is For
 
-The long-term goal is not just "generate notes with RL." It is to train counterpoint tier by tier:
+The long-term goal is to train an RL agent, equipped with a tranformer-driven policy function, to generate "good" counterpoint passage. The key technical insigth about how to do this that we implement in the present repo is:
+> The probelm of generating counterpoint passages is naturally hierarchical. For instance, 3-part voiceleading naturally reduces to an inner-voice problem *over* a simpler 2-part voice leading problem, itself natrually reducing to an upper-voice problem *over* a simpler 1-voice pedal problem.
 
-- rank 1: learn a root or pedal line
-- rank 2: add the top voice over a frozen rank-1 scaffold
-- rank 3+: add further interior voices over lower-rank scaffolds
-
-The key design idea is that higher-rank states and actions project to valid lower-rank ones. In other words, higher-rank voiceleading is meant to extend lower-rank voiceleading, not replace it.
-
-That design lives in `tower/` and is documented in `docs/design/tower/`.
-
-## Voiceleading Hierarchy
+From an engineering perspective, this means a hierarchical system of agents with interrelated, but separate policy models, trained as follows:
+- rank 1: learn how to generate a good pedal line
+- rank 2: add the top voice over a frozen rank-1 (pedal) scaffold
+- rank 3+: add further interior voices over lower-rank scaffolds and under upper-voice.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/images/hrl_dark.png">
@@ -29,19 +25,8 @@ That design lives in `tower/` and is documented in `docs/design/tower/`.
   <img src="assets/images/hrl_light.png" alt="Hierarchy of voiceleading ranks: rank 1 learns the pedal, rank 2 learns an added outer voice over the frozen pedal, and rank 3 learns an interior voice over the frozen lower scaffold." width="900">
 </picture>
 
-### Project-Manager Insight
+The design lives in `tower/` and is documented in `docs/design/tower/`.
 
-One of the most important organizing ideas in this project is that the hierarchy is not just an implementation convenience. It is the product insight.
-
-The project manager framing is:
-
-- rank 1 should learn the pedal line
-- rank 2 should learn only the added outer voice over a frozen pedal
-- rank 3 should learn only the inserted interior voice over a frozen lower scaffold
-
-That means higher tiers are not supposed to relearn the whole sonority from scratch. They are supposed to contribute one new layer of musical responsibility while respecting the structure learned below.
-
-In practical terms, this is why the repo keeps returning to projection, lift fibers, frozen parent checkpoints, and induced lower-rank graph pruning. The system is trying to make "voiceleading hierarchy" real in training, not just in notation.
 
 ## Current Status
 
