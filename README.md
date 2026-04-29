@@ -8,6 +8,8 @@
 
 **Project Owner:** Tyler Foster
 
+> **IN PROGRESS:** the active `tower` system is currently being tuned and expanded with additional TC21M-derived reward terms and training diagnostics.
+
 [`rl_counterpoint/`](/) (hereafter *root* [`/`](/)) is a research repo for [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) based [counterpoint](https://en.wikipedia.org/wiki/Counterpoint) generation. The long-term goal is to train an RL agent, equipped with a tranformer-driven policy function, to generate "*good*" counterpoint passages,  such that users can modify the flavor/feel/vibe of these voiceleading passages by modifying the agent's reward functions.
 
 The repo currently contains two systems:
@@ -257,4 +259,3 @@ Good starting points:
 - dependencies live in [pyproject.toml](/pyproject.toml)
 - pytest uses `--import-mode=importlib` to avoid duplicate test-module name collisions
 - artifact directories can get large during training; long runs often disable training reward diagnostics to keep disk usage sane
-
