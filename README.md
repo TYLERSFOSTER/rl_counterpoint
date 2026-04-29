@@ -1,4 +1,8 @@
 # RL Counterpoint
+
+**Project Owner (PO):** Tyler Foster
+
+## About RL Counterpoint
 `rl_counterpoint` is a research repo for [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) based [counterpoint](https://en.wikipedia.org/wiki/Counterpoint) generation. The long-term goal is to train an RL agent, equipped with a tranformer-driven policy function, to generate "good" counterpoint passages, and to be able to modify the flavor/feel/vibe of these voiceleading passages by modifying the agent's reward functions.
 
 The repo currently contains two systems:
@@ -10,12 +14,26 @@ Right now, `tower` is the central product in this repo.
 
 
 
-## Key PM Engineering Insights
+## Key PO Design & Engineering Insights
 
-### **Insight 1.** *The book [Tonal Counterpoint for the 21st Century Musician](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is accidentially written for RL training pipelines.*
-A
+### **INSIGHT 1:** *The book [Tonal Counterpoint for the 21-st Century Musician](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is accidentially written for RL training pipelines.*
+One of the most useful desgin discoveries made by the PO in this repo is that the music textbook [Tonal Counterpoint for the 21st Century Musician (TC21M)](https://www.bloomsbury.com/us/tonal-counterpoint-for-the-21stcentury-musician-9781442234598/) is , accidentally, a very good specification source for reward design. Its rules already come in the right shape for reinforcement learning:
+- local motion preferences
+- recovery and resolution patterns over time
+- beat-sensitive structural rules
+- cadential success templates
+- hard voiceleading prohibitions
 
-### Counterpoint is naturally a problem in [Hierarchical RL](https://arxiv.org/pdf/2506.14045)
+In other words, the book naturally separates musical behavior into the same kinds of objects an RL system needs to reason about. That said, the repo does **not** treat the book as executable code in prose form. The engineering pattern weve used designing and developing the present repo is:
+
+1. extract the musical rules into a structured note set in [`assets/rules/tc21m_rules.md`](assets/rules/tc21m_rules.md)
+2. map those rules into computational categories
+3. preserve a stable reward protocol boundary
+4. implement narrow, testable reward slices rather than trying to import the whole grammar at once
+
+This matters because it lets the project use a real contrapuntal reference manual without blocking all infrastructure work on perfect music-theory formalization up front. The book gives us the vocabulary of what should matter musically; the repo then turns that vocabulary into reward terms, pruning rules, and cadence logic in small executable pieces.
+
+### **INSIGHT 2.** *Counterpoint is naturally a problem in [Hierarchical RL](https://arxiv.org/pdf/2506.14045).*
 The ***second*** key technical insigth about how to do this that we implement in the present repo is:
 > The probelm of generating counterpoint passages is naturally hierarchical. For instance, 3-part voiceleading naturally reduces to an inner-voice problem *over* a simpler 2-part voice leading problem, itself natrually reducing to an upper-voice problem *over* a simpler 1-voice pedal problem.
 
