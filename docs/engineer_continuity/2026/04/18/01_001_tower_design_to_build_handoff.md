@@ -42,7 +42,7 @@ The tower model is the project manager's design.
 
 This includes:
 
-- the nested graph tower \(G(4)_\bullet \to G(3)_\bullet \to G(2)_\bullet \to G(1)_\bullet\)
+- the nested graph tower $G(4)_\bullet \to G(3)_\bullet \to G(2)_\bullet \to G(1)_\bullet$
 - the insight that voiceleading builds by rank
 - the idea that lower-rank voiceleading is genuinely contained in higher-rank voiceleading
 - the projection-only parent/child structure
@@ -63,37 +63,37 @@ docs/design/tower/mathematical_model.md
 
 Core state convention:
 
-\[
+$$
 s^n=(\lambda_0,\dots,\lambda_{n-1})\in\{0,\dots,127\}^n
-\]
+$$
 
 with strictly increasing MIDI pitches.
 
 Core action convention:
 
-\[
+$$
 \Delta s^n=(\Delta\lambda_0,\dots,\Delta\lambda_{n-1})\in\mathbb Z^n.
-\]
+$$
 
 Transition:
 
-\[
+$$
 s^n_{t+1}=s^n_t+\Delta s^n_t.
-\]
+$$
 
 Projection:
 
-\[
+$$
 \operatorname{pr}^2(\lambda_0,\lambda_1)=(\lambda_0).
-\]
+$$
 
-For \(n\ge3\), projection removes the second-from-top coordinate:
+For $n\ge3$, projection removes the second-from-top coordinate:
 
-\[
+$$
 \operatorname{pr}^n(\lambda_0,\dots,\lambda_{n-3},\lambda_{n-2},\lambda_{n-1})
 =
 (\lambda_0,\dots,\lambda_{n-3},\lambda_{n-1}).
-\]
+$$
 
 The same convention applies to action projection.
 
@@ -111,11 +111,11 @@ So every valid higher-rank edge must project to a valid lower-rank edge.
 
 Each rank policy decides only the new action coordinate.
 
-For rank \(k\), the parent action \(\Delta s^{k-1}\) is already supplied by lower-rank policy/scaffold. The active rank supplies the missing coordinate and assembles a full \(\Delta s^k\).
+For rank $k$, the parent action $\Delta s^{k-1}$ is already supplied by lower-rank policy/scaffold. The active rank supplies the missing coordinate and assembles a full $\Delta s^k$.
 
-For \(k=2\), the new coordinate is the top/outer voice.
+For $k=2$, the new coordinate is the top/outer voice.
 
-For \(k\ge3\), the new coordinate is the second-from-top inserted interior voice.
+For $k\ge3$, the new coordinate is the second-from-top inserted interior voice.
 
 This gives:
 
@@ -125,15 +125,15 @@ This gives:
 
 Lift fiber:
 
-\[
+$$
 A_k(s_t^k;\Delta s_t^{k-1})
 =
 \{\Delta s_t^k\in\partial_0^{-1}(s_t^k)
 \mid
 \operatorname{pr}^k(\Delta s_t^k)=\Delta s_t^{k-1}\}.
-\]
+$$
 
-This fiber is the concrete implementation target for the speedup. During rank-\(k\) training, the active child policy should select among legal lift choices over the parent action rather than search the whole rank-\(k\) action space.
+This fiber is the concrete implementation target for the speedup. During rank-$k$ training, the active child policy should select among legal lift choices over the parent action rather than search the whole rank-$k$ action space.
 
 ## Graph Pruning Decisions
 
@@ -145,37 +145,37 @@ docs/design/tower/mathematical_model.md
 
 Node legality uses:
 
-- outer gap \(\lambda_{n-1}-\lambda_0\)
-- adjacent gaps \(\lambda_{i+1}-\lambda_i\)
+- outer gap $\lambda_{n-1}-\lambda_0$
+- adjacent gaps $\lambda_{i+1}-\lambda_i$
 
 The only gaps that matter for node pruning are:
 
 - the outer gap
 - adjacent gaps
 
-The adjacent gap rule includes the top adjacent gap. "Adjacent" means \(\lambda_{i+1}-\lambda_i\), as opposed to the outer gap.
+The adjacent gap rule includes the top adjacent gap. "Adjacent" means $\lambda_{i+1}-\lambda_i$, as opposed to the outer gap.
 
 The outer width band is:
 
-\[
+$$
 L(n,N)\le \lambda_{n-1}-\lambda_0\le U(n,N).
-\]
+$$
 
 The accepted interpretation is:
 
-\[
+$$
 C(N)=\lceil M_{\mathrm{adj}}N\rceil
-\]
+$$
 
 and:
 
-\[
+$$
 L(n,N)=C(N)-E_{\mathrm{vert}},
 \qquad
 U(n,N)=C(N)+E_{\mathrm{vert}}.
-\]
+$$
 
-Here \(E_{\mathrm{vert}}\) is a maximum vertical error.
+Here $E_{\mathrm{vert}}$ is a maximum vertical error.
 
 Accepted edge pruning includes:
 
@@ -184,9 +184,9 @@ Accepted edge pruning includes:
 - no self-loop
 - no voice crossing
 - no parallel fifths
-- one-sided movement cap \(\mu_i-\lambda_i\le M_{\mathrm{move}}\)
-- \(M_{\mathrm{move}}\) is rank-independent
-- \(M_{\mathrm{move}}\) is not the same as vertical spread
+- one-sided movement cap $\mu_i-\lambda_i\le M_{\mathrm{move}}$
+- $M_{\mathrm{move}}$ is rank-independent
+- $M_{\mathrm{move}}$ is not the same as vertical spread
 - valid higher-rank edge must project to a valid lower-rank edge
 
 ## Reward Design Decisions
@@ -201,17 +201,17 @@ docs/design/tower/success_failure_semantics.md
 
 Core principle:
 
-\[
+$$
 R_k
-\]
+$$
 
-scores rank-\(k\) facts that are newly introduced at rank \(k\), rather than rescoring all lower-rank facts.
+scores rank-$k$ facts that are newly introduced at rank $k$, rather than rescoring all lower-rank facts.
 
 Parent rewards are diagnostic during child training. The active training objective uses the active rank reward.
 
-For rank \(k\), the reward context is built from the rank-\(k\) window/passage object. Lower-rank context can be obtained by projection when needed.
+For rank $k$, the reward context is built from the rank-$k$ window/passage object. Lower-rank context can be obtained by projection when needed.
 
-"Passage so far" means the fixed reward window \(W_t^k\), following the old system's window idea but interpreted at rank \(k\).
+"Passage so far" means the fixed reward window $W_t^k$, following the old system's window idea but interpreted at rank $k$.
 
 Some rewards can depend on recent previous steps, not only the current transition. Example: checking for a cadence may need the last several chords.
 
@@ -224,13 +224,13 @@ Important success redesign:
 
 In general:
 
-\[
+$$
 \operatorname{Success}_k(W_t^k)
 =
 \operatorname{Success}_{k-1}(\operatorname{pr}^k W_t^k)
 \wedge
 \operatorname{NewTerminalCondition}_k(W_t^k).
-\]
+$$
 
 ## Training Protocol Decisions
 
@@ -242,21 +242,21 @@ docs/design/tower/training_protocol.md
 
 Accepted lifecycle:
 
-1. Train \(\pi^1\).
-2. Freeze \(\pi^1\).
-3. Train \(\pi^2\) over the frozen rank-1 scaffold.
-4. Freeze \(\pi^2\).
+1. Train $\pi^1$.
+2. Freeze $\pi^1$.
+3. Train $\pi^2$ over the frozen rank-1 scaffold.
+4. Freeze $\pi^2$.
 5. Continue upward rank by rank.
 
-Training order is \(k=1,2,3,\dots\).
+Training order is $k=1,2,3,\dots$.
 
-When rank \(k\) is training:
+When rank $k$ is training:
 
 - all lower ranks are frozen
 - no higher ranks are active
 - lower-rank policies provide scaffold actions
 - active rank policy supplies only its new action coordinate
-- the objective uses only \(R_k\), unless a later design explicitly changes this
+- the objective uses only $R_k$, unless a later design explicitly changes this
 
 Parent policy action selection during child training:
 
@@ -274,9 +274,9 @@ The accepted rollout document is:
 docs/design/tower/rollout_semantics.md
 ```
 
-During rank-\(k\) rollout:
+During rank-$k$ rollout:
 
-1. Build or maintain current rank-\(k\) state/window.
+1. Build or maintain current rank-$k$ state/window.
 2. Project to parent context as needed.
 3. Parent frozen policies choose the parent action scaffold.
 4. Active rank policy chooses only the new coordinate.
@@ -287,9 +287,9 @@ During rank-\(k\) rollout:
 
 The accepted trajectory record shape is Option C:
 
-- store the full rank-\(k\) record
+- store the full rank-$k$ record
 - include parent diagnostics
-- store only \(W_t^k\) as required
+- store only $W_t^k$ as required
 - compute projected parent windows on demand
 
 Policy-gradient training uses only the active tier's log-probability.
@@ -385,9 +385,9 @@ intermediate coordinates λ_k, for 10≤k≤n-1
 
 This should be:
 
-\[
+$$
 1\le k\le n-2.
-\]
+$$
 
 The typo is conceptual noise only, not an implementation blocker.
 

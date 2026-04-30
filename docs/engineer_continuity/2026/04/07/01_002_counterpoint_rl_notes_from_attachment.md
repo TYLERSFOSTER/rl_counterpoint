@@ -12,11 +12,11 @@ A state is a $n$-tuple $(\lambda_0,\cdots,\lambda_{n-1})\in\{0,1,2,\cdots,128\}^
 
 A state is an ordered chord with $n$ voices, where each voice is assigned a discrete pitch value and the voices are listed from low to high. So
 
-\[
+$$
 (\lambda_0,\dots,\lambda_{n-1}) \in \{0,1,\dots,128\}^n,
 \qquad
 \lambda_i < \lambda_{i+1}
-\]
+$$
 
 means:
 
@@ -29,9 +29,9 @@ So this is not just a set of notes. It is a voiced chord state with persistent v
 
 The graph structure is trying to encode legal voiceleadings from one chord to the next. An edge
 
-\[
+$$
 (\lambda_0,\dots,\lambda_{n-1}) \to (\mu_0,\dots,\mu_{n-1})
-\]
+$$
 
 is meant to say that the new chord $(\mu_i)$ can follow the old chord $(\lambda_i)$ when the voices move in a way that does not cross. In geometric terms, if you draw line segments from old voices to new voices, the segments should preserve vertical order rather than tangling.
 
@@ -79,9 +79,9 @@ The book’s rule system can play **two mathematically different roles** on the 
 
 So after a transition
 
-\[
+$$
 \lambda \to \mu
-\]
+$$
 
 or after a longer fragment, reward can be assigned according to how well that move satisfies the counterpoint principles:
 
@@ -96,11 +96,11 @@ or after a longer fragment, reward can be assigned according to how well that mo
 
 In RL language, the book gives a way to define
 
-\[
+$$
 r(\lambda,\mu)
 \qquad\text{or perhaps}\qquad
 r(\lambda,\mu,\text{context})
-\]
+$$
 
 and the policy learns to choose paths maximizing cumulative musical value.
 
@@ -204,9 +204,9 @@ This is probably the single biggest technical issue.
 
 Some rules are evaluable from just
 
-\[
+$$
 (\lambda,\mu)
-\]
+$$
 
 meaning one chord transition.
 
@@ -336,9 +336,9 @@ If this is done well, the JSON becomes almost mechanical.
 
 Many RL implementations quietly assume something like
 
-\[
+$$
 R = \sum_i w_i f_i.
-\]
+$$
 
 But some musical rules are really lexicographic:
 
