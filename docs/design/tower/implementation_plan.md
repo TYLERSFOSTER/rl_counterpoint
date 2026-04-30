@@ -103,20 +103,20 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| state aliases or dataclasses | rank-\(k\) state representation |
-| action aliases or dataclasses | rank-\(k\) move-vector representation |
+| state aliases or dataclasses | rank-$k$ state representation |
+| action aliases or dataclasses | rank-$k$ move-vector representation |
 | realization helpers | convert state/action objects to tuples if needed |
 | invariants | tuple length, integer MIDI/action coordinates |
 
 Core concepts:
 
-\[
+$$
 s^k=(\lambda_0,\dots,\lambda_{k-1})
-\]
+$$
 
-\[
+$$
 \Delta s^k=(\Delta\lambda_0,\dots,\Delta\lambda_{k-1})
-\]
+$$
 
 Allowed imports:
 
@@ -149,25 +149,25 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| action assembly | assemble rank-\(k\) action from parent action plus new coordinate |
+| action assembly | assemble rank-$k$ action from parent action plus new coordinate |
 | new-coordinate indexing | identify active coordinate at each rank |
 | projection compatibility checks | verify assembled action projects to parent action |
 
 Core rules:
 
-For \(k=2\):
+For $k=2$:
 
-\[
+$$
 \Delta s^2=(\Delta\lambda_0,\Delta\lambda_1).
-\]
+$$
 
-For \(k\ge 3\):
+For $k\ge 3$:
 
-\[
+$$
 \Delta s^k
 =
 (\Delta\lambda_0,\dots,\Delta\lambda_{k-3},\Delta\lambda_{k-2},\Delta\lambda_{k-1}).
-\]
+$$
 
 Allowed imports:
 
@@ -180,8 +180,8 @@ Inputs/outputs:
 
 | Function family | Input | Output |
 | --- | --- | --- |
-| new voice index | rank \(k\) | coordinate index |
-| assemble action | parent action, new coordinate, rank | rank-\(k\) action |
+| new voice index | rank $k$ | coordinate index |
+| assemble action | parent action, new coordinate, rank | rank-$k$ action |
 | validate assembly | assembled action, parent action | bool or diagnostic |
 
 Must not own:
@@ -207,11 +207,11 @@ Core parameters:
 
 | Parameter family | Examples |
 | --- | --- |
-| MIDI bounds | \(0,\dots,127\) |
-| adjacent gap | \(M_{\mathrm{adj}},F_{\mathrm{adj}}\) |
-| outer width | \(L(n,N),U(n,N)\) |
-| edge motion | \(M_{\mathrm{move}}\) |
-| tonic/root classes | \(\tau\), allowed root/outer pitch classes |
+| MIDI bounds | $0,\dots,127$ |
+| adjacent gap | $M_{\mathrm{adj}},F_{\mathrm{adj}}$ |
+| outer width | $L(n,N),U(n,N)$ |
+| edge motion | $M_{\mathrm{move}}$ |
+| tonic/root classes | $\tau$, allowed root/outer pitch classes |
 
 Allowed imports:
 
@@ -242,24 +242,24 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| state projection | \(G(k)_0\to G(k-1)_0\) |
-| action projection | \(\mathbb Z^k\to\mathbb Z^{k-1}\) |
-| window projection | \(W_t^k\to W_t^{k-1}\) |
+| state projection | $G(k)_0\to G(k-1)_0$ |
+| action projection | $\mathbb Z^k\to\mathbb Z^{k-1}$ |
+| window projection | $W_t^k\to W_t^{k-1}$ |
 | trajectory projection | optional helper for diagnostics |
 
 Core rules:
 
-\[
+$$
 \operatorname{pr}^2(\lambda_0,\lambda_1)=(\lambda_0)
-\]
+$$
 
-For \(k\ge 3\):
+For $k\ge 3$:
 
-\[
+$$
 \operatorname{pr}^k(\lambda_0,\dots,\lambda_{k-3},\lambda_{k-2},\lambda_{k-1})
 =
 (\lambda_0,\dots,\lambda_{k-3},\lambda_{k-1}).
-\]
+$$
 
 Allowed imports:
 
@@ -272,9 +272,9 @@ Inputs/outputs:
 
 | Function family | Input | Output |
 | --- | --- | --- |
-| project state | rank-\(k\) state | rank-\(k-1\) state |
-| project action | rank-\(k\) action | rank-\(k-1\) action |
-| project window | rank-\(k\) window | rank-\(k-1\) window |
+| project state | rank-$k$ state | rank-$k-1$ state |
+| project action | rank-$k$ action | rank-$k-1$ action |
+| project window | rank-$k$ window | rank-$k-1$ window |
 
 Must not own:
 
@@ -295,8 +295,8 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| node legality | rank-\(k\) state validity |
-| edge legality | rank-\(k\) transition validity |
+| node legality | rank-$k$ state validity |
+| edge legality | rank-$k$ transition validity |
 | graph morphism check | valid higher edge projects to valid lower edge |
 | no crossing / no parallel fifths | hard edge rules |
 
@@ -338,7 +338,7 @@ Responsibility:
 
 Core set:
 
-\[
+$$
 A_k(s_t^k;\Delta s_t^{k-1})
 =
 \left\{
@@ -346,7 +346,7 @@ A_k(s_t^k;\Delta s_t^{k-1})
 \mid
 \operatorname{pr}^k(\Delta s_t^k)=\Delta s_t^{k-1}
 \right\}.
-\]
+$$
 
 Allowed imports:
 
@@ -382,7 +382,7 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| rank window object | fixed-length padded rank-\(k\) history view |
+| rank window object | fixed-length padded rank-$k$ history view |
 | padding | PAD state and valid mask |
 | bar positions | metrical positions per window slot |
 | window projection | may live here to avoid graph/reward cycles |
@@ -400,7 +400,7 @@ Inputs/outputs:
 | --- | --- | --- |
 | build window | history, step index, measure size, context measures | window |
 | pad state | rank | PAD state |
-| project window | rank-\(k\) window | rank-\(k-1\) window |
+| project window | rank-$k$ window | rank-$k-1$ window |
 
 Must not own:
 
@@ -435,7 +435,7 @@ Inputs/outputs:
 | --- | --- | --- |
 | build reward context | rollout step components | rank context |
 | derive new facts | state/action/rank | new-facts payload |
-| project context | rank-\(k\) context | rank-\(k-1\) context |
+| project context | rank-$k$ context | rank-$k-1$ context |
 
 Must not own:
 
@@ -517,19 +517,19 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| rank success predicates | \(\mathsf{Success}_k(W_t^k)\) |
+| rank success predicates | $\mathsf{Success}_k(W_t^k)$ |
 | lifted success | parent success through projection plus new terminal condition |
 | cadence terminal hooks | terminal predicate structure |
 
 Core rule:
 
-\[
+$$
 \mathsf{Success}_k(W_t^k)
 =
 \mathsf{Success}_{k-1}(\operatorname{pr}^k W_t^k)
 \wedge
 \mathsf{NewTerminalCondition}_k(W_t^k).
-\]
+$$
 
 Allowed imports:
 
@@ -594,8 +594,8 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| active exploration sampler | \((1-\epsilon)\pi+\epsilon U\) |
-| parent top-\(m\) sampler | mostly-greedy frozen-parent sampling |
+| active exploration sampler | $(1-\epsilon)\pi+\epsilon U$ |
+| parent top-$m$ sampler | mostly-greedy frozen-parent sampling |
 | export sampler | optional temperature sampler |
 
 Allowed imports:
@@ -702,10 +702,10 @@ Responsibility:
 
 | Category | Content |
 | --- | --- |
-| stagewise lifecycle | train rank \(1,2,3,\dots\) |
+| stagewise lifecycle | train rank $1,2,3,\dots$ |
 | freeze enforcement | load lower policies read-only |
 | active training loop | run rollouts, update active policy |
-| acceptance by episode budget | rank accepted after \(E_k\) |
+| acceptance by episode budget | rank accepted after $E_k$ |
 
 Allowed imports:
 

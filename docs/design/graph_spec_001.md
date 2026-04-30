@@ -25,7 +25,7 @@ $$
 
 the maps are: $\delta_0(e)=\lambda$ and $\delta_1(e)=\mu.$ Self-loops are always excluded: $\lambda\to\lambda\notin G(n)_1.$ ## Raw Node Set
 
-Before trimming, nodes are ordered $n\)-tuples of distinct tones in the standard MIDI scale:
+Before trimming, nodes are ordered $n$-tuples of distinct tones in the standard MIDI scale:
 
 $$
 (\lambda_0,\dots,\lambda_{n-1})\in\{0,\dots,127\}^n
@@ -73,7 +73,7 @@ This is a node trim only. It affects $G(n)_0$ before edge counting and does not 
 
 ## Edge Trims
 
-The following trims affect $G(n)_1\), after the node set $G(n)_0$ has already been trimmed.
+The following trims affect $G(n)_1$, after the node set $G(n)_0$ has already been trimmed.
 
 ### Voice Crossing
 
@@ -85,7 +85,7 @@ Suggested field:
 allow_voice_crossing: bool = False
 ```
 
-An edge: $(\lambda_0,\dots,\lambda_{n-1})\to(\mu_0,\dots,\mu_{n-1})$ has voice crossing if there exists an adjacent voice boundary $0\le i<n-1$ such that: $\mu_i\ge \lambda_{i+1}$ or: $\lambda_i\ge \mu_{i+1}.$ So no crossing means: $\mu_i<\lambda_{i+1}$ and: $\lambda_i<\mu_{i+1}$ for every $0\le i<n-1\).
+An edge: $(\lambda_0,\dots,\lambda_{n-1})\to(\mu_0,\dots,\mu_{n-1})$ has voice crossing if there exists an adjacent voice boundary $0\le i<n-1$ such that: $\mu_i\ge \lambda_{i+1}$ or: $\lambda_i\ge \mu_{i+1}.$ So no crossing means: $\mu_i<\lambda_{i+1}$ and: $\lambda_i<\mu_{i+1}$ for every $0\le i<n-1$.
 
 ### Parallel Fifths
 
@@ -151,6 +151,6 @@ rather than duplicating all parameters as loose environment constructor argument
 
 ## Current Architectural Principle
 
-The graph spec defines $G(n)\). The environment should consume the spec; it should not be the only place where the graph is defined.
+The graph spec defines $G(n)$. The environment should consume the spec; it should not be the only place where the graph is defined.
 
 The sparsity-count design script should either consume this same spec object later or mirror it exactly until the code object exists.

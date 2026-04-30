@@ -109,9 +109,9 @@ Reason:
 
 Pitch-class interval helpers are generic:
 
-\[
+$$
 (\lambda_j-\lambda_i)\bmod 12.
-\]
+$$
 
 Tower destination:
 
@@ -125,11 +125,11 @@ Decision: copy.
 
 Reason:
 
-MIDI rendering of chord sequences is not specific to the flat graph. A tower rank-\(k\) passage is still a tuple sequence of MIDI-note chords:
+MIDI rendering of chord sequences is not specific to the flat graph. A tower rank-$k$ passage is still a tuple sequence of MIDI-note chords:
 
-\[
+$$
 (s_0^k,\dots,s_T^k).
-\]
+$$
 
 Tower destination:
 
@@ -179,9 +179,9 @@ The old observation module already has useful mechanics:
 
 But tower windows must project:
 
-\[
+$$
 W_t^k\longrightarrow W_t^{k-1}.
-\]
+$$
 
 Therefore this should become tower-owned code.
 
@@ -239,7 +239,7 @@ Reason:
 
 The old action helpers generate flat step-delta spaces. Tower action helpers must construct lift fibers:
 
-\[
+$$
 A_k(s_t^k;\Delta s_t^{k-1})
 =
 \left\{
@@ -247,7 +247,7 @@ A_k(s_t^k;\Delta s_t^{k-1})
 \mid
 \operatorname{pr}^k(\Delta s_t^k)=\Delta s_t^{k-1}
 \right\}.
-\]
+$$
 
 Tower destination:
 

@@ -64,7 +64,7 @@ It should prove rollout choreography, not learning.
 
 | Question | Answer |
 | --- | --- |
-| Is Slice 4 only rank-2 rollout, or reusable scaffolding for ranks 3+? | Implement rank-2 behavior first, but choose generic names and field shapes that clearly generalize to rank \(k\). Do not implement rank-3 logic in Slice 4. |
+| Is Slice 4 only rank-2 rollout, or reusable scaffolding for ranks 3+? | Implement rank-2 behavior first, but choose generic names and field shapes that clearly generalize to rank $k$. Do not implement rank-3 logic in Slice 4. |
 | Should Slice 4 include minimal reward plumbing? | Yes, but only callback-shaped reward plumbing. Do not implement real reward formulas here. |
 | Should Slice 4 include termination semantics? | Include `terminated` and `truncated` fields and support fixed-length truncation. Real success/failure hooks may be callback-shaped but should remain minimal. |
 | Should Slice 4 create final public APIs? | Create provisional-but-serious APIs. They should be stable enough for Slice 5-7, but not treated as a frozen external API. |
@@ -98,7 +98,7 @@ Avoid implementing the entire Slice 4 in one unreviewed jump.
 
 ### Decision
 
-Use a full rank-\(k\) step record with parent diagnostics.
+Use a full rank-$k$ step record with parent diagnostics.
 
 Recommended primary dataclass:
 
@@ -120,12 +120,12 @@ Every rollout step should store:
 | --- | --- | --- |
 | `rank` | required | active rollout rank |
 | `step_index` | required | integer timestep before transition |
-| `source_state` | required | \(s_t^k\) |
-| `window` | required | \(W_t^k\) |
-| `parent_state` | required for \(k>1\) | \(\operatorname{pr}^k(s_t^k)\) |
-| `parent_action` | required for \(k>1\) | \(\Delta s_t^{k-1}\) |
+| `source_state` | required | $s_t^k$ |
+| `window` | required | $W_t^k$ |
+| `parent_state` | required for $k>1$ | $\operatorname{pr}^k(s_t^k)$ |
+| `parent_action` | required for $k>1$ | $\Delta s_t^{k-1}$ |
 | `active_choice` | required | active child coordinate choice |
-| `assembled_action` | required | full \(\Delta s_t^k\) assembled from parent plus active choice |
+| `assembled_action` | required | full $\Delta s_t^k$ assembled from parent plus active choice |
 | `attempted_target_state` | required | state that would result from applying `assembled_action` |
 | `realized_next_state` | required | actual next state after validity/no-op semantics |
 | `active_logprob` | required | trainable log probability for active tier |
@@ -156,15 +156,15 @@ Store both:
 
 This matters for invalid extensions, where:
 
-\[
+$$
 \text{attempted target}\ne\text{realized next state}.
-\]
+$$
 
 For no-op invalid extensions:
 
-\[
+$$
 \text{realized next state}=s_t^k.
-\]
+$$
 
 ### Mathematical/Sampled/Applied Action Distinction
 
@@ -173,7 +173,7 @@ For Slice 4, do not over-split action fields into many competing names.
 Use:
 
 - `active_choice`: sampled active child coordinate
-- `assembled_action`: mathematical rank-\(k\) action assembled from parent plus active choice
+- `assembled_action`: mathematical rank-$k$ action assembled from parent plus active choice
 - `attempted_target_state`: result attempted by that assembled action
 - `realized_next_state`: state actually recorded after validity semantics
 
@@ -183,7 +183,7 @@ This is enough to distinguish sampled action, assembled action, and realized tra
 
 ### Decision
 
-Store full rank-\(k\) records. Compute projected parent windows on demand.
+Store full rank-$k$ records. Compute projected parent windows on demand.
 
 ### Answers
 
@@ -297,7 +297,7 @@ If the child proposes a coordinate outside the active lift choices, this is an i
 
 On invalid extension, rollout must:
 
-1. keep the rank-\(k\) state unchanged,
+1. keep the rank-$k$ state unchanged,
 2. advance time,
 3. record the attempted action and attempted target,
 4. record `realized_next_state == source_state`,
@@ -371,11 +371,11 @@ It means the parent action was valid in the lower graph but had no legal lift at
 
 ### Decision
 
-Rollout owns building the rank-\(k\) window from rank-\(k\) history.
+Rollout owns building the rank-$k$ window from rank-$k$ history.
 
 For Slice 4:
 
-- build \(W_t^2\) from rank-2 history at every step
+- build $W_t^2$ from rank-2 history at every step
 - project parent windows on demand
 - do not store projected parent windows in the trajectory step
 
@@ -387,7 +387,7 @@ The trajectory step should store:
 window
 ```
 
-where this is the full rank-\(k\) `TowerWindow`.
+where this is the full rank-$k$ `TowerWindow`.
 
 Repeated states from invalid no-op steps must appear in history.
 
@@ -506,7 +506,7 @@ or:
 rollout_rank2(...)
 ```
 
-Do not prematurely implement a fully generic rank-\(k\) rollout engine.
+Do not prematurely implement a fully generic rank-$k$ rollout engine.
 
 However, name record types generically:
 

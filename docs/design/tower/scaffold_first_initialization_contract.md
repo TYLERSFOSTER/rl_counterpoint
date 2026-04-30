@@ -13,9 +13,9 @@ while still being globally mis-specified at episode start.
 
 ## Core Rule
 
-For rank \(k \ge 2\), training episodes should start from a lower-rank scaffold
-first, not from an arbitrary legal rank-\(k\) full state sampled directly from
-\(G(k)_0\).
+For rank $k \ge 2$, training episodes should start from a lower-rank scaffold
+first, not from an arbitrary legal rank-$k$ full state sampled directly from
+$G(k)_0$.
 
 Operationally:
 
@@ -74,9 +74,9 @@ That means:
 The important prohibition is:
 
 - do **not** sample an arbitrary legal two-voice state
-  \[
+  $$
   (\lambda_0,\lambda_1) \in G(2)_0
-  \]
+  $$
   as the default training start.
 
 The correct source of diversity for rank 2 is:
@@ -104,9 +104,9 @@ Equivalently:
 The important prohibition is:
 
 - do **not** sample an arbitrary legal three-voice state
-  \[
+  $$
   (\lambda_0,\lambda_1,\lambda_2) \in G(3)_0
-  \]
+  $$
   as the default training start.
 
 The correct source of diversity for rank 3 is:
@@ -182,5 +182,5 @@ The correct mental model is:
 - rank 2: initialize from pedal scaffold;
 - rank 3: initialize from pedal + outer scaffold.
 
-If a rank-\(k\) episode begins by sampling an arbitrary full legal state in
-\(G(k)_0\), then the initialization is not correctly hierarchical.
+If a rank-$k$ episode begins by sampling an arbitrary full legal state in
+$G(k)_0$, then the initialization is not correctly hierarchical.

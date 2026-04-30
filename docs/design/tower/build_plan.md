@@ -121,7 +121,7 @@ Behavior:
 | Function | Required behavior |
 | --- | --- |
 | `rank_of_state` | returns `len(state)` and rejects empty state |
-| `validate_rank` | requires rank \(\ge 1\) |
+| `validate_rank` | requires rank $\ge 1$ |
 | `validate_state` | requires nonempty tuple of ints, optional length equals rank, MIDI values in `[0, 127]`, strictly increasing if rank > 1 |
 | `validate_action` | requires tuple of ints with length equal rank |
 | `apply_action` | coordinatewise addition, validates action length, returns tuple |
@@ -451,7 +451,7 @@ Behavior:
 | 2 | `(x0, x1) -> (x0,)` |
 | 3 | `(x0, x1, x2) -> (x0, x2)` |
 | 4 | `(x0, x1, x2, x3) -> (x0, x1, x3)` |
-| \(k\ge3\) | remove second-from-top coordinate |
+| $k\ge3$ | remove second-from-top coordinate |
 
 Tests:
 
@@ -510,7 +510,7 @@ Behavior:
 | --- | --- |
 | 1 | `0` |
 | 2 | `1` |
-| \(k\ge3\) | `k - 2` |
+| $k\ge3$ | `k - 2` |
 
 Assembly:
 
@@ -573,9 +573,9 @@ Validate:
 
 | Field | Requirement |
 | --- | --- |
-| rank | \(\ge 1\) |
+| rank | $\ge 1$ |
 | pitch range | `0 <= pitch_min <= pitch_max <= 127` |
-| max step size | \(\ge 1\) |
+| max step size | $\ge 1$ |
 
 Do not yet implement full node/edge pruning parameters in Slice 2 unless needed for tests.
 
@@ -776,8 +776,8 @@ Behavior:
 
 | Requirement | Detail |
 | --- | --- |
-| rank | state rank is active rank \(k\) |
-| parent rank | parent action rank is \(k-1\) |
+| rank | state rank is active rank $k$ |
+| parent rank | parent action rank is $k-1$ |
 | projection filter | keep only actions with `project_action(action) == parent_action` |
 | legality filter | keep only actions where `is_valid_transition(state, action, spec)` |
 
@@ -829,11 +829,11 @@ Return the possible active new-coordinate values corresponding to the full lift-
 
 For rank 2:
 
-\[
+$$
 \Delta s^2=(\Delta\lambda_0,\Delta\lambda_1)
-\]
+$$
 
-so active choices are the \(\Delta\lambda_1\) values.
+so active choices are the $\Delta\lambda_1$ values.
 
 Tests:
 
@@ -974,7 +974,7 @@ Key tests:
 | lineage paths deterministic | artifact contract |
 | config round trip | config persistence |
 | metrics JSONL append | old behavior carried over |
-| manifest parent lookup | rank \(k+1\) can find rank \(k\) |
+| manifest parent lookup | rank $k+1$ can find rank $k$ |
 
 ## Slice 7 Outline: Rank-1 Learning Loop
 
@@ -1002,7 +1002,7 @@ Planned files:
 | --- | --- |
 | `tower/train/protocol.py` | rank-2 training lifecycle |
 | `tower/train/checkpoint.py` | parent loading and lineage |
-| `tower/policy/samplers.py` | parent top-\(m\) sampler |
+| `tower/policy/samplers.py` | parent top-$m$ sampler |
 | `tower/train/rollout.py` | frozen parent and active child rollout |
 
 Key tests:

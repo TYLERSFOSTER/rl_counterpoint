@@ -80,9 +80,9 @@ More precisely:
 
 So if:
 
-\[
+$$
 \mathrm{pr}^{n+1 \to n} : G(n+1)_\bullet \to G(n)_\bullet
-\]
+$$
 
 is the stage projection, then a valid higher-rank voice leading must project to a valid lower-rank voice leading.
 
@@ -195,15 +195,15 @@ This is why the design has a semidirect flavor:
 
 For each rank `n`, there is a graph-like system:
 
-\[
+$$
 G(n)_\bullet
-\]
+$$
 
 and projection maps:
 
-\[
+$$
 \mathrm{pr}^{n+1 \to n} : G(n+1)_\bullet \to G(n)_\bullet
-\]
+$$
 
 These are intended to be canonical graph morphisms.
 
@@ -215,9 +215,9 @@ The intended meaning is:
 
 So the tower is:
 
-\[
+$$
 \cdots \to G(3)_\bullet \to G(2)_\bullet \to G(1)_\bullet
-\]
+$$
 
 This means the node projection is only part of the story.
 
@@ -237,17 +237,17 @@ If it failed, then higher-rank training would have to rediscover valid navigatio
 
 For each rank `n`, there is an action object:
 
-\[
+$$
 \alpha_t^n
-\]
+$$
 
 but the action tower is not just a projection story.
 
 Instead, higher-rank actions are assembled upward from lower-rank action coordinates:
 
-\[
+$$
 \alpha_t^n = F(\alpha_t^1, \alpha_t^2, \dots, \alpha_t^n)
-\]
+$$
 
 for some structured assembly rule `F`.
 
@@ -262,9 +262,9 @@ That asymmetry is the heart of the design.
 
 For each rank `n`, there is a policy:
 
-\[
+$$
 \pi^n(\alpha_t^n \mid s_t^n)
-\]
+$$
 
 but these policies are not independent.
 
@@ -274,9 +274,9 @@ The rank `n+1` policy is trained after rank `n` and is meant to use the already-
 
 Each rank has its own reward:
 
-\[
+$$
 R^1, R^2, R^3, \dots
-\]
+$$
 
 These are not copies of the same reward.
 
@@ -602,9 +602,9 @@ sequenceDiagram
 
 There must be a canonical map:
 
-\[
+$$
 \mathrm{pr}^{n+1 \to n}(s^{n+1}) = s^n
-\]
+$$
 
 That means the representation of `State(n+1)` must carry the rank-`n` parent inherently.
 
@@ -612,16 +612,16 @@ But this is only the node-level piece.
 
 There must also be a canonical induced projection on valid transitions:
 
-\[
+$$
 \mathrm{pr}^{n+1 \to n}(e^{n+1}) = e^n
-\]
+$$
 
 where:
 
-- \(e^{n+1} \in G(n+1)_1\)
-- \(e^n \in G(n)_1\)
+- $e^{n+1} \in G(n+1)_1$
+- $e^n \in G(n)_1$
 
-and \(e^n\) must still be a valid lower-rank voice leading.
+and $e^n$ must still be a valid lower-rank voice leading.
 
 ### Why This Matters
 
@@ -673,9 +673,9 @@ Actions do not project downward in the same way states do.
 
 Instead, higher-rank actions assemble upward:
 
-\[
+$$
 \alpha^n = F(\alpha^1,\dots,\alpha^n)
-\]
+$$
 
 ### Why This Matters
 
@@ -744,13 +744,13 @@ If a higher-rank transition is applied and then projected downward, it should ag
 
 Very roughly:
 
-\[
+$$
 \mathrm{pr}^{n+1 \to n}\bigl(T^{n+1}(s^{n+1}, \alpha^{n+1})\bigr)
 
 =
 
 T^n\bigl(\mathrm{pr}^{n+1 \to n}(s^{n+1}), \alpha^n\bigr)
-\]
+$$
 
 This should hold by construction, not by luck.
 
@@ -795,21 +795,21 @@ The system has a semidirect flavor because each new layer is:
 
 So the tower should be thought of not as:
 
-\[
+$$
 \text{direct product of independent components}
-\]
+$$
 
 but as something closer to:
 
-\[
+$$
 \text{iterated semidirect extension}
-\]
+$$
 
 or:
 
-\[
+$$
 \text{split tower with dependent extension coordinates}
-\]
+$$
 
 This is important because it guides implementation.
 
@@ -933,9 +933,9 @@ or be copied into `tower/music`?
 
 The current discussion assumes a policy tower:
 
-\[
+$$
 \pi^1, \pi^2, \pi^3, \dots
-\]
+$$
 
 But it remains open whether these are:
 

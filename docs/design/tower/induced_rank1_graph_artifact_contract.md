@@ -63,27 +63,27 @@ using a heuristic pitch-range trim.
 
 Let:
 
-\[
+$$
 \mathrm{pr}^{2 \to 1} : G(2)_\bullet \to G(1)_\bullet
-\]
+$$
 
 be the canonical tower projection.
 
 Then the artifact represents:
 
-\[
+$$
 G(1)_0^{\mathrm{induced}}
 =
 \operatorname{Im}\left(\mathrm{pr}^{2 \to 1} : G(2)_0 \to G(1)_0\right)
-\]
+$$
 
 and
 
-\[
+$$
 G(1)_1^{\mathrm{induced}}
 =
 \operatorname{Im}\left(\mathrm{pr}^{2 \to 1} : G(2)_1 \to G(1)_1\right).
-\]
+$$
 
 So the artifact must include both:
 

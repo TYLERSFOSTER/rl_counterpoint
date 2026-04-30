@@ -7,25 +7,25 @@ graphs when the intended final training rank is known in advance.
 
 Graph construction is not purely local to the currently trained rank.
 
-When the user knows the intended final rank \(R\), that final rank should modify
+When the user knows the intended final rank $R$, that final rank should modify
 the whole lower tower during graph construction.
 
 Operationally:
 
-1. build the highest-rank source graph for \(R\),
-2. prune it by the active legality contract for \(R\),
+1. build the highest-rank source graph for $R$,
+2. prune it by the active legality contract for $R$,
 3. project it down one tier at a time,
 4. replace lower-tier effective graphs with those projection images.
 
 So if the intended final rank is 3:
 
-\[
+$$
 G(3)_\bullet^{\mathrm{legal}}
 \xrightarrow{\operatorname{pr}^{3}}
 G(2)_\bullet^{(3)}
 \xrightarrow{\operatorname{pr}^{2}}
 G(1)_\bullet^{(3)}.
-\]
+$$
 
 The lower tiers used in training are the induced projected graphs, not
 independently rebuilt graphs that ignore the final tier.

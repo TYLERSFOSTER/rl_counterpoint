@@ -67,9 +67,9 @@ This is much more faithful to the tower philosophy.
 
 Let:
 
-\[
+$$
 \mathrm{pr}^{2 \to 1} : G(2)_\bullet \to G(1)_\bullet
-\]
+$$
 
 be the canonical rank projection.
 
@@ -77,25 +77,25 @@ Then the corrected induced rank-1 graph is:
 
 ### Node Image
 
-\[
+$$
 G(1)_0^{\mathrm{induced}}
 =
 \operatorname{Im}\left(
 \mathrm{pr}^{2 \to 1} : G(2)_0 \to G(1)_0
 \right).
-\]
+$$
 
 So a rank-1 node survives iff it is the projection of at least one valid rank-2 node.
 
 ### Edge Image
 
-\[
+$$
 G(1)_1^{\mathrm{induced}}
 =
 \operatorname{Im}\left(
 \mathrm{pr}^{2 \to 1} : G(2)_1 \to G(1)_1
 \right).
-\]
+$$
 
 So a rank-1 edge survives iff it is the projection of at least one valid rank-2 edge.
 

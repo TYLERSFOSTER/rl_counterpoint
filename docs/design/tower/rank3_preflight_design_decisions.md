@@ -35,9 +35,9 @@ The following decisions are now explicitly chosen.
 
 Settled:
 
-\[
+$$
 (\lambda_0,\lambda_2)\leadsto(\lambda_0,\lambda_1,\lambda_2)
-\]
+$$
 
 Rank 3 inserts an interior voice, not a new outermost voice.
 
@@ -50,19 +50,19 @@ construction from the beginning.
 
 So for final rank 3:
 
-1. build an initial candidate \(G(3)_\bullet\),
+1. build an initial candidate $G(3)_\bullet$,
 2. replace it by the full preimage of the lower tower constraint:
 
-\[
+$$
 G(3)_\bullet \rightsquigarrow (\operatorname{pr}^{3})^{-1}\!\big((\operatorname{pr}^{2})^{-1}(G(1)_\bullet)\big)
-\]
+$$
 
 3. then replace the lower tiers by projection image:
 
-\[
+$$
 G(2)_\bullet \leftarrow \operatorname{pr}^{3}(G(3)_\bullet), \qquad
 G(1)_\bullet \leftarrow \operatorname{pr}^{2}(G(2)_\bullet)
-\]
+$$
 
 The intended pattern is:
 
@@ -97,9 +97,9 @@ In other words, the current leaning is toward the fully hard-pruned version of:
 
 Chosen:
 
-\[
+$$
 \{3,4,7,8,9\} \pmod{12}
-\]
+$$
 
 Use the current rank-2 style set everywhere relevant, unless later evidence forces
 us to split adjacent-vs-outer interval vocabularies.
@@ -249,9 +249,9 @@ Legacy also treats adjacent vertical intervals structurally:
 
 For rank 3 that means the adjacent intervals
 
-\[
+$$
 \lambda_1 - \lambda_0,\qquad \lambda_2 - \lambda_1
-\]
+$$
 
 should almost certainly be part of `G(3)_0` legality, not merely reward shaping.
 
@@ -336,9 +336,9 @@ This is the biggest one.
 The projection/assembly code already implies the new rank-3 coordinate is inserted
  at index `1`:
 
-\[
+$$
 (\lambda_0, \lambda_2) \leadsto (\lambda_0, \lambda_1, \lambda_2)
-\]
+$$
 
 See:
 
@@ -410,19 +410,19 @@ Still open:
 
 We already decided for rank 1:
 
-\[
+$$
 G(1)_\bullet \leftarrow \operatorname{pr}^2(G(2)_\bullet)
-\]
+$$
 
 For rank 3 we need the next analogue:
 
-\[
+$$
 G(2)_\bullet \leftarrow \operatorname{pr}^3(G(3)_\bullet)
-\]
+$$
 
 Settled in direction, still open in implementation details:
 
-- yes, `G(2)` should eventually be replaced by \(\operatorname{pr}^{3}(G(3)_\bullet)\)
+- yes, `G(2)` should eventually be replaced by $\operatorname{pr}^{3}(G(3)_\bullet)$
 - and the tower should be built top-down from the known final rank
 
 Questions still to settle:

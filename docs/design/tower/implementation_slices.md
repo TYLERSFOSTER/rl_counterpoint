@@ -70,13 +70,13 @@ Implement the base of the tower without parent policies, lift fibers, neural pol
 
 Core math:
 
-\[
+$$
 s_t^1=(\lambda_0),
 \qquad
 \Delta s_t^1=(\Delta\lambda_0),
 \qquad
 s_{t+1}^1=s_t^1+\Delta s_t^1.
-\]
+$$
 
 Files:
 
@@ -93,10 +93,10 @@ Required behavior:
 
 | Behavior | Requirement |
 | --- | --- |
-| state construction | construct/validate \(s^1=(\lambda_0)\) |
-| action construction | construct/validate \(\Delta s^1=(\Delta\lambda_0)\) |
+| state construction | construct/validate $s^1=(\lambda_0)$ |
+| action construction | construct/validate $\Delta s^1=(\Delta\lambda_0)$ |
 | realization | return tuple form |
-| window construction | build left-padded fixed-length \(W_t^1\) |
+| window construction | build left-padded fixed-length $W_t^1$ |
 | padding | PAD state and valid mask work |
 | meter positions | bar positions align with step index |
 | reward context | carries rank, source, action, target, window, tonic/meter/goal fields |
@@ -128,34 +128,34 @@ Purpose:
 
 Implement the first real tower transition:
 
-\[
+$$
 G(2)_\bullet\to G(1)_\bullet.
-\]
+$$
 
 Core math:
 
-\[
+$$
 \operatorname{pr}^2(\lambda_0,\lambda_1)=(\lambda_0)
-\]
+$$
 
 and:
 
-\[
+$$
 \operatorname{pr}^2(\Delta\lambda_0,\Delta\lambda_1)=(\Delta\lambda_0).
-\]
+$$
 
 Action assembly:
 
-\[
+$$
 \Delta s_t^2=(\Delta\lambda_{0,t},\Delta\lambda_{1,t}).
-\]
+$$
 
 Files:
 
 | File | Work |
 | --- | --- |
 | `tower/graph/projection.py` | rank-2 state/action/window projection |
-| `tower/action/assembly.py` | assemble \(\Delta s^2\) from parent action plus outer-voice coordinate |
+| `tower/action/assembly.py` | assemble $\Delta s^2$ from parent action plus outer-voice coordinate |
 | `tower/graph/spec.py` | minimal rank-1/rank-2 graph spec shell |
 | `tower/graph/legality.py` | minimal rank-1/rank-2 state/edge checks |
 
@@ -163,20 +163,20 @@ Required behavior:
 
 | Behavior | Requirement |
 | --- | --- |
-| state projection | project \(s^2\mapsto s^1\) |
-| action projection | project \(\Delta s^2\mapsto \Delta s^1\) |
-| window projection | project \(W_t^2\mapsto W_t^1\) |
-| rank-2 assembly | assemble parent \(\Delta s^1\) and outer coordinate into \(\Delta s^2\) |
+| state projection | project $s^2\mapsto s^1$ |
+| action projection | project $\Delta s^2\mapsto \Delta s^1$ |
+| window projection | project $W_t^2\mapsto W_t^1$ |
+| rank-2 assembly | assemble parent $\Delta s^1$ and outer coordinate into $\Delta s^2$ |
 | projection compatibility | assembled action projects to parent action |
 | commuting law | projection commutes with state update |
 
 Required test equation:
 
-\[
+$$
 \operatorname{pr}^2(s_t^2+\Delta s_t^2)
 =
 \operatorname{pr}^2(s_t^2)+\operatorname{pr}^2(\Delta s_t^2).
-\]
+$$
 
 Tests:
 
@@ -208,19 +208,19 @@ Implement the first core search-space reduction mechanism.
 
 Given:
 
-\[
+$$
 s_t^2\mapsto s_t^1
-\]
+$$
 
 and parent action:
 
-\[
+$$
 \Delta s_t^1,
-\]
+$$
 
 the rank-2 child action mask keeps only arrows lying over the parent arrow:
 
-\[
+$$
 A_2(s_t^2;\Delta s_t^1)
 =
 \left\{
@@ -228,7 +228,7 @@ A_2(s_t^2;\Delta s_t^1)
 \mid
 \operatorname{pr}^2(\Delta s_t^2)=\Delta s_t^1
 \right\}.
-\]
+$$
 
 Files:
 
@@ -280,7 +280,7 @@ Files:
 | --- | --- |
 | `tower/train/rollout.py` | parent-first rollout loop |
 | `tower/train/trajectory.py` | Option C step records |
-| `tower/policy/samplers.py` | trivial/scripted samplers and top-\(m\) helpers |
+| `tower/policy/samplers.py` | trivial/scripted samplers and top-$m$ helpers |
 | `tower/reward/result.py` | simple scalar reward output |
 
 Required behavior:
@@ -289,7 +289,7 @@ Required behavior:
 | --- | --- |
 | parent sampled first | frozen/scripted parent action chosen before child |
 | child fiber mask | child choice restricted over parent action |
-| assembled action | full \(\Delta s^2\) produced |
+| assembled action | full $\Delta s^2$ produced |
 | valid transition | valid action advances state |
 | invalid extension | no-op, penalty, time advances |
 | Option C record | parent diagnostics plus active logprob stored |
@@ -322,27 +322,27 @@ Implement the first rank-local terminal success predicates and reward context ex
 
 Core rule:
 
-\[
+$$
 \mathsf{Success}_k(W_t^k)
 =
 \mathsf{Success}_{k-1}(\operatorname{pr}^k W_t^k)
 \wedge
 \mathsf{NewTerminalCondition}_k(W_t^k).
-\]
+$$
 
 Rank 1:
 
-\[
+$$
 \mathsf{Success}_1(W_t^1)
 =
 \left[
 W_t^1\models \operatorname{pr}^2(\text{perfect cadence})
 \right].
-\]
+$$
 
 Rank 2:
 
-\[
+$$
 \mathsf{Success}_2(W_t^2)
 =
 \mathsf{Success}_1(\operatorname{pr}^2 W_t^2)
@@ -350,7 +350,7 @@ Rank 2:
 \left[
 \text{outer voice supplies the third of the cadence chords}
 \right].
-\]
+$$
 
 Files:
 
@@ -421,7 +421,7 @@ Tests:
 | rank config round trips | config persistence works |
 | metrics append JSONL | old behavior carried forward |
 | manifest records parent | Stage 12 lineage rule works |
-| parent lookup from manifest | rank \(k+1\) can find rank \(k\) |
+| parent lookup from manifest | rank $k+1$ can find rank $k$ |
 
 Out of scope:
 
@@ -455,7 +455,7 @@ Required behavior:
 | rank-1 rollout | produces trainable trajectory |
 | active logprob | recorded for every step |
 | returns/loss | computed from rank-1 reward |
-| optimizer step | updates only \(\pi^1\) |
+| optimizer step | updates only $\pi^1$ |
 | checkpoint | saves rank-1 latest checkpoint |
 
 Tests:
@@ -472,7 +472,7 @@ Out of scope:
 | Out of scope |
 | --- |
 | rank-2 frozen-parent training |
-| top-\(m\) parent sampler |
+| top-$m$ parent sampler |
 | multi-rank lineage beyond rank 1 |
 | full TC21M reward suite |
 
@@ -488,17 +488,17 @@ Files:
 | --- | --- |
 | `tower/train/protocol.py` | train rank 2 from accepted rank 1 |
 | `tower/train/checkpoint.py` | load parent checkpoint and record dependency |
-| `tower/policy/samplers.py` | parent top-\(m\) sampler |
+| `tower/policy/samplers.py` | parent top-$m$ sampler |
 | `tower/train/rollout.py` | parent-first rollout with active child |
 
 Required behavior:
 
 | Behavior | Requirement |
 | --- | --- |
-| load frozen \(\pi^1\) | parent checkpoint read-only |
-| sample parent first | top-\(m\) mostly-greedy sampler |
+| load frozen $\pi^1$ | parent checkpoint read-only |
+| sample parent first | top-$m$ mostly-greedy sampler |
 | child mask | rank-2 lift fiber over parent action |
-| optimize only \(R_2\) | active-tier-only gradient |
+| optimize only $R_2$ | active-tier-only gradient |
 | parent diagnostics | parent logprob and sampler details recorded |
 | checkpoint lineage | rank-2 checkpoint records rank-1 parent |
 

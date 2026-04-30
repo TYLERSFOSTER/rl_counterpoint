@@ -66,9 +66,9 @@ artifacts/tower/<lineage_id>/
 
 The lineage directory exists because tower training is sequential and dependent:
 
-\[
+$$
 \pi^1 \longrightarrow \pi^2 \longrightarrow \pi^3 \longrightarrow \cdots
-\]
+$$
 
 The lineage captures one no-rollback chain of rank checkpoints. If a lower-rank flaw requires retraining, that should create a new lineage rather than silently mutating the old one.
 
@@ -106,17 +106,17 @@ rank_<k>/
 
 Each rank directory owns artifacts for one active training tier:
 
-\[
+$$
 \pi^k.
-\]
+$$
 
 Required files:
 
 | File | Meaning |
 | --- | --- |
-| `config.json` | persisted rank-\(k\) training config |
+| `config.json` | persisted rank-$k$ training config |
 | `metrics.jsonl` | append-only episode metrics |
-| `checkpoint_latest.pt` | rolling latest rank-\(k\) checkpoint |
+| `checkpoint_latest.pt` | rolling latest rank-$k$ checkpoint |
 
 Recommended generated artifact:
 
@@ -158,7 +158,7 @@ Every rank checkpoint should contain:
 
 | Field | Meaning |
 | --- | --- |
-| `rank` | active rank \(k\) |
+| `rank` | active rank $k$ |
 | `lineage_id` | lineage directory identifier |
 | `episode_index` | latest completed episode |
 | `config` | persisted rank config payload |
@@ -167,11 +167,11 @@ Every rank checkpoint should contain:
 | `optimizer_state_dict` | active rank optimizer state |
 | `artifact_schema_version` | checkpoint schema version |
 
-For \(k>1\), the checkpoint must also contain parent dependency metadata:
+For $k>1$, the checkpoint must also contain parent dependency metadata:
 
 | Field | Meaning |
 | --- | --- |
-| `parent_rank` | \(k-1\) |
+| `parent_rank` | $k-1$ |
 | `parent_checkpoint` | relative path to accepted parent checkpoint |
 | `parent_checkpoint_id` | stable parent checkpoint identifier if available |
 | `parent_config_hash` | hash or digest of parent config if available |
@@ -185,20 +185,20 @@ Each rank's `config.json` should include:
 
 | Field | Meaning |
 | --- | --- |
-| `rank` | active rank \(k\) |
+| `rank` | active rank $k$ |
 | `lineage_id` | lineage identifier |
-| `episode_budget` | \(E_k\) |
+| `episode_budget` | $E_k$ |
 | `measure_size` | meter measure size |
 | `context_measures` | window length in measures |
 | `max_step_size` | horizontal step budget |
-| `reward_config` | rank-\(k\) reward weights and knobs |
-| `graph_config` | rank-\(k\) graph legality/spec knobs |
+| `reward_config` | rank-$k$ reward weights and knobs |
+| `graph_config` | rank-$k$ graph legality/spec knobs |
 | `policy_config` | architecture and action-space knobs |
 | `training_config` | learning rate, gamma, entropy/exploration knobs |
-| `parent_sampler_config` | top-\(m\) parent sampler settings, for \(k>1\) |
-| `parent_checkpoint` | parent checkpoint path, for \(k>1\) |
+| `parent_sampler_config` | top-$m$ parent sampler settings, for $k>1$ |
+| `parent_checkpoint` | parent checkpoint path, for $k>1$ |
 
-The config should be sufficient to reconstruct the rank-\(k\) training setup, assuming the code version is also known.
+The config should be sufficient to reconstruct the rank-$k$ training setup, assuming the code version is also known.
 
 ## Lineage Manifest
 
@@ -235,46 +235,46 @@ Minimum structure:
 }
 ```
 
-The manifest should make it easy for rank \(k+1\) training to locate the accepted rank-\(k\) checkpoint.
+The manifest should make it easy for rank $k+1$ training to locate the accepted rank-$k$ checkpoint.
 
 ## Accepted Checkpoint Lookup
 
 Stage 10 defined acceptance as completing the configured episode budget:
 
-\[
+$$
 \text{accepted}(\pi^k)
 \quad\Longleftrightarrow\quad
 \text{episodes completed}=E_k.
-\]
+$$
 
-Therefore the accepted checkpoint for rank \(k\) is:
+Therefore the accepted checkpoint for rank $k$ is:
 
 ```text
 artifacts/tower/<lineage_id>/rank_<k>/checkpoint_latest.pt
 ```
 
-provided that the manifest marks rank \(k\) as accepted.
+provided that the manifest marks rank $k$ as accepted.
 
-Rank \(k+1\) training locates the frozen parent by reading:
+Rank $k+1$ training locates the frozen parent by reading:
 
 ```text
 artifacts/tower/<lineage_id>/manifest.json
 ```
 
-and resolving rank \(k\)'s accepted checkpoint path.
+and resolving rank $k$'s accepted checkpoint path.
 
 ## Parent Dependency Rule
 
-For \(k>1\), rank \(k\) depends on exactly one accepted parent checkpoint:
+For $k>1$, rank $k$ depends on exactly one accepted parent checkpoint:
 
-\[
+$$
 \operatorname{parent}(\pi^k)=\operatorname{checkpoint}(\pi^{k-1}).
-\]
+$$
 
 This dependency must be recorded in:
 
-1. the rank-\(k\) `config.json`,
-2. the rank-\(k\) `checkpoint_latest.pt`,
+1. the rank-$k$ `config.json`,
+2. the rank-$k$ `checkpoint_latest.pt`,
 3. the lineage `manifest.json`.
 
 This is lineage tracking only. The parent checkpoint remains read-only.
@@ -293,8 +293,8 @@ Required or strongly recommended:
 | `graph_config` | graph legality affects action spaces |
 | `reward_config` | reward weights define training objective |
 | `training_config` | optimizer and RL parameters |
-| `parent_checkpoint` | scaffold dependency for \(k>1\) |
-| `parent_sampler_config` | parent rollout behavior for \(k>1\) |
+| `parent_checkpoint` | scaffold dependency for $k>1$ |
+| `parent_sampler_config` | parent rollout behavior for $k>1$ |
 | `seed_config` | reproduce sampling where intended |
 | `artifact_schema_version` | guard against future format drift |
 
@@ -317,13 +317,13 @@ metrics.jsonl
 
 Each line should be one JSON object for one episode.
 
-Minimum rank-\(k\) episode metrics:
+Minimum rank-$k$ episode metrics:
 
 | Metric | Meaning |
 | --- | --- |
 | `rank` | active rank |
 | `episode_index` | episode number |
-| `episode_return` | sum of rank-\(k\) rewards |
+| `episode_return` | sum of rank-$k$ rewards |
 | `episode_length` | number of steps |
 | `mean_step_reward` | average reward |
 | `terminated` | terminal success flag |
@@ -346,7 +346,7 @@ example_episode.mid
 
 The old system already exports one example MIDI after training. The tower should preserve this behavior rankwise.
 
-The export for rank \(k\) should render the realized rank-\(k\) chord sequence.
+The export for rank $k$ should render the realized rank-$k$ chord sequence.
 
 If a higher-rank export depends on frozen parent checkpoints, the export metadata should include the same parent checkpoint references as the training run.
 
@@ -423,10 +423,10 @@ Stage 12 can be considered complete if the project manager accepts:
 | each rank writes rolling `checkpoint_latest.pt` | yes |
 | each rank may write `example_episode.mid` | yes |
 | checkpoints record rank and lineage ID | yes |
-| checkpoints for \(k>1\) record parent checkpoint dependency | yes |
+| checkpoints for $k>1$ record parent checkpoint dependency | yes |
 | parent checkpoint state is referenced, not duplicated | yes |
 | lineage manifest records accepted checkpoints | yes |
-| rank \(k+1\) locates parent via manifest | yes |
+| rank $k+1$ locates parent via manifest | yes |
 | no-rollback lineage is preserved | yes |
 
 Once accepted, Phase 4 is complete. The next phase is Phase 5: Freeze System Architecture.

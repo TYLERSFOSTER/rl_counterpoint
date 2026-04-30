@@ -73,10 +73,10 @@ Consistent decisions:
 
 | Topic | Consistent answer |
 | --- | --- |
-| state | \(s^k=(\lambda_0,\dots,\lambda_{k-1})\) |
-| action | \(\Delta s^k=(\Delta\lambda_0,\dots,\Delta\lambda_{k-1})\) |
-| rank-2 projection | \(\operatorname{pr}^2(\lambda_0,\lambda_1)=(\lambda_0)\) |
-| rank-\(k\ge3\) projection | remove second-from-top coordinate |
+| state | $s^k=(\lambda_0,\dots,\lambda_{k-1})$ |
+| action | $\Delta s^k=(\Delta\lambda_0,\dots,\Delta\lambda_{k-1})$ |
+| rank-2 projection | $\operatorname{pr}^2(\lambda_0,\lambda_1)=(\lambda_0)$ |
+| rank-$k\ge3$ projection | remove second-from-top coordinate |
 | action projection | remove corresponding action coordinate |
 | action assembly | parent action plus new coordinate |
 | commuting law | projection commutes with transition |
@@ -85,11 +85,11 @@ No contradiction in the accepted docs.
 
 Required implementation tests:
 
-\[
+$$
 \operatorname{pr}^k(s_t^k+\Delta s_t^k)
 =
 \operatorname{pr}^k(s_t^k)+\operatorname{pr}^k(\Delta s_t^k).
-\]
+$$
 
 ### Non-Blocking Typo
 
@@ -101,11 +101,11 @@ intermediate coordinates λ_k, for 10≤k≤n-1
 
 This should be:
 
-\[
+$$
 1\le k\le n-2.
-\]
+$$
 
-It also has at least one missing comma in the displayed rank-\(n\) projection tuple. This is not a conceptual contradiction, but it should be cleaned up before future engineers rely on the prose.
+It also has at least one missing comma in the displayed rank-$n$ projection tuple. This is not a conceptual contradiction, but it should be cleaned up before future engineers rely on the prose.
 
 ## Check 2: Parent/Child Structure
 
@@ -122,9 +122,9 @@ Accepted final decision:
 
 Parent/child structure is encoded by projections, not by requiring the canonical state object to store a parent object.
 
-\[
+$$
 \operatorname{pr}^k(s^k)=s^{k-1}.
-\]
+$$
 
 Contradiction:
 
@@ -142,7 +142,7 @@ unless that is explicitly framed as a cache or convenience view, not the mathema
 
 Implementation rule:
 
-Store rank-\(k\) state as the rank-\(k\) coordinate tuple or tower-owned equivalent. Compute parent by projection.
+Store rank-$k$ state as the rank-$k$ coordinate tuple or tower-owned equivalent. Compute parent by projection.
 
 ## Check 3: Graph Legality Vs Rollout Semantics
 
@@ -172,13 +172,13 @@ Implementation caution:
 
 The rollout doc uses:
 
-\[
+$$
 A_k(s_t^k;\Delta s_t^{k-1})
 =
 \{\Delta s_t^k\in\partial_0^{-1}(s_t^k)\mid \operatorname{pr}^k(\Delta s_t^k)=\Delta s_t^{k-1}\}.
-\]
+$$
 
-In implementation, `tower/graph/actions.py` must make clear whether `A_k` contains full rank-\(k\) action vectors or active new-coordinate choices. Both views are valid, but policy-facing code should expose active choices while legality code can work with full action vectors.
+In implementation, `tower/graph/actions.py` must make clear whether `A_k` contains full rank-$k$ action vectors or active new-coordinate choices. Both views are valid, but policy-facing code should expose active choices while legality code can work with full action vectors.
 
 This is not a contradiction. It is an API clarity requirement for Stage 17.
 
@@ -190,7 +190,7 @@ Reviewed docs:
 | --- | --- |
 | `rank_local_reward_spec.md` | reward ownership and term inventory |
 | `reward_context_contracts.md` | context fields and projections |
-| `training_protocol.md` | optimize only \(R_k\) |
+| `training_protocol.md` | optimize only $R_k$ |
 
 Consistent decisions:
 
@@ -201,7 +201,7 @@ Consistent decisions:
 | full-sonority terms are allowed exceptions | yes |
 | reward context includes rank/window/action/goal/meter/new facts | yes |
 | parent rewards diagnostic only during child training | yes |
-| active gradient uses only \(R_k\) | yes |
+| active gradient uses only $R_k$ | yes |
 
 No contradiction.
 
@@ -212,7 +212,7 @@ Deferred reward choices:
 | exact consonance set | no |
 | exact cadence-template vocabulary | no |
 | exact chord-template vocabulary | no |
-| whether \(\mathrm{V}\to\mathrm{IV}\) is pruning or hard violation | no for Slice 1-4, yes before full reward suite |
+| whether $\mathrm{V}\to\mathrm{IV}$ is pruning or hard violation | no for Slice 1-4, yes before full reward suite |
 | six-four chord treatment | no |
 
 ## Check 5: Success Semantics Vs Training Protocol
@@ -227,13 +227,13 @@ Reviewed docs:
 
 Consistent final decision:
 
-\[
+$$
 \mathsf{Success}_k(W_t^k)
 =
 \mathsf{Success}_{k-1}(\operatorname{pr}^k W_t^k)
 \wedge
 \mathsf{NewTerminalCondition}_k(W_t^k).
-\]
+$$
 
 Rank 1 success is the projected pedal/root part of a perfect cadence. Rank 2 success requires the rank-1 cadence-root condition plus the outer voice supplying the third of the cadence chords.
 
@@ -243,9 +243,9 @@ Deferred decision:
 
 `success_failure_semantics.md` leaves hard-violation termination configurable:
 
-\[
+$$
 \mathsf{hardViolation}\Rightarrow \mathsf{terminated}
-\]
+$$
 
 is not yet accepted as mandatory.
 
@@ -268,7 +268,7 @@ Consistent decisions:
 | shared lineage directory | yes |
 | per-rank artifacts | yes |
 | rolling `checkpoint_latest.pt` | yes |
-| parent checkpoint recorded for \(k>1\) | yes |
+| parent checkpoint recorded for $k>1$ | yes |
 | parent checkpoint read-only | yes |
 | no rollback within lineage | yes |
 | accepted checkpoint after episode budget | yes |
