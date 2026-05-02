@@ -7,12 +7,14 @@ from numbers import Real
 
 from tower.reward.context import TowerRewardContext
 from tower.reward.melody import (
+    MAJOR_SCALE_INTERVALS_MOD_12,
     consonance_from_pitch_class,
     midi_to_octave,
 )
 from tower.reward.result import TowerRewardResult
 
 RANK2_CONSONANT_INTERVALS_MOD_12 = frozenset({3, 4, 7, 8, 9})
+RANK2_ONBEAT_SCALE_DEGREE_INTERVALS_MOD_12 = frozenset({3, 4, 7, 8, 9, 10})
 RANK3_CONSONANT_INTERVALS_MOD_12 = frozenset({3, 4, 7, 8, 9})
 
 
@@ -109,6 +111,106 @@ class Rank2VerticalConsonanceReward:
                         sorted(RANK2_CONSONANT_INTERVALS_MOD_12)
                     ),
                     "intervals": tuple(interval_rows),
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
+class Rank2BeatClassVerticalReward:
+    """Apply beat-sensitive shaping to realized vertical intervals."""
+
+    onbeat_scale_degree_interval_reward: float = 1.0
+    onbeat_non_scale_degree_interval_penalty: float = 0.0
+    offbeat_consonance_weight: float = 0.0
+    offbeat_non_consonance_penalty: float = -2.0
+    diagnostics_key: str = "rank2_beat_class_vertical"
+
+    def __post_init__(self) -> None:
+        _validate_number(
+            self.onbeat_scale_degree_interval_reward,
+            field_name="onbeat_scale_degree_interval_reward",
+        )
+        _validate_number(
+            self.onbeat_non_scale_degree_interval_penalty,
+            field_name="onbeat_non_scale_degree_interval_penalty",
+        )
+        _validate_number(
+            self.offbeat_consonance_weight,
+            field_name="offbeat_consonance_weight",
+        )
+        _validate_number(
+            self.offbeat_non_consonance_penalty,
+            field_name="offbeat_non_consonance_penalty",
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_2_context(context)
+        if context.measure_size is None:
+            raise ValueError("measure_size is required for Rank2BeatClassVerticalReward")
+
+        vertical_interval = context.target[1] - context.target[0]
+        interval_pitch_class = vertical_interval % 12
+        landing_step_index = context.step_index + 1
+        bar_position = landing_step_index % context.measure_size
+        measure_index = landing_step_index // context.measure_size
+        is_onbeat = bar_position % 2 == 0
+        is_offbeat = bar_position % 2 == 1
+        is_scale_degree_interval = (
+            interval_pitch_class in RANK2_ONBEAT_SCALE_DEGREE_INTERVALS_MOD_12
+        )
+        is_consonant = interval_pitch_class in RANK2_CONSONANT_INTERVALS_MOD_12
+        consonance = consonance_from_pitch_class(interval_pitch_class)
+
+        onbeat_reward = (
+            float(self.onbeat_scale_degree_interval_reward)
+            if is_onbeat and is_scale_degree_interval
+            else 0.0
+        )
+        onbeat_penalty = (
+            float(self.onbeat_non_scale_degree_interval_penalty)
+            if is_onbeat and not is_scale_degree_interval
+            else 0.0
+        )
+        offbeat_reward = (
+            float(self.offbeat_consonance_weight) * consonance
+            if is_offbeat and is_consonant
+            else 0.0
+        )
+        offbeat_penalty = (
+            float(self.offbeat_non_consonance_penalty)
+            if is_offbeat and not is_consonant
+            else 0.0
+        )
+
+        return TowerRewardResult(
+            reward=onbeat_reward + onbeat_penalty + offbeat_reward + offbeat_penalty,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank2_beat_class_vertical",
+                    "vertical_interval": vertical_interval,
+                    "interval_pitch_class": interval_pitch_class,
+                    "source_step_index": context.step_index,
+                    "landing_step_index": landing_step_index,
+                    "measure_size": context.measure_size,
+                    "measure_index": measure_index,
+                    "bar_position": bar_position,
+                    "is_onbeat": is_onbeat,
+                    "is_offbeat": is_offbeat,
+                    "is_scale_degree_interval": is_scale_degree_interval,
+                    "is_consonant": is_consonant,
+                    "onbeat_scale_degree_intervals_mod_12": tuple(
+                        sorted(RANK2_ONBEAT_SCALE_DEGREE_INTERVALS_MOD_12)
+                    ),
+                    "consonant_intervals_mod_12": tuple(
+                        sorted(RANK2_CONSONANT_INTERVALS_MOD_12)
+                    ),
+                    "just_consonance": consonance,
+                    "onbeat_scale_degree_interval_reward": onbeat_reward,
+                    "onbeat_non_scale_degree_interval_penalty": onbeat_penalty,
+                    "offbeat_consonance_reward": offbeat_reward,
+                    "offbeat_non_consonance_penalty": offbeat_penalty,
+                    "beat_class_timing": "target_landing_step_index",
                 }
             },
         )
@@ -345,6 +447,131 @@ class Rank3GlobalTriadConsonanceReward:
                         sorted(RANK3_CONSONANT_INTERVALS_MOD_12)
                     ),
                     "intervals": tuple(interval_rows),
+                }
+            },
+        )
+
+
+@dataclass(frozen=True)
+class Rank3BeatClassTriadReward:
+    """Apply beat-sensitive shaping to the realized triad."""
+
+    onbeat_all_scale_degree_reward: float = 1.0
+    onbeat_not_all_scale_degree_penalty: float = 0.0
+    offbeat_all_consonant_weight: float = 0.0
+    offbeat_non_consonance_penalty: float = -2.0
+    diagnostics_key: str = "rank3_beat_class_triad"
+
+    def __post_init__(self) -> None:
+        _validate_number(
+            self.onbeat_all_scale_degree_reward,
+            field_name="onbeat_all_scale_degree_reward",
+        )
+        _validate_number(
+            self.onbeat_not_all_scale_degree_penalty,
+            field_name="onbeat_not_all_scale_degree_penalty",
+        )
+        _validate_number(
+            self.offbeat_all_consonant_weight,
+            field_name="offbeat_all_consonant_weight",
+        )
+        _validate_number(
+            self.offbeat_non_consonance_penalty,
+            field_name="offbeat_non_consonance_penalty",
+        )
+
+    def __call__(self, context: TowerRewardContext) -> TowerRewardResult:
+        _validate_rank_3_context(context)
+        if context.key_pitch_class is None:
+            raise ValueError("key_pitch_class is required for Rank3BeatClassTriadReward")
+        if context.measure_size is None:
+            raise ValueError("measure_size is required for Rank3BeatClassTriadReward")
+
+        pitch_classes = tuple(pitch % 12 for pitch in context.target)
+        relative_pitch_classes = tuple(
+            (pitch_class - context.key_pitch_class) % 12
+            for pitch_class in pitch_classes
+        )
+        landing_step_index = context.step_index + 1
+        bar_position = landing_step_index % context.measure_size
+        measure_index = landing_step_index // context.measure_size
+        is_onbeat = bar_position % 2 == 0
+        is_offbeat = bar_position % 2 == 1
+        all_scale_degree = all(
+            pitch_class in MAJOR_SCALE_INTERVALS_MOD_12
+            for pitch_class in relative_pitch_classes
+        )
+
+        interval_rows: list[dict[str, object]] = []
+        consonance_sum = 0.0
+        all_consonant = True
+        for lower_index, upper_index in ((0, 1), (1, 2), (0, 2)):
+            interval_pitch_class = (
+                context.target[upper_index] - context.target[lower_index]
+            ) % 12
+            is_consonant = interval_pitch_class in RANK3_CONSONANT_INTERVALS_MOD_12
+            consonance = consonance_from_pitch_class(interval_pitch_class)
+            consonance_sum += consonance
+            all_consonant = all_consonant and is_consonant
+            interval_rows.append(
+                {
+                    "lower_index": lower_index,
+                    "upper_index": upper_index,
+                    "interval_pitch_class": interval_pitch_class,
+                    "is_consonant": is_consonant,
+                    "just_consonance": consonance,
+                }
+            )
+
+        mean_consonance = consonance_sum / 3.0
+        onbeat_reward = (
+            float(self.onbeat_all_scale_degree_reward)
+            if is_onbeat and all_scale_degree
+            else 0.0
+        )
+        onbeat_penalty = (
+            float(self.onbeat_not_all_scale_degree_penalty)
+            if is_onbeat and not all_scale_degree
+            else 0.0
+        )
+        offbeat_reward = (
+            float(self.offbeat_all_consonant_weight) * mean_consonance
+            if is_offbeat and all_consonant
+            else 0.0
+        )
+        offbeat_penalty = (
+            float(self.offbeat_non_consonance_penalty)
+            if is_offbeat and not all_consonant
+            else 0.0
+        )
+
+        return TowerRewardResult(
+            reward=onbeat_reward + onbeat_penalty + offbeat_reward + offbeat_penalty,
+            diagnostics={
+                self.diagnostics_key: {
+                    "kind": "rank3_beat_class_triad",
+                    "pitch_classes": pitch_classes,
+                    "relative_pitch_classes": relative_pitch_classes,
+                    "source_step_index": context.step_index,
+                    "landing_step_index": landing_step_index,
+                    "measure_size": context.measure_size,
+                    "measure_index": measure_index,
+                    "bar_position": bar_position,
+                    "is_onbeat": is_onbeat,
+                    "is_offbeat": is_offbeat,
+                    "all_scale_degree": all_scale_degree,
+                    "all_consonant": all_consonant,
+                    "scale_intervals_mod_12": tuple(sorted(MAJOR_SCALE_INTERVALS_MOD_12)),
+                    "consonant_intervals_mod_12": tuple(
+                        sorted(RANK3_CONSONANT_INTERVALS_MOD_12)
+                    ),
+                    "intervals": tuple(interval_rows),
+                    "mean_just_consonance": mean_consonance,
+                    "onbeat_all_scale_degree_reward": onbeat_reward,
+                    "onbeat_not_all_scale_degree_penalty": onbeat_penalty,
+                    "offbeat_all_consonant_reward": offbeat_reward,
+                    "offbeat_non_consonance_penalty": offbeat_penalty,
+                    "beat_class_timing": "target_landing_step_index",
                 }
             },
         )

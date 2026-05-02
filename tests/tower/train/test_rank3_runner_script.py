@@ -96,6 +96,10 @@ def test_tower_train_rank3_parse_args_defaults() -> None:
     assert args.outer_span_reward == 0.1
     assert args.outer_span_penalty == -0.1
     assert args.cadence_endpoint_weight == 1.0
+    assert args.onbeat_all_scale_degree_reward == 1.0
+    assert args.onbeat_not_all_scale_degree_penalty == 0.0
+    assert args.offbeat_all_consonant_weight == 0.0
+    assert args.offbeat_non_consonance_penalty == -2.0
     assert args.d_model == 32
     assert args.num_layers == 1
     assert args.num_heads == 4
@@ -173,6 +177,10 @@ def test_tower_train_rank3_main_runs_tiny_job(
     assert config["reward_config"]["outer_span_reward"] == 0.1
     assert config["reward_config"]["outer_span_penalty"] == -0.1
     assert config["reward_config"]["cadence_endpoint_weight"] == 1.0
+    assert config["reward_config"]["onbeat_all_scale_degree_reward"] == 1.0
+    assert config["reward_config"]["onbeat_not_all_scale_degree_penalty"] == 0.0
+    assert config["reward_config"]["offbeat_all_consonant_weight"] == 0.0
+    assert config["reward_config"]["offbeat_non_consonance_penalty"] == -2.0
     assert config["parent_sampler_config"]["top_m"] == 1
     assert config["parent_checkpoint"] == "rank_2/checkpoint_latest.pt"
     assert config["graph_config"]["pitch_min"] == 36

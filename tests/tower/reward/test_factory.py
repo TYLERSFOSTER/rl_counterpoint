@@ -289,6 +289,7 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
     reward_fn = build_rank2_reward_fn(
         terminal_cadence_reward=10.0,
         cadence_endpoint_weight=1.0,
+        onbeat_scale_degree_interval_reward=0.75,
         vertical_consonance_weight=2.0,
         spacing_reward=0.1,
         target_vertical_interval=4,
@@ -317,13 +318,16 @@ def test_rank2_reward_factory_combines_goal_vertical_and_cadence_terms() -> None
     )
 
     assert result.is_terminal_success is True
-    assert result.reward == pytest.approx(10.0 + 1.0 + 2.0 * (1.0 / 9.0) + 0.1 + 1.0)
+    assert result.reward == pytest.approx(
+        10.0 + 1.0 + 0.75 + 2.0 * (1.0 / 9.0) + 0.1 + 1.0
+    )
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
     assert child_results[1]["reward"] == 1.0
-    assert child_results[2]["reward"] == pytest.approx(2.0 / 9.0)
-    assert child_results[3]["reward"] == 0.1
-    assert child_results[4]["reward"] == 1.0
+    assert child_results[2]["reward"] == pytest.approx(0.75)
+    assert child_results[3]["reward"] == pytest.approx(2.0 / 9.0)
+    assert child_results[4]["reward"] == 0.1
+    assert child_results[5]["reward"] == 1.0
 
 
 def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:
@@ -340,7 +344,7 @@ def test_rank2_reward_factory_exposes_top_level_diagnostics() -> None:
     assert result.diagnostics["kind"] == "rank2_reward"
     assert result.diagnostics["key_pitch_class"] == 3
     assert "target_root_octave" not in result.diagnostics
-    assert len(result.diagnostics["terms"]) == 5
+    assert len(result.diagnostics["terms"]) == 6
 
 
 def test_rank2_reward_factory_rejects_non_rank_2_context() -> None:
@@ -367,6 +371,8 @@ def test_rank2_reward_factory_validates_config_values() -> None:
         Rank2RewardFactoryConfig(min_vertical_gap=0)
     with pytest.raises(ValueError, match="target_vertical_interval must be non-negative"):
         Rank2RewardFactoryConfig(target_vertical_interval=-1)
+    with pytest.raises(TypeError, match="onbeat_scale_degree_interval_reward must be"):
+        Rank2RewardFactoryConfig(onbeat_scale_degree_interval_reward=True)
 
 
 def test_build_rank3_reward_fn_returns_reward_result() -> None:
@@ -385,10 +391,11 @@ def test_build_rank3_reward_fn_returns_reward_result() -> None:
     assert isinstance(result, TowerRewardResult)
 
 
-def test_rank3_reward_factory_combines_success_triad_spacing_and_endpoint_terms() -> None:
+def test_rank3_reward_factory_combines_success_triad_beat_spacing_and_endpoint_terms() -> None:
     reward_fn = build_rank3_reward_fn(
         terminal_cadence_reward=10.0,
         triad_consonance_weight=2.0,
+        onbeat_all_scale_degree_reward=0.75,
         min_adjacent_gap=3,
         max_outer_span=16,
         adjacent_spacing_reward=0.25,
@@ -419,8 +426,9 @@ def test_rank3_reward_factory_combines_success_triad_spacing_and_endpoint_terms(
     assert result.is_terminal_success is True
     child_results = result.diagnostics["terms"]
     assert child_results[0]["reward"] == 10.0
-    assert child_results[2]["reward"] == pytest.approx(1.0)
-    assert child_results[3]["reward"] == 2.0
+    assert child_results[2]["reward"] == pytest.approx(0.75)
+    assert child_results[3]["reward"] == pytest.approx(1.0)
+    assert child_results[4]["reward"] == 2.0
     assert result.diagnostics["kind"] == "rank3_reward"
 
 
@@ -446,3 +454,5 @@ def test_rank3_reward_factory_validates_config_values() -> None:
         Rank3RewardFactoryConfig(min_adjacent_gap=0)
     with pytest.raises(ValueError, match="max_outer_span must be at least 1"):
         Rank3RewardFactoryConfig(max_outer_span=0)
+    with pytest.raises(TypeError, match="onbeat_all_scale_degree_reward must be"):
+        Rank3RewardFactoryConfig(onbeat_all_scale_degree_reward=True)  # type: ignore[arg-type]

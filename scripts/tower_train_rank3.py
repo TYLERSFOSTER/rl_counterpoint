@@ -85,6 +85,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--outer-span-reward", type=float, default=0.1)
     parser.add_argument("--outer-span-penalty", type=float, default=-0.1)
     parser.add_argument("--cadence-endpoint-weight", type=float, default=1.0)
+    parser.add_argument("--onbeat-all-scale-degree-reward", type=float, default=1.0)
+    parser.add_argument(
+        "--onbeat-not-all-scale-degree-penalty",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument("--offbeat-all-consonant-weight", type=float, default=0.0)
+    parser.add_argument(
+        "--offbeat-non-consonance-penalty",
+        type=float,
+        default=-2.0,
+    )
     parser.add_argument("--d-model", type=int, default=32)
     parser.add_argument("--num-layers", type=int, default=1)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -139,6 +151,12 @@ def _reward_config_from_args(args: argparse.Namespace) -> dict[str, object]:
         "outer_span_reward": args.outer_span_reward,
         "outer_span_penalty": args.outer_span_penalty,
         "cadence_endpoint_weight": args.cadence_endpoint_weight,
+        "onbeat_all_scale_degree_reward": args.onbeat_all_scale_degree_reward,
+        "onbeat_not_all_scale_degree_penalty": (
+            args.onbeat_not_all_scale_degree_penalty
+        ),
+        "offbeat_all_consonant_weight": args.offbeat_all_consonant_weight,
+        "offbeat_non_consonance_penalty": args.offbeat_non_consonance_penalty,
     }
 
 

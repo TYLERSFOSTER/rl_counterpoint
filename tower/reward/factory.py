@@ -7,10 +7,12 @@ from numbers import Real
 
 from tower.reward.context import TowerRewardContext
 from tower.reward.harmony import (
+    Rank2BeatClassVerticalReward,
     Rank2CadenceEndpointReward,
     Rank2SpacingControlReward,
     Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
+    Rank3BeatClassTriadReward,
     Rank3CadenceEndpointTriadReward,
     Rank3GlobalSpacingReward,
     Rank3GlobalTriadConsonanceReward,
@@ -215,6 +217,10 @@ class Rank2RewardFactoryConfig:
     spacing_penalty: float = -0.1
     target_vertical_interval: int = 4
     target_vertical_interval_weight: float = 1.0
+    onbeat_scale_degree_interval_reward: float = 1.0
+    onbeat_non_scale_degree_interval_penalty: float = 0.0
+    offbeat_vertical_consonance_weight: float = 0.0
+    offbeat_vertical_non_consonance_penalty: float = -2.0
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
@@ -269,6 +275,22 @@ class Rank2RewardFactoryConfig:
             self.target_vertical_interval_weight,
             field_name="target_vertical_interval_weight",
         )
+        _validate_number(
+            self.onbeat_scale_degree_interval_reward,
+            field_name="onbeat_scale_degree_interval_reward",
+        )
+        _validate_number(
+            self.onbeat_non_scale_degree_interval_penalty,
+            field_name="onbeat_non_scale_degree_interval_penalty",
+        )
+        _validate_number(
+            self.offbeat_vertical_consonance_weight,
+            field_name="offbeat_vertical_consonance_weight",
+        )
+        _validate_number(
+            self.offbeat_vertical_non_consonance_penalty,
+            field_name="offbeat_vertical_non_consonance_penalty",
+        )
 
 
 @dataclass(frozen=True)
@@ -292,6 +314,20 @@ class Rank2RewardFunction:
                     ),
                     Rank2CadenceEndpointReward(
                         weight=float(self.config.cadence_endpoint_weight),
+                    ),
+                    Rank2BeatClassVerticalReward(
+                        onbeat_scale_degree_interval_reward=float(
+                            self.config.onbeat_scale_degree_interval_reward
+                        ),
+                        onbeat_non_scale_degree_interval_penalty=float(
+                            self.config.onbeat_non_scale_degree_interval_penalty
+                        ),
+                        offbeat_consonance_weight=float(
+                            self.config.offbeat_vertical_consonance_weight
+                        ),
+                        offbeat_non_consonance_penalty=float(
+                            self.config.offbeat_vertical_non_consonance_penalty
+                        ),
                     ),
                     Rank2VerticalConsonanceReward(
                         consonance_weight=float(
@@ -359,6 +395,10 @@ class Rank3RewardFactoryConfig:
     outer_span_reward: float = 0.1
     outer_span_penalty: float = -0.1
     cadence_endpoint_weight: float = 1.0
+    onbeat_all_scale_degree_reward: float = 1.0
+    onbeat_not_all_scale_degree_penalty: float = 0.0
+    offbeat_all_consonant_weight: float = 0.0
+    offbeat_non_consonance_penalty: float = -2.0
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
@@ -403,6 +443,22 @@ class Rank3RewardFactoryConfig:
             self.cadence_endpoint_weight,
             field_name="cadence_endpoint_weight",
         )
+        _validate_number(
+            self.onbeat_all_scale_degree_reward,
+            field_name="onbeat_all_scale_degree_reward",
+        )
+        _validate_number(
+            self.onbeat_not_all_scale_degree_penalty,
+            field_name="onbeat_not_all_scale_degree_penalty",
+        )
+        _validate_number(
+            self.offbeat_all_consonant_weight,
+            field_name="offbeat_all_consonant_weight",
+        )
+        _validate_number(
+            self.offbeat_non_consonance_penalty,
+            field_name="offbeat_non_consonance_penalty",
+        )
 
 
 @dataclass(frozen=True)
@@ -428,6 +484,20 @@ class Rank3RewardFunction:
                         consonance_weight=float(self.config.triad_consonance_weight),
                         non_consonance_penalty=float(
                             self.config.triad_non_consonance_penalty
+                        ),
+                    ),
+                    Rank3BeatClassTriadReward(
+                        onbeat_all_scale_degree_reward=float(
+                            self.config.onbeat_all_scale_degree_reward
+                        ),
+                        onbeat_not_all_scale_degree_penalty=float(
+                            self.config.onbeat_not_all_scale_degree_penalty
+                        ),
+                        offbeat_all_consonant_weight=float(
+                            self.config.offbeat_all_consonant_weight
+                        ),
+                        offbeat_non_consonance_penalty=float(
+                            self.config.offbeat_non_consonance_penalty
                         ),
                     ),
                     Rank3GlobalSpacingReward(
@@ -543,6 +613,10 @@ def build_rank2_reward_fn(
     spacing_penalty: float = -0.1,
     target_vertical_interval: int = 4,
     target_vertical_interval_weight: float = 1.0,
+    onbeat_scale_degree_interval_reward: float = 1.0,
+    onbeat_non_scale_degree_interval_penalty: float = 0.0,
+    offbeat_vertical_consonance_weight: float = 0.0,
+    offbeat_vertical_non_consonance_penalty: float = -2.0,
 ) -> Rank2RewardFunction:
     """Build the first narrow rank-2 reward function."""
     return Rank2RewardFunction(
@@ -562,6 +636,16 @@ def build_rank2_reward_fn(
             spacing_penalty=spacing_penalty,
             target_vertical_interval=target_vertical_interval,
             target_vertical_interval_weight=target_vertical_interval_weight,
+            onbeat_scale_degree_interval_reward=onbeat_scale_degree_interval_reward,
+            onbeat_non_scale_degree_interval_penalty=(
+                onbeat_non_scale_degree_interval_penalty
+            ),
+            offbeat_vertical_consonance_weight=(
+                offbeat_vertical_consonance_weight
+            ),
+            offbeat_vertical_non_consonance_penalty=(
+                offbeat_vertical_non_consonance_penalty
+            ),
         )
     )
 
@@ -582,6 +666,10 @@ def build_rank3_reward_fn(
     outer_span_reward: float = 0.1,
     outer_span_penalty: float = -0.1,
     cadence_endpoint_weight: float = 1.0,
+    onbeat_all_scale_degree_reward: float = 1.0,
+    onbeat_not_all_scale_degree_penalty: float = 0.0,
+    offbeat_all_consonant_weight: float = 0.0,
+    offbeat_non_consonance_penalty: float = -2.0,
 ) -> Rank3RewardFunction:
     """Build the first concrete rank-3 reward function."""
     return Rank3RewardFunction(
@@ -600,6 +688,10 @@ def build_rank3_reward_fn(
             outer_span_reward=outer_span_reward,
             outer_span_penalty=outer_span_penalty,
             cadence_endpoint_weight=cadence_endpoint_weight,
+            onbeat_all_scale_degree_reward=onbeat_all_scale_degree_reward,
+            onbeat_not_all_scale_degree_penalty=onbeat_not_all_scale_degree_penalty,
+            offbeat_all_consonant_weight=offbeat_all_consonant_weight,
+            offbeat_non_consonance_penalty=offbeat_non_consonance_penalty,
         )
     )
 

@@ -91,6 +91,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--spacing-penalty", type=float, default=-0.1)
     parser.add_argument("--target-vertical-interval", type=int, default=4)
     parser.add_argument("--target-vertical-interval-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--onbeat-scale-degree-interval-reward",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
+        "--onbeat-non-scale-degree-interval-penalty",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--offbeat-vertical-consonance-weight",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--offbeat-vertical-non-consonance-penalty",
+        type=float,
+        default=-2.0,
+    )
     parser.add_argument("--d-model", type=int, default=32)
     parser.add_argument("--num-layers", type=int, default=1)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -145,6 +165,18 @@ def _reward_config_from_args(args: argparse.Namespace) -> dict[str, object]:
         "spacing_penalty": args.spacing_penalty,
         "target_vertical_interval": args.target_vertical_interval,
         "target_vertical_interval_weight": args.target_vertical_interval_weight,
+        "onbeat_scale_degree_interval_reward": (
+            args.onbeat_scale_degree_interval_reward
+        ),
+        "onbeat_non_scale_degree_interval_penalty": (
+            args.onbeat_non_scale_degree_interval_penalty
+        ),
+        "offbeat_vertical_consonance_weight": (
+            args.offbeat_vertical_consonance_weight
+        ),
+        "offbeat_vertical_non_consonance_penalty": (
+            args.offbeat_vertical_non_consonance_penalty
+        ),
     }
 
 
@@ -280,6 +312,18 @@ def main(argv: list[str] | None = None) -> int:
             spacing_penalty=args.spacing_penalty,
             target_vertical_interval=args.target_vertical_interval,
             target_vertical_interval_weight=args.target_vertical_interval_weight,
+            onbeat_scale_degree_interval_reward=(
+                args.onbeat_scale_degree_interval_reward
+            ),
+            onbeat_non_scale_degree_interval_penalty=(
+                args.onbeat_non_scale_degree_interval_penalty
+            ),
+            offbeat_vertical_consonance_weight=(
+                args.offbeat_vertical_consonance_weight
+            ),
+            offbeat_vertical_non_consonance_penalty=(
+                args.offbeat_vertical_non_consonance_penalty
+            ),
         ),
         graph_spec=_graph_spec_from_config(config),
     )

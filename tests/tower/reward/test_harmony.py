@@ -6,10 +6,12 @@ import pytest
 
 from tower.reward.context import NewFacts, TowerRewardContext
 from tower.reward.harmony import (
+    Rank2BeatClassVerticalReward,
     Rank2CadenceEndpointReward,
     Rank2SpacingControlReward,
     Rank2TargetVerticalIntervalReward,
     Rank2VerticalConsonanceReward,
+    Rank3BeatClassTriadReward,
     Rank3CadenceEndpointTriadReward,
     Rank3GlobalSpacingReward,
     Rank3GlobalTriadConsonanceReward,
@@ -82,6 +84,46 @@ def test_rank2_vertical_consonance_reward_penalizes_non_consonance() -> None:
     assert interval["is_consonant"] is False
 
 
+def test_rank2_beat_class_vertical_reward_rewards_onbeat_scale_degree_interval() -> None:
+    term = Rank2BeatClassVerticalReward(
+        onbeat_scale_degree_interval_reward=0.75,
+    )
+
+    result = term(
+        make_context(
+            history=((60, 63), (60, 63)),
+            action=(0, 1),
+        )
+    )
+
+    diagnostics = result.diagnostics["rank2_beat_class_vertical"]
+    assert result.reward == pytest.approx(0.75)
+    assert diagnostics["is_onbeat"] is True
+    assert diagnostics["interval_pitch_class"] == 4
+    assert diagnostics["is_scale_degree_interval"] is True
+    assert diagnostics["onbeat_scale_degree_interval_reward"] == pytest.approx(0.75)
+
+
+def test_rank2_beat_class_vertical_reward_penalizes_offbeat_non_consonance() -> None:
+    term = Rank2BeatClassVerticalReward(
+        offbeat_non_consonance_penalty=-3.0,
+    )
+
+    result = term(
+        make_context(
+            history=((60, 64),),
+            action=(0, 2),
+        )
+    )
+
+    diagnostics = result.diagnostics["rank2_beat_class_vertical"]
+    assert result.reward == pytest.approx(-3.0)
+    assert diagnostics["is_offbeat"] is True
+    assert diagnostics["interval_pitch_class"] == 6
+    assert diagnostics["is_consonant"] is False
+    assert diagnostics["offbeat_non_consonance_penalty"] == pytest.approx(-3.0)
+
+
 def test_rank2_harmonic_terms_reject_non_rank_2_context() -> None:
     context = TowerRewardContext(
         rank=1,
@@ -97,6 +139,8 @@ def test_rank2_harmonic_terms_reject_non_rank_2_context() -> None:
         ),
     )
 
+    with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
+        Rank2BeatClassVerticalReward()(context)
     with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
         Rank2VerticalConsonanceReward()(context)
     with pytest.raises(ValueError, match="rank-2 harmonic reward requires rank 2"):
@@ -266,6 +310,44 @@ def test_rank3_global_triad_consonance_reward_scores_all_pairs() -> None:
         + consonance_from_pitch_class(8)
     )
     assert result.reward == pytest.approx(expected)
+
+
+def test_rank3_beat_class_triad_reward_rewards_onbeat_all_scale_degree_triad() -> None:
+    term = Rank3BeatClassTriadReward(
+        onbeat_all_scale_degree_reward=0.75,
+    )
+
+    result = term(
+        make_rank3_context(
+            history=((60, 64, 67), (60, 64, 67)),
+            action=(0, 0, 0),
+        )
+    )
+
+    diagnostics = result.diagnostics["rank3_beat_class_triad"]
+    assert result.reward == pytest.approx(0.75)
+    assert diagnostics["is_onbeat"] is True
+    assert diagnostics["all_scale_degree"] is True
+    assert diagnostics["onbeat_all_scale_degree_reward"] == pytest.approx(0.75)
+
+
+def test_rank3_beat_class_triad_reward_penalizes_offbeat_non_consonance() -> None:
+    term = Rank3BeatClassTriadReward(
+        offbeat_non_consonance_penalty=-3.0,
+    )
+
+    result = term(
+        make_rank3_context(
+            history=((60, 64, 67),),
+            action=(0, 2, 2),
+        )
+    )
+
+    diagnostics = result.diagnostics["rank3_beat_class_triad"]
+    assert result.reward == pytest.approx(-3.0)
+    assert diagnostics["is_offbeat"] is True
+    assert diagnostics["all_consonant"] is False
+    assert diagnostics["offbeat_non_consonance_penalty"] == pytest.approx(-3.0)
 
 
 def test_rank3_global_spacing_reward_scores_adjacent_and_outer_span() -> None:
