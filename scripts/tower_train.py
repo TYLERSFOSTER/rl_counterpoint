@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import argparse
 import sys
+import traceback
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts._tower_train_diagnostics import resolve_log_reward_diagnostics
 from tower.graph.spec import TowerGraphSpec
 from tower.reward.factory import build_rank1_reward_fn
+from tower.train.lifecycle import (
+    write_run_completion,
+    write_run_failure,
+    write_run_heartbeat,
+)
 from tower.train.runner import (
     TowerRunnerConfig,
     _graph_spec_from_config,
@@ -97,7 +104,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--log-reward-diagnostics",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=None,
     )
     return parser.parse_args(argv)
 
@@ -119,125 +126,166 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.rank != 1:
         raise ValueError("scripts/tower_train.py currently supports rank 1 only")
-
-    reward_config = {
-        "kind": "rank1_slice_a",
-        "key_pitch_class": args.key_pitch_class,
-        "target_root_octave": args.target_root_octave,
-        "use_context_target_root_octave": args.sample_target_root_octave,
-        "goal_octave_direction_weight": args.goal_octave_direction_weight,
-        "terminal_cadence_reward": args.terminal_cadence_reward,
-        "cadence_failure_reward": args.cadence_failure_reward,
-        "max_recent_range": args.max_recent_range,
-        "range_penalty": args.range_penalty,
-        "large_leap_threshold": args.large_leap_threshold,
-        "recovery_step_threshold": args.recovery_step_threshold,
-        "recovery_reward": args.recovery_reward,
-        "failure_penalty": args.failure_penalty,
-        "measure_start_tonic_reward": args.measure_start_tonic_reward,
-        "onbeat_scale_degree_reward": args.onbeat_scale_degree_reward,
-        "offbeat_consonance_weight": args.offbeat_consonance_weight,
-        "onbeat_non_scale_penalty": args.onbeat_non_scale_penalty,
-        "offbeat_non_consonance_penalty": args.offbeat_non_consonance_penalty,
-        "step_size_balance_threshold": args.step_size_balance_threshold,
-        "step_size_balance_target_small_rate": (
-            args.step_size_balance_target_small_rate
-        ),
-        "step_size_balance_weight": args.step_size_balance_weight,
-    }
-
-    config = TowerRunnerConfig(
-        lineage_id=args.lineage_id,
-        rank=args.rank,
-        episode_count=args.episodes,
-        seed=args.seed,
-        artifact_root=args.artifact_root,
-        measure_size=args.measure_size,
-        context_measures=args.context_measures,
-        max_step_size=args.max_step_size,
-        reward_config=reward_config,
-        graph_config={
-            "pitch_min": args.pitch_min,
-            "pitch_max": args.pitch_max,
-            "final_rank": args.final_rank,
-            "use_induced_rank1_graph": args.use_induced_rank1_graph,
-            "induced_rank2_pitch_min": args.induced_rank2_pitch_min,
-            "induced_rank2_pitch_max": args.induced_rank2_pitch_max,
-            "induced_rank2_max_step_size": args.induced_rank2_max_step_size,
-            "induced_rank3_pitch_min": args.induced_rank3_pitch_min,
-            "induced_rank3_pitch_max": args.induced_rank3_pitch_max,
-            "induced_rank3_max_step_size": args.induced_rank3_max_step_size,
-        },
-        policy_config={
-            "d_model": 32,
-            "num_layers": 1,
-            "num_heads": 4,
-            "ff_dim": 64,
-            "dropout": 0.0,
-        },
-        training_config={
-            "max_steps": args.max_steps,
-            "learning_rate": args.learning_rate,
-            "sample_initial_pitch": args.sample_initial_pitch,
-            "initial_pitch_min": args.initial_pitch_min,
-            "initial_pitch_max": args.initial_pitch_max,
-            "sample_initial_pitch_in_target_octave": (
-                args.sample_initial_pitch_in_target_octave
-            ),
-            "sample_target_root_octave": args.sample_target_root_octave,
-            "sampling_temperature": args.sampling_temperature,
-            "sampling_uniform_mix": args.sampling_uniform_mix,
-            "log_reward_diagnostics": args.log_reward_diagnostics,
-            **(
-                {}
-                if args.target_root_octave_choices is None
-                else {"target_root_octave_choices": args.target_root_octave_choices}
-            ),
-        },
+    exception_log_path = (
+        args.artifact_root / "logs" / f"{args.lineage_id}-rank1.exception.log"
     )
-    result = run_rank1_training(
-        config=config,
-        initial_state=(args.initial_pitch,),
-        reward_fn=build_rank1_reward_fn(
-            key_pitch_class=args.key_pitch_class,
-            target_root_octave=args.target_root_octave,
-            use_context_target_root_octave=args.sample_target_root_octave,
-            goal_octave_direction_weight=args.goal_octave_direction_weight,
-            terminal_cadence_reward=args.terminal_cadence_reward,
-            cadence_failure_reward=args.cadence_failure_reward,
-            max_recent_range=args.max_recent_range,
-            range_penalty=args.range_penalty,
-            large_leap_threshold=args.large_leap_threshold,
-            recovery_step_threshold=args.recovery_step_threshold,
-            recovery_reward=args.recovery_reward,
-            failure_penalty=args.failure_penalty,
-            measure_start_tonic_reward=args.measure_start_tonic_reward,
-            onbeat_scale_degree_reward=args.onbeat_scale_degree_reward,
-            offbeat_consonance_weight=args.offbeat_consonance_weight,
-            onbeat_non_scale_penalty=args.onbeat_non_scale_penalty,
-            offbeat_non_consonance_penalty=args.offbeat_non_consonance_penalty,
-            step_size_balance_threshold=args.step_size_balance_threshold,
-            step_size_balance_target_small_rate=(
+    write_run_heartbeat(
+        args.artifact_root / args.lineage_id,
+        lineage_id=args.lineage_id,
+        stage="rank1",
+        status="running",
+        completed_episodes=0,
+        episode_budget=args.episodes,
+        extra={"argv": [] if argv is None else list(argv)},
+    )
+    log_reward_diagnostics, reward_diagnostics_mode = resolve_log_reward_diagnostics(
+        requested=args.log_reward_diagnostics,
+        episode_count=args.episodes,
+        max_steps=args.max_steps,
+    )
+    try:
+        reward_config = {
+            "kind": "rank1_slice_a",
+            "key_pitch_class": args.key_pitch_class,
+            "target_root_octave": args.target_root_octave,
+            "use_context_target_root_octave": args.sample_target_root_octave,
+            "goal_octave_direction_weight": args.goal_octave_direction_weight,
+            "terminal_cadence_reward": args.terminal_cadence_reward,
+            "cadence_failure_reward": args.cadence_failure_reward,
+            "max_recent_range": args.max_recent_range,
+            "range_penalty": args.range_penalty,
+            "large_leap_threshold": args.large_leap_threshold,
+            "recovery_step_threshold": args.recovery_step_threshold,
+            "recovery_reward": args.recovery_reward,
+            "failure_penalty": args.failure_penalty,
+            "measure_start_tonic_reward": args.measure_start_tonic_reward,
+            "onbeat_scale_degree_reward": args.onbeat_scale_degree_reward,
+            "offbeat_consonance_weight": args.offbeat_consonance_weight,
+            "onbeat_non_scale_penalty": args.onbeat_non_scale_penalty,
+            "offbeat_non_consonance_penalty": args.offbeat_non_consonance_penalty,
+            "step_size_balance_threshold": args.step_size_balance_threshold,
+            "step_size_balance_target_small_rate": (
                 args.step_size_balance_target_small_rate
             ),
-            step_size_balance_weight=args.step_size_balance_weight,
-        ),
-        graph_spec=_graph_spec_from_config(config),
-    )
+            "step_size_balance_weight": args.step_size_balance_weight,
+        }
 
-    print(f"run_dir: {result.paths.rank_dir}")
-    print(f"lineage_dir: {result.paths.lineage_dir}")
-    print(f"rank: {config.rank}")
-    print(f"episodes: {config.episode_count}")
-    print(f"max_steps: {args.max_steps}")
-    graph_spec = _graph_spec_from_config(config)
-    print(f"pitch_range: [{graph_spec.pitch_min}, {graph_spec.pitch_max}]")
-    print(f"reward: {reward_config['kind']}")
-    print(f"latest checkpoint: {result.paths.checkpoint_latest_path}")
-    print(f"final midi: {result.final_midi_path}")
-    print(f"final episode return: {result.final_inference.metrics['episode_return']}")
-    print(f"final terminal_success: {result.final_inference.metrics['terminal_success']}")
-    return 0
+        config = TowerRunnerConfig(
+            lineage_id=args.lineage_id,
+            rank=args.rank,
+            episode_count=args.episodes,
+            seed=args.seed,
+            artifact_root=args.artifact_root,
+            measure_size=args.measure_size,
+            context_measures=args.context_measures,
+            max_step_size=args.max_step_size,
+            reward_config=reward_config,
+            graph_config={
+                "pitch_min": args.pitch_min,
+                "pitch_max": args.pitch_max,
+                "final_rank": args.final_rank,
+                "use_induced_rank1_graph": args.use_induced_rank1_graph,
+                "induced_rank2_pitch_min": args.induced_rank2_pitch_min,
+                "induced_rank2_pitch_max": args.induced_rank2_pitch_max,
+                "induced_rank2_max_step_size": args.induced_rank2_max_step_size,
+                "induced_rank3_pitch_min": args.induced_rank3_pitch_min,
+                "induced_rank3_pitch_max": args.induced_rank3_pitch_max,
+                "induced_rank3_max_step_size": args.induced_rank3_max_step_size,
+            },
+            policy_config={
+                "d_model": 32,
+                "num_layers": 1,
+                "num_heads": 4,
+                "ff_dim": 64,
+                "dropout": 0.0,
+            },
+            training_config={
+                "max_steps": args.max_steps,
+                "learning_rate": args.learning_rate,
+                "sample_initial_pitch": args.sample_initial_pitch,
+                "initial_pitch_min": args.initial_pitch_min,
+                "initial_pitch_max": args.initial_pitch_max,
+                "sample_initial_pitch_in_target_octave": (
+                    args.sample_initial_pitch_in_target_octave
+                ),
+                "sample_target_root_octave": args.sample_target_root_octave,
+                "sampling_temperature": args.sampling_temperature,
+                "sampling_uniform_mix": args.sampling_uniform_mix,
+                "log_reward_diagnostics": log_reward_diagnostics,
+                "reward_diagnostics_mode": reward_diagnostics_mode,
+                **(
+                    {}
+                    if args.target_root_octave_choices is None
+                    else {"target_root_octave_choices": args.target_root_octave_choices}
+                ),
+            },
+        )
+        result = run_rank1_training(
+            config=config,
+            initial_state=(args.initial_pitch,),
+            reward_fn=build_rank1_reward_fn(
+                key_pitch_class=args.key_pitch_class,
+                target_root_octave=args.target_root_octave,
+                use_context_target_root_octave=args.sample_target_root_octave,
+                goal_octave_direction_weight=args.goal_octave_direction_weight,
+                terminal_cadence_reward=args.terminal_cadence_reward,
+                cadence_failure_reward=args.cadence_failure_reward,
+                max_recent_range=args.max_recent_range,
+                range_penalty=args.range_penalty,
+                large_leap_threshold=args.large_leap_threshold,
+                recovery_step_threshold=args.recovery_step_threshold,
+                recovery_reward=args.recovery_reward,
+                failure_penalty=args.failure_penalty,
+                measure_start_tonic_reward=args.measure_start_tonic_reward,
+                onbeat_scale_degree_reward=args.onbeat_scale_degree_reward,
+                offbeat_consonance_weight=args.offbeat_consonance_weight,
+                onbeat_non_scale_penalty=args.onbeat_non_scale_penalty,
+                offbeat_non_consonance_penalty=args.offbeat_non_consonance_penalty,
+                step_size_balance_threshold=args.step_size_balance_threshold,
+                step_size_balance_target_small_rate=(
+                    args.step_size_balance_target_small_rate
+                ),
+                step_size_balance_weight=args.step_size_balance_weight,
+            ),
+            graph_spec=_graph_spec_from_config(config),
+        )
+
+        print(f"run_dir: {result.paths.rank_dir}")
+        print(f"lineage_dir: {result.paths.lineage_dir}")
+        print(f"rank: {config.rank}")
+        print(f"episodes: {config.episode_count}")
+        print(f"max_steps: {args.max_steps}")
+        graph_spec = _graph_spec_from_config(config)
+        print(f"pitch_range: [{graph_spec.pitch_min}, {graph_spec.pitch_max}]")
+        print(f"reward: {reward_config['kind']}")
+        print(f"reward diagnostics: {reward_diagnostics_mode}")
+        print(f"latest checkpoint: {result.paths.checkpoint_latest_path}")
+        print(f"final midi: {result.final_midi_path}")
+        print(f"final episode return: {result.final_inference.metrics['episode_return']}")
+        print(f"final terminal_success: {result.final_inference.metrics['terminal_success']}")
+        write_run_completion(
+            result.paths,
+            lineage_id=args.lineage_id,
+            stage="rank1",
+            summary={
+                "run_dir": result.paths.rank_dir.as_posix(),
+                "checkpoint_latest_path": result.paths.checkpoint_latest_path.as_posix(),
+            },
+        )
+        return 0
+    except Exception as exc:
+        exception_log_path.parent.mkdir(parents=True, exist_ok=True)
+        exception_log_path.write_text(traceback.format_exc(), encoding="utf-8")
+        write_run_failure(
+            args.artifact_root / args.lineage_id,
+            lineage_id=args.lineage_id,
+            stage="rank1",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            exception_log=exception_log_path.as_posix(),
+        )
+        print(f"exception log: {exception_log_path}", file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":

@@ -41,6 +41,7 @@ from tower.train.checkpoint import (
 )
 from tower.train.config import TowerRankConfig, _validate_json_mapping
 from tower.train.diagnostics import reward_diagnostics_rows
+from tower.train.lifecycle import write_run_heartbeat
 from tower.train.protocol import (
     TrainEpisodeResult,
     train_rank1_episode_with_artifacts,
@@ -236,6 +237,12 @@ def run_rank1_training(
     generator = torch.Generator().manual_seed(config.seed)
     key_pitch_class = _optional_reward_int(config, "key_pitch_class")
     target_root_octave = _optional_reward_int(config, "target_root_octave")
+    _write_training_heartbeat(
+        config=config,
+        paths=paths,
+        episode_index=-1,
+        metrics=None,
+    )
     episode_results = []
     for episode_index in range(config.episode_count):
         episode_target_root_octave = _rank1_episode_target_root_octave(
@@ -402,6 +409,12 @@ def run_rank2_training(
     specs_by_key_pitch_class = _episode_graph_specs_by_key_pitch_class(
         config=config,
         fallback_spec=spec,
+    )
+    _write_training_heartbeat(
+        config=config,
+        paths=paths,
+        episode_index=-1,
+        metrics=None,
     )
     episode_results = []
     for episode_index in range(config.episode_count):
@@ -597,6 +610,12 @@ def run_rank3_training(
     specs_by_key_pitch_class = _episode_graph_specs_by_key_pitch_class(
         config=config,
         fallback_spec=spec,
+    )
+    _write_training_heartbeat(
+        config=config,
+        paths=paths,
+        episode_index=-1,
+        metrics=None,
     )
     episode_results = []
     for episode_index in range(config.episode_count):
@@ -2243,6 +2262,12 @@ def _maybe_print_episode_progress(
     if progress_every < 0:
         raise ValueError("progress_every must be non-negative")
     if progress_every == 0:
+        _write_training_heartbeat(
+            config=config,
+            paths=config.artifact_paths(),
+            episode_index=episode_index,
+            metrics=metrics,
+        )
         return
     completed = episode_index + 1
     if completed % progress_every != 0 and completed != config.episode_count:
@@ -2258,6 +2283,34 @@ def _maybe_print_episode_progress(
         f"return={episode_return:.4f} length={episode_length} "
         f"terminal_success={terminal_success}",
         flush=True,
+    )
+    _write_training_heartbeat(
+        config=config,
+        paths=config.artifact_paths(),
+        episode_index=episode_index,
+        metrics=metrics,
+    )
+
+
+def _write_training_heartbeat(
+    *,
+    config: TowerRunnerConfig,
+    paths: TowerArtifactPaths,
+    episode_index: int,
+    metrics: Mapping[str, object] | None,
+) -> None:
+    label = dict(config.training_config).get("progress_label", config.lineage_id)
+    if not isinstance(label, str):
+        raise TypeError("progress_label must be a string")
+    write_run_heartbeat(
+        paths,
+        lineage_id=config.lineage_id,
+        stage=label,
+        rank=config.rank,
+        completed_episodes=max(0, episode_index + 1),
+        episode_budget=config.episode_count,
+        metrics=metrics,
+        extra={"kind": "training"},
     )
 
 

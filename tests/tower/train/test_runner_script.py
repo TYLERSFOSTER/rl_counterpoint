@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts._tower_train_diagnostics import resolve_log_reward_diagnostics
 from scripts import tower_train
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -50,7 +51,18 @@ def test_tower_train_parse_args_defaults_to_rank_1() -> None:
     assert args.step_size_balance_weight == 1.0
     assert args.sampling_temperature == 1.5
     assert args.sampling_uniform_mix == 0.15
-    assert args.log_reward_diagnostics is True
+    assert args.log_reward_diagnostics is None
+
+
+def test_rank1_reward_diagnostics_auto_defaults_to_compact_for_long_runs() -> None:
+    enabled, mode = resolve_log_reward_diagnostics(
+        requested=None,
+        episode_count=10_000,
+        max_steps=64,
+    )
+
+    assert enabled is False
+    assert mode == "final-only-auto"
 
 
 def test_tower_train_main_runs_tiny_rank_1_job(
@@ -128,6 +140,7 @@ def test_tower_train_main_runs_tiny_rank_1_job(
     assert config["training_config"]["sampling_temperature"] == 1.5
     assert config["training_config"]["sampling_uniform_mix"] == 0.15
     assert config["training_config"]["log_reward_diagnostics"] is True
+    assert config["training_config"]["reward_diagnostics_mode"] == "full-auto"
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 5
 
@@ -237,6 +250,7 @@ def test_tower_train_main_can_disable_training_reward_diagnostics(
     run_dir = tmp_path / "lineage-a" / "rank_1"
     config = json.loads((run_dir / "config.json").read_text())
     assert config["training_config"]["log_reward_diagnostics"] is False
+    assert config["training_config"]["reward_diagnostics_mode"] == "final-only-explicit"
     diagnostics_rows = (run_dir / "reward_diagnostics.jsonl").read_text().splitlines()
     assert len(diagnostics_rows) == 4
 

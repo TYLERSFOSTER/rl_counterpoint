@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+import traceback
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts._tower_train_diagnostics import resolve_log_reward_diagnostics
 from tower.policy.transformer import TowerTransformerPolicy
 from tower.reward.factory import build_rank2_reward_fn
 from tower.train.checkpoint import (
@@ -18,6 +20,11 @@ from tower.train.checkpoint import (
     load_latest_checkpoint,
 )
 from tower.train.config import TowerRankConfig
+from tower.train.lifecycle import (
+    write_run_completion,
+    write_run_failure,
+    write_run_heartbeat,
+)
 from tower.train.runner import (
     TowerRunnerConfig,
     _build_rank1_policy,
@@ -141,7 +148,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--log-reward-diagnostics",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=None,
     )
     return parser.parse_args(argv)
 
@@ -202,6 +209,11 @@ def _policy_config_from_args(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _training_config_from_args(args: argparse.Namespace) -> dict[str, object]:
+    log_reward_diagnostics, reward_diagnostics_mode = resolve_log_reward_diagnostics(
+        requested=args.log_reward_diagnostics,
+        episode_count=args.episodes,
+        max_steps=args.max_steps,
+    )
     return {
         "max_steps": args.max_steps,
         "learning_rate": args.learning_rate,
@@ -223,7 +235,8 @@ def _training_config_from_args(args: argparse.Namespace) -> dict[str, object]:
         "final_inference_sample_initial_state": (
             args.final_inference_sample_initial_state
         ),
-        "log_reward_diagnostics": args.log_reward_diagnostics,
+        "log_reward_diagnostics": log_reward_diagnostics,
+        "reward_diagnostics_mode": reward_diagnostics_mode,
     }
 
 
@@ -285,76 +298,115 @@ def _load_parent_policy(
 def main(argv: list[str] | None = None) -> int:
     """Run one rank-2 tower training job against an accepted rank-1 parent."""
     args = parse_args(argv)
-    parent_policy, parent_checkpoint = _load_parent_policy(
+    exception_log_path = (
+        args.artifact_root / "logs" / f"{args.lineage_id}-rank2.exception.log"
+    )
+    write_run_heartbeat(
+        args.artifact_root / args.lineage_id,
         lineage_id=args.lineage_id,
-        artifact_root=args.artifact_root,
+        stage="rank2",
+        status="running",
+        completed_episodes=0,
+        episode_budget=args.episodes,
+        extra={"argv": [] if argv is None else list(argv)},
     )
-    reward_config = _reward_config_from_args(args)
-    config = TowerRunnerConfig(
-        lineage_id=args.lineage_id,
-        rank=2,
-        episode_count=args.episodes,
-        seed=args.seed,
-        artifact_root=args.artifact_root,
-        measure_size=args.measure_size,
-        context_measures=args.context_measures,
-        max_step_size=args.max_step_size,
-        parent_checkpoint=parent_checkpoint,
-        parent_top_m=args.parent_top_m,
-        graph_config=_graph_config_from_args(args),
-        reward_config=reward_config,
-        policy_config=_policy_config_from_args(args),
-        training_config=_training_config_from_args(args),
-    )
-    result = run_rank2_training(
-        config=config,
-        parent_policy=parent_policy,
-        initial_state=(args.initial_parent_pitch, args.initial_child_pitch),
-        reward_fn=build_rank2_reward_fn(
-            key_pitch_class=args.key_pitch_class,
-            use_context_key_pitch_class=args.sample_key_pitch_class,
-            target_root_octave=args.target_root_octave,
-            terminal_cadence_reward=args.terminal_cadence_reward,
-            cadence_failure_reward=args.cadence_failure_reward,
-            cadence_endpoint_weight=args.cadence_endpoint_weight,
-            vertical_consonance_weight=args.vertical_consonance_weight,
-            vertical_non_consonance_penalty=args.vertical_non_consonance_penalty,
-            upper_register_soft_ceiling=args.upper_register_soft_ceiling,
-            upper_register_penalty_weight=args.upper_register_penalty_weight,
-            min_vertical_gap=args.min_vertical_gap,
-            spacing_reward=args.spacing_reward,
-            spacing_penalty=args.spacing_penalty,
-            target_vertical_interval=args.target_vertical_interval,
-            target_vertical_interval_weight=args.target_vertical_interval_weight,
-            onbeat_scale_degree_interval_reward=(
-                args.onbeat_scale_degree_interval_reward
+    try:
+        parent_policy, parent_checkpoint = _load_parent_policy(
+            lineage_id=args.lineage_id,
+            artifact_root=args.artifact_root,
+        )
+        reward_config = _reward_config_from_args(args)
+        config = TowerRunnerConfig(
+            lineage_id=args.lineage_id,
+            rank=2,
+            episode_count=args.episodes,
+            seed=args.seed,
+            artifact_root=args.artifact_root,
+            measure_size=args.measure_size,
+            context_measures=args.context_measures,
+            max_step_size=args.max_step_size,
+            parent_checkpoint=parent_checkpoint,
+            parent_top_m=args.parent_top_m,
+            graph_config=_graph_config_from_args(args),
+            reward_config=reward_config,
+            policy_config=_policy_config_from_args(args),
+            training_config=_training_config_from_args(args),
+        )
+        result = run_rank2_training(
+            config=config,
+            parent_policy=parent_policy,
+            initial_state=(args.initial_parent_pitch, args.initial_child_pitch),
+            reward_fn=build_rank2_reward_fn(
+                key_pitch_class=args.key_pitch_class,
+                use_context_key_pitch_class=args.sample_key_pitch_class,
+                target_root_octave=args.target_root_octave,
+                terminal_cadence_reward=args.terminal_cadence_reward,
+                cadence_failure_reward=args.cadence_failure_reward,
+                cadence_endpoint_weight=args.cadence_endpoint_weight,
+                vertical_consonance_weight=args.vertical_consonance_weight,
+                vertical_non_consonance_penalty=args.vertical_non_consonance_penalty,
+                upper_register_soft_ceiling=args.upper_register_soft_ceiling,
+                upper_register_penalty_weight=args.upper_register_penalty_weight,
+                min_vertical_gap=args.min_vertical_gap,
+                spacing_reward=args.spacing_reward,
+                spacing_penalty=args.spacing_penalty,
+                target_vertical_interval=args.target_vertical_interval,
+                target_vertical_interval_weight=args.target_vertical_interval_weight,
+                onbeat_scale_degree_interval_reward=(
+                    args.onbeat_scale_degree_interval_reward
+                ),
+                onbeat_non_scale_degree_interval_penalty=(
+                    args.onbeat_non_scale_degree_interval_penalty
+                ),
+                offbeat_vertical_consonance_weight=(
+                    args.offbeat_vertical_consonance_weight
+                ),
+                offbeat_vertical_non_consonance_penalty=(
+                    args.offbeat_vertical_non_consonance_penalty
+                ),
             ),
-            onbeat_non_scale_degree_interval_penalty=(
-                args.onbeat_non_scale_degree_interval_penalty
-            ),
-            offbeat_vertical_consonance_weight=(
-                args.offbeat_vertical_consonance_weight
-            ),
-            offbeat_vertical_non_consonance_penalty=(
-                args.offbeat_vertical_non_consonance_penalty
-            ),
-        ),
-        graph_spec=_graph_spec_from_config(config),
-    )
+            graph_spec=_graph_spec_from_config(config),
+        )
 
-    print(f"run_dir: {result.paths.rank_dir}")
-    print(f"lineage_dir: {result.paths.lineage_dir}")
-    print(f"rank: {config.rank}")
-    print(f"episodes: {config.episode_count}")
-    print(f"max_steps: {args.max_steps}")
-    print(f"pitch_range: [{args.pitch_min}, {args.pitch_max}]")
-    print(f"reward: {reward_config['kind']}")
-    print(f"parent checkpoint: {parent_checkpoint}")
-    print(f"latest checkpoint: {result.paths.checkpoint_latest_path}")
-    print(f"final midi: {result.final_midi_path}")
-    print(f"final episode return: {result.final_inference.metrics['episode_return']}")
-    print(f"final terminal_success: {result.final_inference.metrics['terminal_success']}")
-    return 0
+        print(f"run_dir: {result.paths.rank_dir}")
+        print(f"lineage_dir: {result.paths.lineage_dir}")
+        print(f"rank: {config.rank}")
+        print(f"episodes: {config.episode_count}")
+        print(f"max_steps: {args.max_steps}")
+        print(f"pitch_range: [{args.pitch_min}, {args.pitch_max}]")
+        print(f"reward: {reward_config['kind']}")
+        print(f"parent checkpoint: {parent_checkpoint}")
+        print(
+            "reward diagnostics: "
+            f"{result.rank_config.training_config['reward_diagnostics_mode']}"
+        )
+        print(f"latest checkpoint: {result.paths.checkpoint_latest_path}")
+        print(f"final midi: {result.final_midi_path}")
+        print(f"final episode return: {result.final_inference.metrics['episode_return']}")
+        print(f"final terminal_success: {result.final_inference.metrics['terminal_success']}")
+        write_run_completion(
+            result.paths,
+            lineage_id=args.lineage_id,
+            stage="rank2",
+            summary={
+                "run_dir": result.paths.rank_dir.as_posix(),
+                "checkpoint_latest_path": result.paths.checkpoint_latest_path.as_posix(),
+            },
+        )
+        return 0
+    except Exception as exc:
+        exception_log_path.parent.mkdir(parents=True, exist_ok=True)
+        exception_log_path.write_text(traceback.format_exc(), encoding="utf-8")
+        write_run_failure(
+            args.artifact_root / args.lineage_id,
+            lineage_id=args.lineage_id,
+            stage="rank2",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+            exception_log=exception_log_path.as_posix(),
+        )
+        print(f"exception log: {exception_log_path}", file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":

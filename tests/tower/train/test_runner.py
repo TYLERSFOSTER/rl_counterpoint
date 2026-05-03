@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,7 @@ from tower.train.checkpoint import (
     save_latest_checkpoint,
 )
 from tower.train.config import TowerRankConfig
+from tower.train.lifecycle import heartbeat_path
 from tower.train.runner import (
     FinalInferenceResult,
     Rank1TrainingRunResult,
@@ -287,6 +289,40 @@ def test_runner_config_converts_to_rank_config() -> None:
     assert rank_config.parent_sampler_config == {}
     assert rank_config.parent_checkpoint is None
     assert rank_config.seed_config == {"seed": 123}
+
+
+def test_run_rank1_training_writes_heartbeat_when_progress_enabled(
+    tmp_path: Path,
+) -> None:
+    policy = TinyRank1Policy()
+    config = TowerRunnerConfig(
+        lineage_id="lineage-a",
+        rank=1,
+        episode_count=1,
+        seed=123,
+        artifact_root=tmp_path,
+        max_step_size=1,
+        training_config={
+            "max_steps": 1,
+            "progress_every": 1,
+        },
+    )
+
+    result = run_rank1_training(
+        config=config,
+        initial_state=(60,),
+        reward_fn=build_rank1_reward_fn(),
+        policy=policy,
+        optimizer=torch.optim.SGD(policy.parameters(), lr=0.1),
+        graph_spec=TowerGraphSpec(rank=1, pitch_min=0, pitch_max=127, max_step_size=1),
+    )
+
+    payload = json.loads(heartbeat_path(result.paths).read_text())
+    assert payload["lineage_id"] == "lineage-a"
+    assert payload["stage"] == "lineage-a"
+    assert payload["status"] == "running"
+    assert payload["completed_episodes"] == 1
+    assert payload["episode_budget"] == 1
 
 
 def test_graph_spec_from_config_builds_induced_rank1_graph_from_rank2() -> None:
