@@ -57,7 +57,7 @@ def make_transformer_policy(
     return TowerTransformerPolicy(
         TowerTransformerPolicyConfig(
             rank=rank,
-            input_feature_dim=rank + 5
+            input_feature_dim=rank + 7
             if input_feature_dim is None
             else input_feature_dim,
             action_dim=action_dim,
@@ -234,7 +234,7 @@ def test_sample_active_choice_from_policy_supports_transformer_policy() -> None:
 
 
 def test_sample_active_choice_from_policy_conditions_transformer_on_key_and_target() -> None:
-    policy = make_transformer_policy(rank=1, input_feature_dim=8, action_dim=3)
+    policy = make_transformer_policy(rank=1, input_feature_dim=10, action_dim=3)
 
     result = sample_active_choice_from_policy(
         policy=policy,  # type: ignore[arg-type]

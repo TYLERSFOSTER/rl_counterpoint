@@ -180,10 +180,10 @@ def test_encode_tower_window_encodes_rank_1_states() -> None:
         encoded.event_features,
         torch.tensor(
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.25],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.25],
-                [60.0 / 127.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.5, 0.25],
-                [62.0 / 127.0, 1.0 / 3.0, 0.0, 0.0, 1.0, 0.0, 0.5, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.25],
+                [60.0 / 127.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.5, 0.25],
+                [62.0 / 127.0, 1.0 / 3.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.5, 0.25],
             ]
         ),
     )
@@ -216,12 +216,12 @@ def test_encode_tower_window_changes_features_when_target_octave_changes() -> No
         target_root_octave=5,
     )
 
-    assert low_target.event_features.shape == (4, 7)
-    assert high_target.event_features.shape == (4, 7)
+    assert low_target.event_features.shape == (4, 9)
+    assert high_target.event_features.shape == (4, 9)
     assert not torch.equal(low_target.event_features, high_target.event_features)
-    assert torch.equal(low_target.event_features[:, 5], torch.full((4,), 0.4))
-    assert torch.equal(high_target.event_features[:, 5], torch.full((4,), 0.6))
-    assert torch.equal(low_target.event_features[:, 6], torch.full((4,), 0.25))
+    assert torch.equal(low_target.event_features[:, 7], torch.full((4,), 0.4))
+    assert torch.equal(high_target.event_features[:, 7], torch.full((4,), 0.6))
+    assert torch.equal(low_target.event_features[:, 8], torch.full((4,), 0.25))
 
 
 def test_encode_tower_window_changes_features_when_key_pitch_class_changes() -> None:
@@ -243,12 +243,12 @@ def test_encode_tower_window_changes_features_when_key_pitch_class_changes() -> 
         key_pitch_class=2,
     )
 
-    assert c_major.event_features.shape == (4, 7)
-    assert d_major.event_features.shape == (4, 7)
+    assert c_major.event_features.shape == (4, 9)
+    assert d_major.event_features.shape == (4, 9)
     assert not torch.equal(c_major.event_features, d_major.event_features)
-    assert torch.equal(c_major.event_features[:, 5], torch.full((4,), 0.0))
-    assert torch.equal(d_major.event_features[:, 5], torch.full((4,), 2.0 / 11.0))
-    assert torch.equal(c_major.event_features[:, 6], torch.full((4,), 0.25))
+    assert torch.equal(c_major.event_features[:, 7], torch.full((4,), 0.0))
+    assert torch.equal(d_major.event_features[:, 7], torch.full((4,), 2.0 / 11.0))
+    assert torch.equal(c_major.event_features[:, 8], torch.full((4,), 0.25))
 
 
 def test_encode_tower_window_encodes_rank_2_states() -> None:
@@ -266,10 +266,10 @@ def test_encode_tower_window_encodes_rank_2_states() -> None:
         encoded.event_features,
         torch.tensor(
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
-                [60.0 / 127.0, 64.0 / 127.0, 0.0, 1.0, 1.0, 0.0, 0.25],
-                [62.0 / 127.0, 65.0 / 127.0, 1.0 / 3.0, 0.0, 0.0, 1.0, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+                [60.0 / 127.0, 64.0 / 127.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.25],
+                [62.0 / 127.0, 65.0 / 127.0, 1.0 / 3.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.25],
             ]
         ),
     )
@@ -293,14 +293,28 @@ def test_encode_tower_window_allows_rank_2_pad_state_not_strictly_increasing() -
         encoded.event_features,
         torch.tensor(
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
-                [60.0 / 127.0, 64.0 / 127.0, 0.0, 1.0, 1.0, 0.0, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.25],
+                [60.0 / 127.0, 64.0 / 127.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.25],
             ]
         ),
     )
     assert torch.equal(encoded.valid_mask, torch.tensor([False, False, False, True]))
+
+
+def test_encode_tower_window_includes_episode_step_and_frontier_distance() -> None:
+    window = build_window(
+        history=((60,), (61,), (62,)),
+        step_index=6,
+        measure_size=4,
+        context_measures=1,
+    )
+
+    encoded = encode_tower_window(window=window, measure_size=4)
+
+    assert torch.equal(encoded.event_features[:, 5], torch.tensor([0.0, 4.0, 5.0, 6.0]))
+    assert torch.equal(encoded.event_features[:, 6], torch.tensor([0.0, 2.0, 1.0, 0.0]))
 
 
 def test_encode_tower_window_merges_extra_context() -> None:
@@ -368,3 +382,15 @@ def test_encode_tower_window_rejects_rank_mismatch() -> None:
 
     with pytest.raises(ValueError, match="state length must match rank"):
         encode_tower_window(window=window, measure_size=4, rank=2)
+
+
+def test_encode_tower_window_rejects_mismatched_episode_step_indices() -> None:
+    window = TowerWindow(
+        states=((60,),),
+        bar_positions=(0,),
+        valid_mask=(True,),
+        episode_step_indices=(0, 1),
+    )
+
+    with pytest.raises(ValueError, match="window fields must have the same length"):
+        encode_tower_window(window=window, measure_size=4)

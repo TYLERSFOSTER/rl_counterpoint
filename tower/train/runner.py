@@ -2343,6 +2343,7 @@ def _policy_input_feature_dim(
     return (
         default_rank
         + 4
+        + 2
         + (1 if _optional_reward_int(config, "key_pitch_class") is not None else 0)
         + (1 if _optional_reward_int(config, "target_root_octave") is not None else 0)
         + 1

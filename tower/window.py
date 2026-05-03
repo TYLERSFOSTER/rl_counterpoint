@@ -16,6 +16,7 @@ class TowerWindow:
     states: tuple[TowerState, ...]
     bar_positions: tuple[int, ...]
     valid_mask: tuple[bool, ...]
+    episode_step_indices: tuple[int, ...] | None = None
 
 
 def pad_state(*, rank: int) -> TowerState:
@@ -32,6 +33,11 @@ def frontier_state(window: TowerWindow) -> TowerState:
         raise ValueError("window.states must not be empty")
     if not (
         len(window.states) == len(window.valid_mask) == len(window.bar_positions)
+    ):
+        raise ValueError("window fields must have the same length")
+    if (
+        window.episode_step_indices is not None
+        and len(window.episode_step_indices) != len(window.states)
     ):
         raise ValueError("window fields must have the same length")
 
@@ -91,9 +97,13 @@ def build_window(
         for offset in range(len(real_history))
     )
     valid_mask = (False,) * padding_length + (True,) * len(real_history)
+    episode_step_indices = (-1,) * padding_length + tuple(
+        real_start_step + offset for offset in range(len(real_history))
+    )
 
     return TowerWindow(
         states=states,
         bar_positions=bar_positions,
         valid_mask=valid_mask,
+        episode_step_indices=episode_step_indices,
     )

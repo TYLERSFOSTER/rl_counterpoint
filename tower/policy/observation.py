@@ -82,6 +82,8 @@ def encode_tower_window(
         measure_size=measure_size,
     )
     event_features = torch.cat((event_features, metrical_features), dim=1)
+    positional_features = _positional_features(window=window)
+    event_features = torch.cat((event_features, positional_features), dim=1)
     if key_pitch_class is not None:
         key_feature = torch.full(
             (len(window.states), 1),
@@ -119,6 +121,11 @@ def _validate_window_lengths(window: TowerWindow) -> None:
         len(window.states) == len(window.valid_mask) == len(window.bar_positions)
     ):
         raise ValueError("window fields must have the same length")
+    if (
+        window.episode_step_indices is not None
+        and len(window.episode_step_indices) != len(window.states)
+    ):
+        raise ValueError("window fields must have the same length")
 
 
 def _infer_window_rank(window: TowerWindow) -> int:
@@ -152,6 +159,33 @@ def _metrical_features(
             )
         )
     return torch.tensor(rows, dtype=torch.float32)
+
+
+def _positional_features(window: TowerWindow) -> torch.Tensor:
+    step_indices = _window_episode_step_indices(window)
+    frontier_step_index = max(
+        step_index
+        for step_index, is_valid in zip(step_indices, window.valid_mask, strict=True)
+        if is_valid
+    )
+    rows: list[tuple[float, float]] = []
+    for step_index, is_valid in zip(step_indices, window.valid_mask, strict=True):
+        if not is_valid or step_index < 0:
+            rows.append((0.0, 0.0))
+            continue
+        rows.append((float(step_index), float(frontier_step_index - step_index)))
+    return torch.tensor(rows, dtype=torch.float32)
+
+
+def _window_episode_step_indices(window: TowerWindow) -> tuple[int, ...]:
+    if window.episode_step_indices is not None:
+        return window.episode_step_indices
+
+    # Compatibility fallback for older/manual TowerWindow fixtures that have not
+    # yet been updated to carry absolute episode indices.
+    valid_count = sum(1 for is_valid in window.valid_mask if is_valid)
+    padding_count = len(window.valid_mask) - valid_count
+    return (-1,) * padding_count + tuple(range(valid_count))
 
 
 def _validate_padded_state_shape(state: tuple[int, ...], *, rank: int) -> None:

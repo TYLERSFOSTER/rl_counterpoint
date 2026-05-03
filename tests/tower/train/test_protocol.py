@@ -136,7 +136,7 @@ def make_tiny_transformer_policy(
     return TowerTransformerPolicy(
         TowerTransformerPolicyConfig(
             rank=rank,
-            input_feature_dim=rank + 5,
+            input_feature_dim=rank + 7,
             action_dim=action_dim,
             max_window_len=8,
             d_model=8,

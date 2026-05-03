@@ -48,4 +48,5 @@ def project_window(window: TowerWindow) -> TowerWindow:
         states=tuple(project_tuple(state) for state in window.states),
         bar_positions=window.bar_positions,
         valid_mask=window.valid_mask,
+        episode_step_indices=window.episode_step_indices,
     )

@@ -42,6 +42,7 @@ def test_window_projection_preserves_bar_positions_and_valid_mask() -> None:
         states=((0, 0), (60, 67), (62, 69)),
         bar_positions=(-1, 0, 1),
         valid_mask=(False, True, True),
+        episode_step_indices=(-1, 4, 5),
     )
 
     projected = project_window(window)
@@ -49,6 +50,7 @@ def test_window_projection_preserves_bar_positions_and_valid_mask() -> None:
     assert projected.states == ((0,), (60,), (62,))
     assert projected.bar_positions == window.bar_positions
     assert projected.valid_mask == window.valid_mask
+    assert projected.episode_step_indices == window.episode_step_indices
 
 
 def test_rank_2_projection_commutes_with_update() -> None:

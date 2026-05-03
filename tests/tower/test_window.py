@@ -53,6 +53,7 @@ def test_build_window_left_pads_short_history() -> None:
     assert all(state == (0,) for state in window.states[:-1])
     assert window.bar_positions == (PAD_BAR_POSITION,) * 7 + (0,)
     assert window.valid_mask == (False,) * 7 + (True,)
+    assert window.episode_step_indices == (-1,) * 7 + (0,)
 
 
 def test_frontier_state_returns_final_valid_state() -> None:
@@ -98,6 +99,7 @@ def test_build_window_records_real_bar_positions() -> None:
     assert window.states == ((0,), (60,), (61,), (62,))
     assert window.bar_positions == (PAD_BAR_POSITION, 0, 1, 2)
     assert window.valid_mask == (False, True, True, True)
+    assert window.episode_step_indices == (-1, 4, 5, 6)
 
 
 def test_build_window_truncates_long_history_to_recent_suffix() -> None:
@@ -114,6 +116,7 @@ def test_build_window_truncates_long_history_to_recent_suffix() -> None:
     assert window.states == history[-8:]
     assert window.bar_positions == (2, 3, 0, 1, 2, 3, 0, 1)
     assert window.valid_mask == (True,) * 8
+    assert window.episode_step_indices == (2, 3, 4, 5, 6, 7, 8, 9)
 
 
 def test_build_window_rejects_empty_history() -> None:
