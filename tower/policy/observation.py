@@ -19,6 +19,7 @@ class EncodedTowerWindow:
     valid_mask: torch.Tensor
     bar_positions: torch.Tensor
     rank: int
+    episode_step_indices: torch.Tensor | None = None
     context: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -26,6 +27,7 @@ class EncodedTowerWindow:
         _validate_event_features(self.event_features)
         _validate_valid_mask(self.valid_mask)
         _validate_bar_positions(self.bar_positions)
+        _validate_episode_step_indices(self.episode_step_indices)
         if not isinstance(self.context, Mapping):
             raise TypeError("context must be a mapping")
 
@@ -34,6 +36,11 @@ class EncodedTowerWindow:
             raise ValueError("valid_mask length must match event_features")
         if self.bar_positions.shape[0] != sequence_length:
             raise ValueError("bar_positions length must match event_features")
+        if (
+            self.episode_step_indices is not None
+            and self.episode_step_indices.shape[0] != sequence_length
+        ):
+            raise ValueError("episode_step_indices length must match event_features")
         if not bool(self.valid_mask.any()):
             raise ValueError("encoded window must contain at least one valid event")
 
@@ -82,8 +89,6 @@ def encode_tower_window(
         measure_size=measure_size,
     )
     event_features = torch.cat((event_features, metrical_features), dim=1)
-    positional_features = _positional_features(window=window)
-    event_features = torch.cat((event_features, positional_features), dim=1)
     if key_pitch_class is not None:
         key_feature = torch.full(
             (len(window.states), 1),
@@ -109,6 +114,10 @@ def encode_tower_window(
         event_features=event_features,
         valid_mask=torch.tensor(window.valid_mask, dtype=torch.bool),
         bar_positions=torch.tensor(window.bar_positions, dtype=torch.int64),
+        episode_step_indices=torch.tensor(
+            _window_episode_step_indices(window),
+            dtype=torch.int64,
+        ),
         rank=encoded_rank,
         context=observation_context,
     )
@@ -158,22 +167,6 @@ def _metrical_features(
                 1.0 if is_offbeat else 0.0,
             )
         )
-    return torch.tensor(rows, dtype=torch.float32)
-
-
-def _positional_features(window: TowerWindow) -> torch.Tensor:
-    step_indices = _window_episode_step_indices(window)
-    frontier_step_index = max(
-        step_index
-        for step_index, is_valid in zip(step_indices, window.valid_mask, strict=True)
-        if is_valid
-    )
-    rows: list[tuple[float, float]] = []
-    for step_index, is_valid in zip(step_indices, window.valid_mask, strict=True):
-        if not is_valid or step_index < 0:
-            rows.append((0.0, 0.0))
-            continue
-        rows.append((float(step_index), float(frontier_step_index - step_index)))
     return torch.tensor(rows, dtype=torch.float32)
 
 
@@ -233,3 +226,20 @@ def _validate_bar_positions(bar_positions: torch.Tensor) -> None:
         or bar_positions.dtype == torch.uint8
     ):
         raise TypeError("bar_positions must have numeric dtype")
+
+
+def _validate_episode_step_indices(episode_step_indices: torch.Tensor | None) -> None:
+    if episode_step_indices is None:
+        return
+    if not isinstance(episode_step_indices, torch.Tensor):
+        raise TypeError("episode_step_indices must be a torch.Tensor")
+    if episode_step_indices.ndim != 1:
+        raise ValueError("episode_step_indices must be rank 1 [seq_len]")
+    if not (
+        episode_step_indices.dtype == torch.int8
+        or episode_step_indices.dtype == torch.int16
+        or episode_step_indices.dtype == torch.int32
+        or episode_step_indices.dtype == torch.int64
+        or episode_step_indices.dtype == torch.uint8
+    ):
+        raise TypeError("episode_step_indices must have integer dtype")

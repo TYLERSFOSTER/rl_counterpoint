@@ -88,6 +88,40 @@ class SinusoidalPositionalEncoding(nn.Module):
         return x + self.positional_encoding[:, :sequence_length]
 
 
+class IndexedSinusoidalPositionalEncoding(nn.Module):
+    """Sinusoidal encoding evaluated at supplied integer positions."""
+
+    def __init__(self, *, d_model: int) -> None:
+        super().__init__()
+        _validate_positive_int(d_model, field_name="d_model")
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float32)
+            * (-math.log(10000.0) / d_model)
+        )
+        self.register_buffer("div_term", div_term, persistent=False)
+        self.d_model = d_model
+
+    def forward(self, positions: torch.Tensor) -> torch.Tensor:
+        """Return sinusoidal encodings for integer positions [batch, seq_len]."""
+        if positions.ndim != 2:
+            raise ValueError("positions must be rank 2 [batch, seq_len]")
+        position = positions.to(dtype=torch.float32).unsqueeze(-1)
+        encoding = torch.zeros(
+            positions.shape[0],
+            positions.shape[1],
+            self.d_model,
+            dtype=torch.float32,
+            device=positions.device,
+        )
+        encoding[..., 0::2] = torch.sin(position * self.div_term.to(device=positions.device))
+        if self.d_model > 1:
+            encoding[..., 1::2] = torch.cos(
+                position
+                * self.div_term[: encoding[..., 1::2].shape[2]].to(device=positions.device)
+            )
+        return encoding
+
+
 class TowerTransformerPolicy(nn.Module):
     """Transformer encoder policy over an encoded rank-local tower window."""
 
@@ -102,6 +136,12 @@ class TowerTransformerPolicy(nn.Module):
         self.positional_encoding = SinusoidalPositionalEncoding(
             d_model=config.d_model,
             max_len=config.max_window_len,
+        )
+        self.episode_step_encoding = IndexedSinusoidalPositionalEncoding(
+            d_model=config.d_model,
+        )
+        self.frontier_distance_encoding = IndexedSinusoidalPositionalEncoding(
+            d_model=config.d_model,
         )
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.d_model,
@@ -139,6 +179,12 @@ class TowerTransformerPolicy(nn.Module):
 
         x = self.input_projection(event_features.unsqueeze(0))
         x = self.positional_encoding(x)
+        x = x + self.episode_step_encoding(
+            _episode_step_positions(encoded_window).unsqueeze(0)
+        )
+        x = x + self.frontier_distance_encoding(
+            _frontier_distance_positions(encoded_window).unsqueeze(0)
+        )
         x = self.encoder(x, src_key_padding_mask=(~valid_mask).unsqueeze(0))
         final_index = int(valid_mask.nonzero(as_tuple=False)[-1].item())
         logits = self.output_head(x[0, final_index])
@@ -159,3 +205,25 @@ def _validate_positive_int(value: int, *, field_name: str) -> None:
         raise TypeError(f"{field_name} must be an int")
     if value < 1:
         raise ValueError(f"{field_name} must be at least 1")
+
+
+def _episode_step_positions(encoded_window: EncodedTowerWindow) -> torch.Tensor:
+    if encoded_window.episode_step_indices is not None:
+        step_indices = encoded_window.episode_step_indices.clone()
+    else:
+        step_indices = torch.full_like(encoded_window.bar_positions, -1, dtype=torch.int64)
+        valid_count = int(encoded_window.valid_mask.sum().item())
+        step_indices[-valid_count:] = torch.arange(valid_count, dtype=torch.int64)
+
+    step_indices = step_indices.to(dtype=torch.int64)
+    step_indices[~encoded_window.valid_mask] = 0
+    return step_indices
+
+
+def _frontier_distance_positions(encoded_window: EncodedTowerWindow) -> torch.Tensor:
+    final_index = int(encoded_window.valid_mask.nonzero(as_tuple=False)[-1].item())
+    positions = torch.arange(encoded_window.valid_mask.shape[0], dtype=torch.int64)
+    frontier_distance = final_index - positions
+    frontier_distance = torch.clamp(frontier_distance, min=0)
+    frontier_distance[~encoded_window.valid_mask] = 0
+    return frontier_distance

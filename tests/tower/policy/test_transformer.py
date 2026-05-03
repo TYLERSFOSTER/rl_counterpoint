@@ -8,6 +8,7 @@ import torch
 from tower.policy.base import PolicyOutput
 from tower.policy.observation import EncodedTowerWindow
 from tower.policy.transformer import (
+    IndexedSinusoidalPositionalEncoding,
     SinusoidalPositionalEncoding,
     TowerTransformerPolicy,
     TowerTransformerPolicyConfig,
@@ -344,3 +345,95 @@ def test_sinusoidal_positional_encoding_rejects_wrong_input_rank() -> None:
 
     with pytest.raises(ValueError, match="x must be rank 3"):
         positional_encoding(torch.ones((2, 8)))
+
+
+def test_indexed_sinusoidal_positional_encoding_rejects_wrong_input_rank() -> None:
+    positional_encoding = IndexedSinusoidalPositionalEncoding(d_model=8)
+
+    with pytest.raises(ValueError, match="positions must be rank 2"):
+        positional_encoding(torch.ones((4,), dtype=torch.int64))
+
+
+def test_transformer_policy_uses_episode_step_indices_when_present() -> None:
+    torch.manual_seed(0)
+    policy = TowerTransformerPolicy(
+        TowerTransformerPolicyConfig(
+            rank=1,
+            input_feature_dim=3,
+            action_dim=5,
+            max_window_len=4,
+            d_model=8,
+            num_layers=1,
+            num_heads=2,
+            ff_dim=16,
+            dropout=0.0,
+        )
+    )
+    base_kwargs = dict(
+        event_features=torch.tensor(
+            [
+                [0.0, 0.0, 0.0],
+                [60.0, 0.0, 1.0],
+                [62.0, 1.0, 1.0],
+            ]
+        ),
+        valid_mask=torch.tensor([False, True, True]),
+        bar_positions=torch.tensor([-1, 0, 1]),
+        rank=1,
+    )
+    early = EncodedTowerWindow(
+        **base_kwargs,
+        episode_step_indices=torch.tensor([-1, 0, 1]),
+    )
+    late = EncodedTowerWindow(
+        **base_kwargs,
+        episode_step_indices=torch.tensor([-1, 8, 9]),
+    )
+
+    early_output = policy(early)
+    late_output = policy(late)
+
+    assert not torch.allclose(early_output.logits, late_output.logits)
+
+
+def test_transformer_policy_uses_frontier_distance_additively() -> None:
+    torch.manual_seed(0)
+    policy = TowerTransformerPolicy(
+        TowerTransformerPolicyConfig(
+            rank=1,
+            input_feature_dim=3,
+            action_dim=5,
+            max_window_len=4,
+            d_model=8,
+            num_layers=1,
+            num_heads=2,
+            ff_dim=16,
+            dropout=0.0,
+        )
+    )
+    event_features = torch.tensor(
+        [
+            [60.0, 0.0, 1.0],
+            [62.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0],
+        ]
+    )
+    early_frontier = EncodedTowerWindow(
+        event_features=event_features,
+        valid_mask=torch.tensor([True, False, False]),
+        bar_positions=torch.tensor([0, -1, -1]),
+        episode_step_indices=torch.tensor([4, -1, -1]),
+        rank=1,
+    )
+    late_frontier = EncodedTowerWindow(
+        event_features=event_features,
+        valid_mask=torch.tensor([True, True, False]),
+        bar_positions=torch.tensor([0, 1, -1]),
+        episode_step_indices=torch.tensor([4, 5, -1]),
+        rank=1,
+    )
+
+    early_output = policy(early_frontier)
+    late_output = policy(late_frontier)
+
+    assert not torch.allclose(early_output.logits, late_output.logits)
