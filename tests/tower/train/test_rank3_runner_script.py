@@ -56,8 +56,11 @@ def _prepare_rank2_parent_stack(*, tmp_path: Path) -> None:
             "69",
             "--parent-top-m",
             "1",
+            "--no-sample-key-pitch-class",
             "--no-sample-initial-state",
             "--no-sample-target-root-octave",
+            "--no-final-inference-sample-target-root-octave",
+            "--no-final-inference-sample-initial-state",
         ]
     )
     assert exit_code == 0
@@ -81,6 +84,8 @@ def test_tower_train_rank3_parse_args_defaults() -> None:
     assert args.initial_parent_pitch_max == 84
     assert args.sample_initial_parent_pitch_in_target_octave is False
     assert args.key_pitch_class == 0
+    assert args.sample_key_pitch_class is True
+    assert args.key_pitch_class_choices == list(range(12))
     assert args.target_root_octave == 4
     assert args.parent_top_m == 3
     assert args.sample_target_root_octave is True
@@ -141,6 +146,7 @@ def test_tower_train_rank3_main_runs_tiny_job(
             "69",
             "--parent-top-m",
             "1",
+            "--no-sample-key-pitch-class",
             "--no-sample-initial-state",
             "--no-sample-target-root-octave",
         ]
@@ -167,6 +173,7 @@ def test_tower_train_rank3_main_runs_tiny_job(
     config = json.loads((run_dir / "config.json").read_text())
     assert config["reward_config"]["kind"] == "rank3_slice_a"
     assert config["reward_config"]["key_pitch_class"] == 0
+    assert config["reward_config"]["use_context_key_pitch_class"] is False
     assert config["reward_config"]["target_root_octave"] == 4
     assert config["reward_config"]["triad_consonance_weight"] == 1.0
     assert config["reward_config"]["triad_non_consonance_penalty"] == 0.0
@@ -192,6 +199,8 @@ def test_tower_train_rank3_main_runs_tiny_job(
     assert config["training_config"]["sampling_temperature"] == 1.5
     assert config["training_config"]["sampling_uniform_mix"] == 0.15
     assert config["training_config"]["sample_initial_state"] is False
+    assert config["training_config"]["sample_key_pitch_class"] is False
+    assert config["training_config"]["key_pitch_class_choices"] == list(range(12))
     assert config["training_config"]["initial_parent_pitch_min"] == 36
     assert config["training_config"]["initial_parent_pitch_max"] == 84
     assert (
@@ -236,6 +245,7 @@ def test_tower_train_rank3_main_can_disable_training_reward_diagnostics(
             "69",
             "--parent-top-m",
             "1",
+            "--no-sample-key-pitch-class",
             "--no-sample-initial-state",
             "--no-sample-target-root-octave",
             "--no-log-reward-diagnostics",

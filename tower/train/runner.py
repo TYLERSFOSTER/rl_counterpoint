@@ -51,6 +51,7 @@ from tower.train.rollout import RewardFunction, rollout_rank1, rollout_rank2, ro
 from tower.train.trajectory import TowerTrajectory
 
 TARGET_ROOT_OCTAVE_CHOICES = tuple(range(10))
+KEY_PITCH_CLASS_CHOICES = tuple(range(12))
 
 
 @dataclass(frozen=True)
@@ -398,8 +399,20 @@ def run_rank2_training(
     generator = torch.Generator().manual_seed(config.seed)
     key_pitch_class = _optional_reward_int(config, "key_pitch_class")
     target_root_octave = _optional_reward_int(config, "target_root_octave")
+    specs_by_key_pitch_class = _episode_graph_specs_by_key_pitch_class(
+        config=config,
+        fallback_spec=spec,
+    )
     episode_results = []
     for episode_index in range(config.episode_count):
+        episode_key_pitch_class = _rank2_episode_key_pitch_class(
+            key_pitch_class=key_pitch_class,
+            config=config,
+            generator=generator,
+        )
+        episode_spec = specs_by_key_pitch_class[
+            0 if episode_key_pitch_class is None else episode_key_pitch_class
+        ]
         episode_target_root_octave = _rank2_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
@@ -408,7 +421,7 @@ def run_rank2_training(
         episode_initial_state = _rank2_episode_initial_state(
             initial_state=initial_state,
             target_root_octave=episode_target_root_octave,
-            spec=spec,
+            spec=episode_spec,
             config=config,
             generator=generator,
         )
@@ -421,8 +434,8 @@ def run_rank2_training(
             initial_state=episode_initial_state,
             reward_fn=reward_fn,
             episode_index=episode_index,
-            graph_spec=spec,
-            key_pitch_class=key_pitch_class,
+            graph_spec=episode_spec,
+            key_pitch_class=episode_key_pitch_class,
             target_root_octave=episode_target_root_octave,
             generator=generator,
         )
@@ -457,6 +470,19 @@ def run_rank2_training(
         default=_training_bool(config, "sample_initial_state", default=False),
     )
     for final_inference_index in range(4):
+        final_key_pitch_class = _rank2_episode_key_pitch_class(
+            key_pitch_class=key_pitch_class,
+            config=config,
+            generator=generator,
+            force_sample=_training_bool(
+                config,
+                "final_inference_sample_key_pitch_class",
+                default=_training_bool(config, "sample_key_pitch_class", default=False),
+            ),
+        )
+        final_spec = specs_by_key_pitch_class[
+            0 if final_key_pitch_class is None else final_key_pitch_class
+        ]
         final_target_root_octave = _rank2_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
@@ -466,7 +492,7 @@ def run_rank2_training(
         final_initial_state = _rank2_episode_initial_state(
             initial_state=initial_state,
             target_root_octave=final_target_root_octave,
-            spec=spec,
+            spec=final_spec,
             config=config,
             generator=generator,
             force_sample=final_inference_sample_initial_state,
@@ -477,11 +503,11 @@ def run_rank2_training(
             initial_state=final_initial_state,
             reward_fn=reward_fn,
             max_steps=max_steps,
-            graph_spec=spec,
+            graph_spec=final_spec,
             measure_size=config.measure_size,
             context_measures=config.context_measures,
             parent_top_m=config.parent_top_m,
-            key_pitch_class=key_pitch_class,
+            key_pitch_class=final_key_pitch_class,
             target_root_octave=final_target_root_octave,
             sampling_temperature=_training_float(
                 config,
@@ -568,8 +594,20 @@ def run_rank3_training(
     generator = torch.Generator().manual_seed(config.seed)
     key_pitch_class = _optional_reward_int(config, "key_pitch_class")
     target_root_octave = _optional_reward_int(config, "target_root_octave")
+    specs_by_key_pitch_class = _episode_graph_specs_by_key_pitch_class(
+        config=config,
+        fallback_spec=spec,
+    )
     episode_results = []
     for episode_index in range(config.episode_count):
+        episode_key_pitch_class = _rank3_episode_key_pitch_class(
+            key_pitch_class=key_pitch_class,
+            config=config,
+            generator=generator,
+        )
+        episode_spec = specs_by_key_pitch_class[
+            0 if episode_key_pitch_class is None else episode_key_pitch_class
+        ]
         episode_target_root_octave = _rank3_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
@@ -578,7 +616,7 @@ def run_rank3_training(
         episode_initial_state = _rank3_episode_initial_state(
             initial_state=initial_state,
             target_root_octave=episode_target_root_octave,
-            spec=spec,
+            spec=episode_spec,
             config=config,
             generator=generator,
         )
@@ -592,8 +630,8 @@ def run_rank3_training(
             initial_state=episode_initial_state,
             reward_fn=reward_fn,
             episode_index=episode_index,
-            graph_spec=spec,
-            key_pitch_class=key_pitch_class,
+            graph_spec=episode_spec,
+            key_pitch_class=episode_key_pitch_class,
             target_root_octave=episode_target_root_octave,
             generator=generator,
         )
@@ -628,6 +666,19 @@ def run_rank3_training(
         default=_training_bool(config, "sample_initial_state", default=False),
     )
     for final_inference_index in range(4):
+        final_key_pitch_class = _rank3_episode_key_pitch_class(
+            key_pitch_class=key_pitch_class,
+            config=config,
+            generator=generator,
+            force_sample=_training_bool(
+                config,
+                "final_inference_sample_key_pitch_class",
+                default=_training_bool(config, "sample_key_pitch_class", default=False),
+            ),
+        )
+        final_spec = specs_by_key_pitch_class[
+            0 if final_key_pitch_class is None else final_key_pitch_class
+        ]
         final_target_root_octave = _rank3_episode_target_root_octave(
             target_root_octave=target_root_octave,
             config=config,
@@ -637,7 +688,7 @@ def run_rank3_training(
         final_initial_state = _rank3_episode_initial_state(
             initial_state=initial_state,
             target_root_octave=final_target_root_octave,
-            spec=spec,
+            spec=final_spec,
             config=config,
             generator=generator,
             force_sample=final_inference_sample_initial_state,
@@ -649,11 +700,11 @@ def run_rank3_training(
             initial_state=final_initial_state,
             reward_fn=reward_fn,
             max_steps=max_steps,
-            graph_spec=spec,
+            graph_spec=final_spec,
             measure_size=config.measure_size,
             context_measures=config.context_measures,
             parent_top_m=config.parent_top_m,
-            key_pitch_class=key_pitch_class,
+            key_pitch_class=final_key_pitch_class,
             target_root_octave=final_target_root_octave,
             sampling_temperature=_training_float(
                 config,
@@ -1041,6 +1092,114 @@ def _target_root_octave_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
         if choice < -1 or choice > 9:
             raise ValueError("target_root_octave_choices must be in [-1, 9]")
     return choices
+
+
+def _rank2_episode_key_pitch_class(
+    *,
+    key_pitch_class: int | None,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+    force_sample: bool = False,
+) -> int | None:
+    if not force_sample and not _training_bool(
+        config, "sample_key_pitch_class", default=False
+    ):
+        return key_pitch_class
+    choices = _key_pitch_class_choices(config)
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(choices),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return choices[choice_index]
+
+
+def _rank3_episode_key_pitch_class(
+    *,
+    key_pitch_class: int | None,
+    config: TowerRunnerConfig,
+    generator: torch.Generator,
+    force_sample: bool = False,
+) -> int | None:
+    if not force_sample and not _training_bool(
+        config, "sample_key_pitch_class", default=False
+    ):
+        return key_pitch_class
+    choices = _key_pitch_class_choices(config)
+    choice_index = int(
+        torch.randint(
+            low=0,
+            high=len(choices),
+            size=(1,),
+            generator=generator,
+        ).item()
+    )
+    return choices[choice_index]
+
+
+def _key_pitch_class_choices(config: TowerRunnerConfig) -> tuple[int, ...]:
+    raw_choices = config.training_config.get("key_pitch_class_choices")
+    if raw_choices is None:
+        return KEY_PITCH_CLASS_CHOICES
+    if not isinstance(raw_choices, (list, tuple)):
+        raise TypeError("key_pitch_class_choices must be a list or tuple")
+    choices = tuple(raw_choices)
+    if not choices:
+        raise ValueError("key_pitch_class_choices must not be empty")
+    for choice in choices:
+        if isinstance(choice, bool) or not isinstance(choice, int):
+            raise TypeError("key_pitch_class_choices must contain integers")
+        if choice < 0 or choice > 11:
+            raise ValueError("key_pitch_class_choices must be in [0, 11]")
+    return choices
+
+
+def _episode_graph_specs_by_key_pitch_class(
+    *,
+    config: TowerRunnerConfig,
+    fallback_spec: TowerGraphSpec,
+) -> dict[int, TowerGraphSpec]:
+    base_key_pitch_class = _optional_reward_int(config, "key_pitch_class")
+    if not _training_bool(config, "sample_key_pitch_class", default=False):
+        return {0 if base_key_pitch_class is None else base_key_pitch_class: fallback_spec}
+
+    specs: dict[int, TowerGraphSpec] = {}
+    for sampled_key_pitch_class in _key_pitch_class_choices(config):
+        sampled_config = _config_with_reward_key_pitch_class(
+            config=config,
+            key_pitch_class=sampled_key_pitch_class,
+        )
+        specs[sampled_key_pitch_class] = _graph_spec_from_config(sampled_config)
+    return specs
+
+
+def _config_with_reward_key_pitch_class(
+    *,
+    config: TowerRunnerConfig,
+    key_pitch_class: int,
+) -> TowerRunnerConfig:
+    reward_config = dict(config.reward_config)
+    reward_config["key_pitch_class"] = key_pitch_class
+    return TowerRunnerConfig(
+        lineage_id=config.lineage_id,
+        rank=config.rank,
+        episode_count=config.episode_count,
+        seed=config.seed,
+        artifact_root=config.artifact_root,
+        measure_size=config.measure_size,
+        context_measures=config.context_measures,
+        max_step_size=config.max_step_size,
+        parent_checkpoint=config.parent_checkpoint,
+        parent_top_m=config.parent_top_m,
+        final_midi_enabled=config.final_midi_enabled,
+        reward_config=reward_config,
+        graph_config=dict(config.graph_config),
+        policy_config=dict(config.policy_config),
+        training_config=dict(config.training_config),
+    )
 
 
 def _sample_sequence_choice[T](

@@ -62,6 +62,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=False,
     )
     parser.add_argument("--key-pitch-class", type=int, default=0)
+    parser.add_argument(
+        "--sample-key-pitch-class",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument(
+        "--key-pitch-class-choices",
+        type=_parse_int_choices,
+        default=list(range(12)),
+    )
     parser.add_argument("--target-root-octave", type=int, default=4)
     parser.add_argument("--parent-top-m", type=int, default=3)
     parser.add_argument(
@@ -138,6 +148,7 @@ def _reward_config_from_args(args: argparse.Namespace) -> dict[str, object]:
     return {
         "kind": "rank3_slice_a",
         "key_pitch_class": args.key_pitch_class,
+        "use_context_key_pitch_class": args.sample_key_pitch_class,
         "target_root_octave": args.target_root_octave,
         "use_context_target_root_octave": args.sample_target_root_octave,
         "terminal_cadence_reward": args.terminal_cadence_reward,
@@ -175,6 +186,8 @@ def _training_config_from_args(args: argparse.Namespace) -> dict[str, object]:
         "max_steps": args.max_steps,
         "learning_rate": args.learning_rate,
         "sample_initial_state": args.sample_initial_state,
+        "sample_key_pitch_class": args.sample_key_pitch_class,
+        "key_pitch_class_choices": args.key_pitch_class_choices,
         "initial_parent_pitch_min": args.initial_parent_pitch_min,
         "initial_parent_pitch_max": args.initial_parent_pitch_max,
         "sample_initial_parent_pitch_in_target_octave": (
@@ -333,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
         reward_fn=build_rank3_reward_fn(
             key_pitch_class=args.key_pitch_class,
+            use_context_key_pitch_class=args.sample_key_pitch_class,
             terminal_cadence_reward=args.terminal_cadence_reward,
             cadence_failure_reward=args.cadence_failure_reward,
             target_root_octave=args.target_root_octave,

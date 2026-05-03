@@ -203,6 +203,7 @@ class Rank2RewardFactoryConfig:
     """Configuration for the first narrow rank-2 reward bundle."""
 
     key_pitch_class: int = 0
+    use_context_key_pitch_class: bool = False
     terminal_cadence_reward: float = 10.0
     cadence_failure_reward: float = 0.0
     cadence_endpoint_weight: float = 1.0
@@ -224,6 +225,8 @@ class Rank2RewardFactoryConfig:
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
+        if not isinstance(self.use_context_key_pitch_class, bool):
+            raise TypeError("use_context_key_pitch_class must be a bool")
         _validate_number(
             self.terminal_cadence_reward,
             field_name="terminal_cadence_reward",
@@ -370,9 +373,17 @@ class Rank2RewardFunction:
         if context.rank != 2:
             raise ValueError("rank-2 reward function requires rank 2 context")
 
+        key_pitch_class = (
+            context.key_pitch_class
+            if self.config.use_context_key_pitch_class
+            else self.config.key_pitch_class
+        )
+        if key_pitch_class is None:
+            raise ValueError("key_pitch_class is required for rank-2 reward")
+
         keyed_context = replace(
             context,
-            key_pitch_class=self.config.key_pitch_class,
+            key_pitch_class=key_pitch_class,
         )
         return self.term(keyed_context)
 
@@ -382,6 +393,7 @@ class Rank3RewardFactoryConfig:
     """Configuration for the first concrete rank-3 reward bundle."""
 
     key_pitch_class: int = 0
+    use_context_key_pitch_class: bool = False
     terminal_cadence_reward: float = 10.0
     cadence_failure_reward: float = 0.0
     target_root_octave: int = 4
@@ -402,6 +414,8 @@ class Rank3RewardFactoryConfig:
 
     def __post_init__(self) -> None:
         _validate_pitch_class(self.key_pitch_class)
+        if not isinstance(self.use_context_key_pitch_class, bool):
+            raise TypeError("use_context_key_pitch_class must be a bool")
         _validate_number(
             self.terminal_cadence_reward,
             field_name="terminal_cadence_reward",
@@ -530,6 +544,13 @@ class Rank3RewardFunction:
         if context.rank != 3:
             raise ValueError("rank-3 reward function requires rank 3 context")
 
+        key_pitch_class = (
+            context.key_pitch_class
+            if self.config.use_context_key_pitch_class
+            else self.config.key_pitch_class
+        )
+        if key_pitch_class is None:
+            raise ValueError("key_pitch_class is required for rank-3 reward")
         target_root_octave = (
             context.target_root_octave
             if self.config.use_context_target_root_octave
@@ -540,7 +561,7 @@ class Rank3RewardFunction:
 
         keyed_context = replace(
             context,
-            key_pitch_class=self.config.key_pitch_class,
+            key_pitch_class=key_pitch_class,
             target_root_octave=target_root_octave,
         )
         return self.term(keyed_context)
@@ -599,6 +620,7 @@ def build_rank1_reward_fn(
 def build_rank2_reward_fn(
     *,
     key_pitch_class: int = 0,
+    use_context_key_pitch_class: bool = False,
     terminal_cadence_reward: float = 10.0,
     cadence_failure_reward: float = 0.0,
     cadence_endpoint_weight: float = 1.0,
@@ -622,6 +644,7 @@ def build_rank2_reward_fn(
     return Rank2RewardFunction(
         config=Rank2RewardFactoryConfig(
             key_pitch_class=key_pitch_class,
+            use_context_key_pitch_class=use_context_key_pitch_class,
             terminal_cadence_reward=terminal_cadence_reward,
             cadence_failure_reward=cadence_failure_reward,
             cadence_endpoint_weight=cadence_endpoint_weight,
@@ -653,6 +676,7 @@ def build_rank2_reward_fn(
 def build_rank3_reward_fn(
     *,
     key_pitch_class: int = 0,
+    use_context_key_pitch_class: bool = False,
     terminal_cadence_reward: float = 10.0,
     cadence_failure_reward: float = 0.0,
     target_root_octave: int = 4,
@@ -675,6 +699,7 @@ def build_rank3_reward_fn(
     return Rank3RewardFunction(
         config=Rank3RewardFactoryConfig(
             key_pitch_class=key_pitch_class,
+            use_context_key_pitch_class=use_context_key_pitch_class,
             terminal_cadence_reward=terminal_cadence_reward,
             cadence_failure_reward=cadence_failure_reward,
             target_root_octave=target_root_octave,
