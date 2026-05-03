@@ -52,7 +52,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--sample-initial-state",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
     )
     parser.add_argument("--initial-parent-pitch-min", type=int, default=36)
     parser.add_argument("--initial-parent-pitch-max", type=int, default=84)

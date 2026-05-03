@@ -76,7 +76,7 @@ def test_tower_train_rank3_parse_args_defaults() -> None:
     assert args.initial_pedal_pitch == 62
     assert args.initial_middle_pitch == 65
     assert args.initial_top_pitch == 69
-    assert args.sample_initial_state is False
+    assert args.sample_initial_state is True
     assert args.initial_parent_pitch_min == 36
     assert args.initial_parent_pitch_max == 84
     assert args.sample_initial_parent_pitch_in_target_octave is False
