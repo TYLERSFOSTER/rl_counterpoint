@@ -1507,6 +1507,7 @@ def _run_rank2_final_inference(
 ) -> TowerTrajectory:
     parent_spec = TowerGraphSpec(
         rank=1,
+        key_pitch_class=graph_spec.key_pitch_class,
         pitch_min=graph_spec.pitch_min,
         pitch_max=graph_spec.pitch_max,
         max_step_size=graph_spec.max_step_size,
@@ -1608,12 +1609,14 @@ def _run_rank3_final_inference(
 ) -> TowerTrajectory:
     grandparent_spec = TowerGraphSpec(
         rank=1,
+        key_pitch_class=graph_spec.key_pitch_class,
         pitch_min=graph_spec.pitch_min,
         pitch_max=graph_spec.pitch_max,
         max_step_size=graph_spec.max_step_size,
     )
     parent_spec = TowerGraphSpec(
         rank=2,
+        key_pitch_class=graph_spec.key_pitch_class,
         pitch_min=graph_spec.pitch_min,
         pitch_max=graph_spec.pitch_max,
         max_step_size=graph_spec.max_step_size,

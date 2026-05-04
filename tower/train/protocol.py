@@ -245,6 +245,7 @@ def train_rank2_episode(
     frozen_parent = freeze_parent_policy(parent_policy)  # type: ignore[arg-type]
     parent_spec = TowerGraphSpec(
         rank=1,
+        key_pitch_class=spec.key_pitch_class,
         pitch_min=spec.pitch_min,
         pitch_max=spec.pitch_max,
         max_step_size=spec.max_step_size,
@@ -388,12 +389,14 @@ def train_rank3_episode(
     frozen_parent = freeze_parent_policy(parent_policy)  # type: ignore[arg-type]
     parent_spec = TowerGraphSpec(
         rank=2,
+        key_pitch_class=spec.key_pitch_class,
         pitch_min=spec.pitch_min,
         pitch_max=spec.pitch_max,
         max_step_size=spec.max_step_size,
     )
     grandparent_spec = TowerGraphSpec(
         rank=1,
+        key_pitch_class=spec.key_pitch_class,
         pitch_min=spec.pitch_min,
         pitch_max=spec.pitch_max,
         max_step_size=spec.max_step_size,

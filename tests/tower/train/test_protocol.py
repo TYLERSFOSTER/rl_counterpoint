@@ -692,6 +692,32 @@ def test_train_rank2_episode_rejects_wrong_policy_ranks() -> None:
         raise AssertionError("expected rank-1 parent policy validation error")
 
 
+def test_train_rank2_episode_preserves_key_pitch_class_in_parent_spec() -> None:
+    parent_policy = TinyRank1Policy()
+    child_policy = TinyRank2Policy()
+    child_optimizer = torch.optim.SGD(child_policy.parameters(), lr=0.1)
+
+    result = train_rank2_episode(
+        parent_policy=parent_policy,
+        child_policy=child_policy,
+        child_optimizer=child_optimizer,
+        initial_state=(62, 65),
+        max_steps=1,
+        graph_spec=TowerGraphSpec(
+            rank=2,
+            key_pitch_class=2,
+            pitch_min=36,
+            pitch_max=84,
+            max_step_size=1,
+        ),
+        reward_fn=lambda context: TowerRewardResult(reward=1.0),
+        key_pitch_class=2,
+        generator=torch.Generator().manual_seed(0),
+    )
+
+    assert result.trajectory.steps[0].parent_state == (62,)
+
+
 def prepare_accepted_rank1_parent(
     *,
     tmp_path: Path,
